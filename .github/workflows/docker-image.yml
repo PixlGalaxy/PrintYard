@@ -1,4 +1,4 @@
-name: Build Docker image
+name: Build and Push Docker Image for SliceDock
 
 on:
   push:
@@ -6,78 +6,133 @@ on:
     tags: ['v*.*.*']
   pull_request:
     branches: [main]
+  release:
+    types: [created]
+  # Run by hand from the Actions tab.
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: pixlgalaxy/slicedock
-
 jobs:
+  # Typecheck, tests and the frontend build run first: a red test never builds an image.
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: 🟢 Set up Node
+        uses: actions/setup-node@v6
         with:
           node-version: 24
-      - name: Backend — install, typecheck, test
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: 🧪 Backend (typecheck + tests)
         working-directory: backend
         run: npm ci && npm run typecheck && npm test
-      - name: Frontend — install, lint, build
+
+      - name: 🧪 Frontend (lint + build)
         working-directory: frontend
         run: npm ci && npm run lint && npm run build
 
-  build:
+  # Keep the job name "docker": together with "test" it is the required check
+  # Dependabot's auto-merge waits for.
+  docker:
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+
     steps:
-      - name: Checkout
+      - name: 🚀 Display Startup Message
+        run: echo "🚀 Hello from Galaxy! | Building the SliceDock container (frontend + backend + slicer runtime)..."
+
+      - name: 📂 Checkout Repository
         uses: actions/checkout@v7
 
-      - name: Short SHA
-        id: vars
-        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Docker Buildx
+      - name: 🔧 Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 🔍 Prepare Repository Owner and Version
+        run: |
+          echo "REPOSITORY_OWNER=$(echo $GITHUB_REPOSITORY_OWNER | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "IMAGE_NAME=slicedock" >> $GITHUB_ENV
+          echo "APP_VERSION=$(node -p "require('./backend/package.json').version")" >> $GITHUB_ENV
+          echo "SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
-      - name: Docker metadata
+      - name: 🏷 Derive Image Tags
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/${{ env.REPOSITORY_OWNER }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ env.APP_VERSION }},enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
+            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=ref,event=pr
 
       # amd64 only: the Creality Print engine is published for x86_64 only.
-      - name: Build and push
+      # Build once and load it locally so it can be smoke-tested before anything is pushed.
+      - name: 🏗 Build Docker Image
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          pull: true
+          tags: slicedock:ci
+          build-args: |
+            APP_VERSION=${{ env.APP_VERSION }}-${{ env.SHA_SHORT }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The image must boot, run its migrations and answer /api/health.
+      - name: 🩺 Smoke Test the Image
+        run: |
+          docker run -d --name sd-smoke --memory 2g slicedock:ci
+          for i in $(seq 1 30); do
+            if docker exec sd-smoke wget -qO- http://127.0.0.1:3000/api/health; then
+              echo; echo "Healthy after $((i * 2)) s"; docker rm -f sd-smoke >/dev/null; exit 0
+            fi
+            sleep 2
+          done
+          docker logs sd-smoke
+          exit 1
+
+      # Pull requests (Dependabot included) only build and test, so nothing unreviewed reaches the registry.
+      - name: 🔑 Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Push Docker Image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=${{ steps.vars.outputs.sha_short }}
+            APP_VERSION=${{ env.APP_VERSION }}-${{ env.SHA_SHORT }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+
+      - name: ✅ Summary
+        run: |
+          echo "### SliceDock image" >> $GITHUB_STEP_SUMMARY
+          echo "Version: \`${{ env.APP_VERSION }}-${{ env.SHA_SHORT }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
