@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>SliceDock 04a Sliced S (app icon)</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0369a1"/></linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="116" fill="url(#sheen)"/>
+  <g transform="translate(76 76) scale(3.6)" color="#fff">
+  <path d="M12 24a12 12 0 0 1 12-12h18L12 42z" fill="currentColor"/>
+  <path d="M58 4 4 58" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+  <defs>
+    <clipPath id="sd4a-half"><path d="M58 12H76a12 12 0 0 1 12 12v52a12 12 0 0 1-12 12H24a12 12 0 0 1-12-12V58z"/></clipPath>
+    <mask id="sd4a-s" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+      <path d="M88 20.2H62L32.2 50H64.9a14.9 14.9 0 0 1 0 29.8H12" fill="none" stroke="#fff" stroke-width="16.4" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <g clip-path="url(#sd4a-half)"><g mask="url(#sd4a-s)" fill="currentColor" opacity=".86"><rect x="0" y="12.00" width="100" height="6.44"/><rect x="0" y="21.94" width="100" height="6.44"/><rect x="0" y="31.88" width="100" height="6.44"/><rect x="0" y="41.81" width="100" height="6.44"/><rect x="0" y="51.75" width="100" height="6.44"/><rect x="0" y="61.69" width="100" height="6.44"/><rect x="0" y="71.62" width="100" height="6.44"/><rect x="0" y="81.56" width="100" height="6.44"/></g></g>
+  </g>
+</svg>
