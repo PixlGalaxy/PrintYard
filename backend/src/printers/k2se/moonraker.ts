@@ -138,7 +138,7 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
 export interface FeedOptions {
   label: string;
   endpoint: () => PrinterEndpoint | null;
-  /** True while the Creality WS says a job is active (polling only runs then). */
+  /** True while the Creality WS says a job is active (informational; polling runs whenever the websocket is down). */
   isActive: () => boolean;
   onUpdate: (objects: MoonrakerObjects) => void;
   pollMs?: number;
@@ -156,6 +156,8 @@ export class MoonrakerFeed {
   private retryTimer: NodeJS.Timeout | null = null;
   private polling = false;
   private readonly objects: MoonrakerObjects = {};
+  /** When the last Moonraker data arrived (websocket message or successful query); 0 = never. */
+  private lastDataAt = 0;
 
   constructor(private readonly o: FeedOptions) {}
 
@@ -174,7 +176,13 @@ export class MoonrakerFeed {
     this.pollTimer = null;
     this.retryTimer = null;
     this.closeWs();
+    this.lastDataAt = 0;
     for (const k of Object.keys(this.objects)) delete this.objects[k];
+  }
+
+  /** Time of the last Moonraker data (0 = none yet). */
+  get dataAt(): number {
+    return this.lastDataAt;
   }
 
   get usingWebsocket(): boolean {
@@ -201,6 +209,7 @@ export class MoonrakerFeed {
         return;
       }
       if (!isRecord(msg)) return;
+      this.lastDataAt = Date.now();
       if (msg.id === 1 && isRecord(msg.result) && isRecord(msg.result.status)) {
         this.subscribed = true;
         mergeObjects(this.objects, msg.result.status);
@@ -217,6 +226,9 @@ export class MoonrakerFeed {
       this.ws = null;
       if (this.subscribed) logger.printer.debug(`${this.o.label}: Moonraker websocket lost, polling meanwhile`);
       this.subscribed = false;
+      // Never keep a frozen toolhead/homing state: it would win over fresh Creality data (phase-3 review B #3).
+      this.dropMotionState();
+      this.emit();
       this.scheduleRetry();
     };
     ws.on('close', lost);
@@ -249,9 +261,41 @@ export class MoonrakerFeed {
     }
   }
 
-  /** Fallback: only when the websocket is not subscribed and a job is running. */
+  /** Forgets the motion-related objects (position, homing, factors) until Moonraker reports them again. */
+  private dropMotionState(): void {
+    delete this.objects.toolhead;
+    delete this.objects.gcode_move;
+  }
+
+  /**
+   * Makes sure the objects are at most `maxAgeMs` old before a motion command is validated: a subscribed websocket
+   * with recent traffic (newer than `notBefore`) counts; otherwise one read-only `GET /printer/objects/query` (2 s timeout). False = Moonraker
+   * did not answer (the toolhead/homing state is then dropped, never trusted stale).
+   */
+  async refresh(maxAgeMs: number, notBefore = 0): Promise<boolean> {
+    if (!this.running) return false;
+    if (this.subscribed && Date.now() - this.lastDataAt <= maxAgeMs && this.lastDataAt >= notBefore) return true;
+    const ep = this.o.endpoint();
+    if (!ep) return false;
+    const body = await getJson(`http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}${QUERY_PATH}`, 2000);
+    const status = statusFromQuery(body);
+    if (!status || !this.running) {
+      if (!this.subscribed) {
+        this.dropMotionState();
+        this.emit();
+      }
+      return false;
+    }
+    mergeObjects(this.objects, status);
+    this.lastDataAt = Date.now();
+    this.emit();
+    return true;
+  }
+
+  /** Fallback whenever the websocket is not subscribed (printing or idle). */
   private async poll(): Promise<void> {
-    if (!this.running || this.subscribed || this.polling || !this.o.isActive()) return;
+    // Also while idle: a dropped websocket must never leave a frozen homing/position state (review B #3).
+    if (!this.running || this.subscribed || this.polling) return;
     const ep = this.o.endpoint();
     if (!ep) return;
     this.polling = true;
@@ -259,6 +303,7 @@ export class MoonrakerFeed {
       const body = await getJson(`http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}${QUERY_PATH}`, 2000);
       const status = statusFromQuery(body);
       if (status && this.running && !this.subscribed) {
+        this.lastDataAt = Date.now();
         mergeObjects(this.objects, status);
         this.emit();
       }

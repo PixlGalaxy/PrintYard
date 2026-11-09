@@ -2,7 +2,8 @@ import type { Db } from '../../db/client.js';
 import type { SettingsService } from '../../db/settings.js';
 import { AppError, forbidden, notFound } from '../../errors.js';
 import { logger } from '../../logger.js';
-import { isActiveState, isReadyForPrint, safePrinterFileName, basename } from '../../printers/k2se/protocol.js';
+import { isActiveState, isReadyForPrint, printerUploadName, basename } from '../../printers/k2se/protocol.js';
+import { randomBytes } from 'node:crypto';
 import type { PrinterManager } from '../../printers/manager.js';
 import { assertWritable } from '../../printers/read-only.js';
 import { forAdmins, forUserAndAdmins, TOPICS } from '../../realtime/index.js';
@@ -50,7 +51,16 @@ interface Tracking {
   seenActive: boolean;
   lastProgress: number | null;
   cancelledBy: string | null;
+  /** A terminal state seen after the job was active: finalised only once it stayed for `terminalStableMs`. */
+  pendingEnd?: { since: number; timer: NodeJS.Timeout | null } | null;
 }
+
+/** Klipper `print_stats.state` values that agree with each SliceDock end state. */
+const MOON_AGREES: Record<'done' | 'failed' | 'cancelled', ReadonlySet<string>> = {
+  done: new Set(['complete', 'standby']),
+  failed: new Set(['error', 'cancelled', 'standby']),
+  cancelled: new Set(['cancelled', 'standby', 'complete', 'error']),
+};
 
 export interface PrintingDeps {
   db: Db;
@@ -67,6 +77,11 @@ export interface PrintingDeps {
   startGraceMs?: number;
   /** Minimum gap between `print.upload` frames (default 250 ms = 4/s). */
   uploadProgressMs?: number;
+  /**
+   * A terminal printer state (idle/aborted/complete/failed) must stay this long, with Moonraker agreeing, before the
+   * print is finalised (the K2 SE reports transient states while pausing/resuming). Default 5 s.
+   */
+  terminalStableMs?: number;
 }
 
 // The alias comes after p.* so it wins: the live username, else the snapshot kept after the user was deleted.
@@ -90,7 +105,8 @@ export const dangerousGcode = (scan: GcodeScan) =>
 /** Print requests, limits, approvals, dispatch (upload + start), completion tracking and the bed-cleared rule. */
 export class PrintingService {
   private readonly tracking = new Map<number, Tracking>();
-  private readonly dispatching = new Set<number>();
+  /** Printer id → owner (user id, null = none) of the job being uploaded/started there. */
+  private readonly dispatching = new Map<number, number | null>();
   /** Print ids whose G-code is being sent to the printer right now (reported as state `uploading`). */
   private readonly uploading = new Set<number>();
   private attached = false;
@@ -326,6 +342,11 @@ export class PrintingService {
     return row ? { fileId: row.file_id, printerFileName: basename(row.printer_path), userId: row.user_id, printId: t.jobId } : null;
   }
 
+  /** While a job is being uploaded/started on the printer: its owner (null = none); undefined when nothing is. */
+  dispatchOwner(printerId: number): number | null | undefined {
+    return this.dispatching.has(printerId) ? (this.dispatching.get(printerId) ?? null) : undefined;
+  }
+
   /** Owner of the print SliceDock is tracking on the printer (null: none, or started elsewhere). */
   currentOwner(printerId: number): number | null {
     return this.tracking.get(printerId)?.userId ?? null;
@@ -523,17 +544,22 @@ export class PrintingService {
     const row = this.row(jobId);
     const printerId = row.printer_id;
     if (this.dispatching.has(printerId)) throw printerBusy();
-    this.dispatching.add(printerId);
+    this.dispatching.set(printerId, row.user_id);
     let uploaded = false;
     try {
       const driver = this.d.manager.driver(printerId);
-      const name = safePrinterFileName(file.name);
+      // Unique per print and never an existing printer file (no overwrite of touchscreen/other uploads).
+      const existing = await driver.listFiles();
+      if (!existing) throw new AppError(502, 'prints.upload_failed', 'The printer did not report its file list');
+      const taken = new Set(existing.map((f) => f.name));
+      let name = printerUploadName(file.name, jobId);
+      while (taken.has(name)) name = printerUploadName(file.name, jobId, randomBytes(3).toString('hex'));
       this.uploading.add(jobId);
       this.publishJob(jobId);
-      const { path } = await driver.uploadFile(name, file.path, this.uploadReporter(jobId, printerId, file.name, row.user_id));
+      const { path, size } = await driver.uploadFile(name, file.path, this.uploadReporter(jobId, printerId, file.name, row.user_id));
       uploaded = true;
       this.uploading.delete(jobId);
-      this.d.retention?.recordUpload(printerId, path, jobId, null);
+      this.d.retention?.recordUpload(printerId, path, jobId, size ?? null);
       await driver.startPrint(path, { calibrate: this.row(jobId).calibrate === 1 });
       const now = Date.now();
       this.d.db
@@ -567,7 +593,11 @@ export class PrintingService {
   }
 
   private onStatus(s: PrinterStatus, prev: PrinterStatus | null): void {
-    const t = this.tracking.get(s.printerId);
+    let t = this.tracking.get(s.printerId);
+    if (!t) {
+      this.heal(s);
+      t = this.tracking.get(s.printerId);
+    }
     if (!t) {
       // A print started elsewhere (touchscreen) just ended: the bed may be occupied too.
       if (prev && isActiveState(prev.state) && s.online && (s.state === 'complete' || s.state === 'aborted' || s.state === 'failed')) {
@@ -580,32 +610,116 @@ export class PrintingService {
     if (isActiveState(s.state) && ours) {
       t.seenActive = true;
       if (s.progress !== null) t.lastProgress = s.progress;
+      // A later printing/paused state revives the same print (transient pause/resume frames).
+      this.clearPendingEnd(t);
       return;
     }
     if (!t.seenActive) {
       if (Date.now() - t.startedAt > (this.d.startGraceMs ?? 3 * 60_000)) this.finish(s.printerId, t, 'failed', 'printer_did_not_start', 0);
       return;
     }
-    const progress = s.progress ?? t.lastProgress ?? 0;
-    if (isActiveState(s.state)) return this.finish(s.printerId, t, 'cancelled', 'replaced_on_printer', t.lastProgress ?? 0);
-    switch (s.state) {
-      case 'complete':
-        return this.finish(s.printerId, t, 'done', null, 100);
-      case 'aborted':
-        return this.finish(s.printerId, t, 'cancelled', t.cancelledBy ? `cancelled_by:${t.cancelledBy}` : 'cancelled_on_printer', progress);
-      case 'failed':
-      case 'error':
-        return this.finish(s.printerId, t, 'failed', s.errorCode ? `printer_error:${s.errorCode}` : 'printer_failed', progress);
-      case 'idle':
-        return progress >= 99
-          ? this.finish(s.printerId, t, 'done', null, 100)
-          : this.finish(s.printerId, t, 'cancelled', t.cancelledBy ? `cancelled_by:${t.cancelledBy}` : 'cancelled_on_printer', progress);
-      default:
-        return;
+    if (!this.endOf(s, t)) return;
+    // Terminal-looking state: finalise only once it is stable (and Moonraker agrees), see `settleEnd`.
+    if (!t.pendingEnd) {
+      t.pendingEnd = { since: Date.now(), timer: null };
+      this.scheduleEndCheck(s.printerId, t);
     }
   }
 
+  /** What the current state would finalise the tracked print as (null: not a terminal state). */
+  private endOf(s: PrinterStatus, t: Tracking): { state: 'done' | 'failed' | 'cancelled'; reason: string | null; progress: number } | null {
+    const progress = s.progress ?? t.lastProgress ?? 0;
+    const cancelled = t.cancelledBy ? `cancelled_by:${t.cancelledBy}` : 'cancelled_on_printer';
+    if (isActiveState(s.state)) return { state: 'cancelled', reason: 'replaced_on_printer', progress: t.lastProgress ?? 0 };
+    switch (s.state) {
+      case 'complete':
+        return { state: 'done', reason: null, progress: 100 };
+      case 'aborted':
+        return { state: 'cancelled', reason: cancelled, progress };
+      case 'failed':
+      case 'error':
+        return { state: 'failed', reason: s.errorCode ? `printer_error:${s.errorCode}` : 'printer_failed', progress };
+      case 'idle':
+        return progress >= 99 ? { state: 'done', reason: null, progress: 100 } : { state: 'cancelled', reason: cancelled, progress };
+      default:
+        return null;
+    }
+  }
+
+  private scheduleEndCheck(printerId: number, t: Tracking): void {
+    if (!t.pendingEnd) return;
+    if (t.pendingEnd.timer) clearTimeout(t.pendingEnd.timer);
+    const stable = this.d.terminalStableMs ?? 5000;
+    const wait = Math.max(20, t.pendingEnd.since + stable - Date.now());
+    t.pendingEnd.timer = setTimeout(() => this.settleEnd(printerId, t), wait);
+    t.pendingEnd.timer.unref?.();
+  }
+
+  private clearPendingEnd(t: Tracking): void {
+    if (t.pendingEnd?.timer) clearTimeout(t.pendingEnd.timer);
+    t.pendingEnd = null;
+  }
+
+  /** The terminal state stayed `terminalStableMs`: finalise if it still holds and Moonraker agrees, else wait more. */
+  private settleEnd(printerId: number, t: Tracking): void {
+    try {
+      if (this.tracking.get(printerId) !== t || !t.pendingEnd) return;
+      t.pendingEnd.timer = null;
+      const s = this.d.manager.status(printerId);
+      if (!s.online) return this.scheduleEndCheck(printerId, t); // keep waiting while offline
+      const end = this.endOf(s, t);
+      const ours = t.expectName === null || s.fileName === null || s.fileName === t.expectName;
+      if (!end || (isActiveState(s.state) && ours)) return this.clearPendingEnd(t);
+      const moon = this.d.manager.hasDriver(printerId) ? (this.d.manager.driver(printerId).jobState?.() ?? null) : null;
+      if (moon !== null && !MOON_AGREES[end.state].has(moon)) {
+        // Klipper still says printing/paused: not over. Re-check later (gives up waiting after 10 min).
+        if (Date.now() - t.pendingEnd.since < 10 * 60_000) {
+          t.pendingEnd.since = Date.now() - (this.d.terminalStableMs ?? 5000) + 1000;
+          return this.scheduleEndCheck(printerId, t);
+        }
+      }
+      this.clearPendingEnd(t);
+      this.finish(printerId, t, end.state, end.reason, end.progress);
+    } catch (err) {
+      logger.printer.warn(`printer #${printerId}: completion check failed`, err);
+    }
+  }
+
+  /**
+   * Heal: a print finalised as cancelled/failed whose job is evidently still running on the printer (same file,
+   * elapsed time covering the time since we started it) is put back to printing and tracked again.
+   */
+  private heal(s: PrinterStatus): void {
+    if (!s.online || !isActiveState(s.state) || !s.fileName) return;
+    const row = this.d.db
+      .prepare(
+        `${SELECT} WHERE p.printer_id = ? AND p.state IN ('cancelled','failed') AND p.started_at IS NOT NULL AND p.ended_at > ?
+         ORDER BY p.ended_at DESC LIMIT 1`,
+      )
+      .get(s.printerId, Date.now() - 30 * 60_000) as PrintRow | undefined;
+    if (!row || basename(row.printer_path) !== s.fileName) return;
+    if (row.reason && row.reason.startsWith('cancelled_by:')) return; // cancelled from SliceDock: really cancelled
+    const sinceStart = (Date.now() - row.started_at!) / 1000;
+    if (s.elapsedSec === null || s.elapsedSec < sinceStart - 120) return; // a new job of the same file
+    this.d.db.prepare(`UPDATE prints SET state = 'printing', reason = NULL, actual_grams = NULL, ended_at = NULL WHERE id = ?`).run(row.id);
+    this.tracking.set(s.printerId, {
+      jobId: row.id,
+      userId: row.user_id,
+      expectName: s.fileName,
+      startedAt: row.started_at!,
+      seenActive: true,
+      lastProgress: s.progress,
+      cancelledBy: null,
+    });
+    this.d.printers.markBedCleared(s.printerId);
+    logger.printer.warn(`printer #${s.printerId}: print #${row.id} is still running on the printer, restored to printing`);
+    this.d.audit.log('print.restored', { userId: null, username: 'system', ip: null }, String(row.id), { printId: row.id, printerId: s.printerId, was: row.state, reason: row.reason });
+    this.publishJob(row.id);
+    this.d.manager.republish(s.printerId);
+  }
+
   private finish(printerId: number, t: Tracking, state: 'done' | 'failed' | 'cancelled', reason: string | null, progress: number): void {
+    this.clearPendingEnd(t);
     this.tracking.delete(printerId);
     const row = this.row(t.jobId);
     const actual = row.grams === null ? null : state === 'done' ? row.grams : Math.round(row.grams * Math.max(0, Math.min(100, progress))) / 100;

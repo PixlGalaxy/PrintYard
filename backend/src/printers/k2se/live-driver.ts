@@ -7,12 +7,12 @@ import { AppError } from '../../errors.js';
 import { logger } from '../../logger.js';
 import type { LiveJob, PrinterStatus } from '../../types.js';
 import { formatHostForUrl, getJson, isRecord, normalizeMac } from '../drivers/http.js';
-import type { CurrentJobFile, EtaHints, PrinterDriver, PrinterEndpoint, PrinterIdentity, UploadResult } from '../drivers/types.js';
+import type { ControlTelemetry, CurrentJobFile, EtaHints, PrinterDriver, PrinterEndpoint, PrinterIdentity, UploadResult } from '../drivers/types.js';
 import { assertWritable } from '../read-only.js';
 import { postMultipartFile, type UploadProgress } from '../drivers/upload.js';
 import { CrealityConnection, type SocketFactory } from './connection.js';
 import { k2seScanLimits } from '../../modules/files/gcode-scan.js';
-import { factorsOf, gcodesRelativePath, homedAxesOf, MoonrakerFeed, parseJob, positionOf, type MoonrakerObjects } from './moonraker.js';
+import { factorsOf, gcodesRelativePath, homedAxesOf, MoonrakerFeed, OBJECT_NAME_RE, parseJob, positionOf, type MoonrakerObjects } from './moonraker.js';
 import {
   cmd,
   gcodeDirFromList,
@@ -38,6 +38,10 @@ export interface LiveDriverOptions {
   /** CFS info is only sent on request: re-ask this often. */
   boxsInfoEveryMs?: number;
   uploadTimeoutMs?: number;
+  /** Abort the printer upload when no byte moved for this long (default 30 s). */
+  uploadStallMs?: number;
+  /** After the whole body was sent: abort when the printer has not answered within this (default 120 s). */
+  uploadAnswerMs?: number;
   /** How long to wait for an uploaded file to show up in the printer's file list. */
   fileReadyTimeoutMs?: number;
   /** Live job view from Moonraker (websocket subscription, polling fallback). Default true. */
@@ -50,6 +54,10 @@ type IdentityCb = (i: PrinterIdentity) => void;
 
 export const printerOffline = () => new AppError(409, 'prints.printer_offline', 'The printer is offline');
 export const uploadFailed = (message = 'Upload to the printer failed') => new AppError(502, 'prints.upload_failed', message);
+export const uploadUnverified = (message = 'The printer did not confirm the uploaded file') => new AppError(502, 'prints.upload_unverified', message);
+
+/** K2 SE hardware spec (Creality): bed up to 100 °C, hotend up to 300 °C. The controls never exceed these. */
+export const K2SE_SPEC = { maxBedTemp: 100, maxNozzleTemp: 300 } as const;
 
 /**
  * Live K2 SE driver: one Creality WebSocket (:9999) merged into `PrinterStatus`, uploads via `POST :80/upload/<name>`
@@ -75,6 +83,9 @@ export class K2SELiveDriver implements PrinterDriver {
   private readonly opts: LiveDriverOptions;
   private readonly moon: MoonrakerFeed | null;
   private moonObjects: MoonrakerObjects = {};
+  /** Epoch ms of the last Creality data frame (0 = none on this connection). */
+  private lastFrameAt = 0;
+  private readonly frameWaiters = new Set<() => void>();
 
   constructor(opts: LiveDriverOptions) {
     this.opts = opts;
@@ -142,17 +153,108 @@ export class K2SELiveDriver implements PrinterDriver {
     const s = toPrinterStatus(this.printerId, this.raw, this.online);
     s.job = isActiveState(s.state) ? this.liveJob(s.fileName) : null;
     if (s.online) {
+      // The K2 SE reports transient Creality states while pausing/resuming (seen as a momentary idle/abort frame):
+      // while Klipper itself still says printing/paused, keep showing the job instead of a terminal state.
+      const klipper = this.jobState();
+      if ((klipper === 'printing' || klipper === 'paused') && !isActiveState(s.state) && s.state !== 'error' && s.fileName !== null) {
+        s.state = klipper === 'paused' ? 'paused' : 'printing';
+      }
       // Moonraker is authoritative for homing/position (Klipper toolhead); the Creality WS is the fallback.
       s.homedAxes = homedAxesOf(this.moonObjects) ?? s.homedAxes;
       s.position = positionOf(this.moonObjects) ?? s.position;
       const f = factorsOf(this.moonObjects);
       s.speedFactor = f.speed ?? s.speedFactor;
       s.flowFactor = f.flow ?? s.flowFactor;
+      // Nozzle: min(filament/profile high, printer-reported max, K2 SE spec 300). Bed: min(printer, spec 100).
       const limits = k2seScanLimits();
-      s.maxNozzleTemp = Math.min(s.maxNozzleTemp ?? limits.nozzle, limits.nozzle);
-      s.maxBedTemp = Math.min(s.maxBedTemp ?? limits.bed, limits.bed);
+      s.maxNozzleTemp = Math.min(s.maxNozzleTemp ?? K2SE_SPEC.maxNozzleTemp, limits.nozzle, K2SE_SPEC.maxNozzleTemp);
+      s.maxBedTemp = Math.min(s.maxBedTemp ?? K2SE_SPEC.maxBedTemp, limits.bed, K2SE_SPEC.maxBedTemp);
     }
     return s;
+  }
+
+  /**
+   * Homing/position for validating a motion command, never older than `maxAgeMs`: when the last Creality frame is
+   * older, asks for a status dump (`get ReqPrinterPara`) and waits up to 2 s; Moonraker is re-queried (read-only GET)
+   * unless its websocket delivered data within `maxAgeMs` (and after `notBefore`). Moonraker not answering → not fresh (no stale fallback).
+   */
+  async controlTelemetry(maxAgeMs: number, notBefore = 0): Promise<ControlTelemetry> {
+    const stale: ControlTelemetry = { fresh: false, homedAxes: null, position: null, receivedAt: 0 };
+    if (!this.online) return stale;
+    if (Date.now() - this.lastFrameAt > maxAgeMs || this.lastFrameAt < notBefore) {
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer);
+          this.frameWaiters.delete(done);
+          resolve();
+        };
+        const timer = setTimeout(done, Math.min(2000, maxAgeMs));
+        this.frameWaiters.add(done);
+        if (!this.conn.send(cmd.reqStatus())) done();
+      });
+    }
+    if (!this.online || Date.now() - this.lastFrameAt > maxAgeMs) return stale;
+    if (this.moon && !(await this.moon.refresh(maxAgeMs, notBefore))) return stale;
+    if (!this.online) return stale;
+    const s = this.getStatus();
+    // Moonraker (Klipper toolhead) is authoritative for homing/position when present.
+    const at = this.moon ? this.moon.dataAt : this.lastFrameAt;
+    return { fresh: true, homedAxes: s.homedAxes, position: s.position, receivedAt: at };
+  }
+
+  /** Klipper `print_stats.state` from Moonraker (null when unknown or Moonraker data is older than 10 s). */
+  jobState(): string | null {
+    if (!this.moon || Date.now() - this.moon.dataAt > 10_000) return null;
+    const st = this.moonObjects.print_stats?.state;
+    return typeof st === 'string' ? st : null;
+  }
+
+  /**
+   * Exclude object the way Creality Print does on K-series printers (`excludeObjects` WS frame, upper-case Klipper
+   * name), then waits up to `confirmMs` for Moonraker to list it in `excluded_objects`. Not confirmed → one fallback
+   * through Moonraker `POST /printer/gcode/script` (`EXCLUDE_OBJECT NAME=<NAME>`) and another wait. Never claims
+   * success without Klipper's confirmation.
+   */
+  async excludeObject(name: string, confirmMs = 5000): Promise<boolean> {
+    assertWritable();
+    const upper = name.toUpperCase();
+    if (!OBJECT_NAME_RE.test(upper)) throw new AppError(400, 'exclude.invalid_name', 'Invalid object name');
+    this.sendOrThrow(cmd.excludeObjects(upper));
+    if (await this.waitExcluded(upper, confirmMs)) return true;
+    logger.printer.warn(`printer #${this.printerId}: ${upper} not reported excluded, trying Moonraker gcode/script`);
+    const ep = this.endpoint;
+    if (ep && this.opts.moonraker !== false) {
+      try {
+        const script = encodeURIComponent(`EXCLUDE_OBJECT NAME=${upper}`);
+        const res = await fetch(`http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}/printer/gcode/script?script=${script}`, {
+          method: 'POST',
+          redirect: 'manual',
+          signal: AbortSignal.timeout(5000),
+        });
+        await res.body?.cancel().catch(() => undefined);
+      } catch (err) {
+        logger.printer.warn(`printer #${this.printerId}: Moonraker exclude failed`, err);
+      }
+      if (await this.waitExcluded(upper, Math.min(confirmMs, 3000))) return true;
+    }
+    return false;
+  }
+
+  private excludedNow(upper: string): boolean {
+    const eo = this.moonObjects.exclude_object;
+    const list = eo && Array.isArray(eo.excluded_objects) ? eo.excluded_objects : [];
+    return list.some((n) => typeof n === 'string' && n.toUpperCase() === upper);
+  }
+
+  private async waitExcluded(upper: string, timeoutMs: number): Promise<boolean> {
+    const until = Date.now() + timeoutMs;
+    for (;;) {
+      if (this.excludedNow(upper)) return true;
+      if (Date.now() >= until || !this.online) return false;
+      await new Promise((r) => setTimeout(r, 250));
+      // Subscription pushes normally; re-query when it is quiet (read-only GET).
+      await this.moon?.refresh(500);
+    }
   }
 
   /** Raw Moonraker `exclude_object` status, available even when no job is active (null when unknown). */
@@ -329,6 +431,8 @@ export class K2SELiveDriver implements PrinterDriver {
         fileName: name,
         localPath,
         timeoutMs: this.opts.uploadTimeoutMs ?? 15 * 60_000,
+        stallMs: this.opts.uploadStallMs ?? 30_000,
+        answerMs: this.opts.uploadAnswerMs ?? 120_000,
         ...(onProgress && { onProgress }),
       });
       body = res.body;
@@ -339,8 +443,21 @@ export class K2SELiveDriver implements PrinterDriver {
     }
     if (!uploadAccepted(body)) throw uploadFailed('The printer did not accept the file');
     logger.printer.info(`printer #${this.printerId}: uploaded ${name} (${size} bytes)`);
+    // Verified or nothing: the exact name with the exact size must show up (Creality list, else Moonraker metadata).
     const entry = await this.waitForFile(name, size);
-    return { path: entry?.path ?? `${gcodeDirFromList(this.files)}/${name}` };
+    if (!entry) {
+      logger.printer.warn(`printer #${this.printerId}: ${name} not confirmed with ${size} bytes, the print is not started`);
+      throw uploadUnverified();
+    }
+    return { path: entry.path, size };
+  }
+
+  /** `GET :7125/server/files/metadata?filename=<name>` → size (null when unknown). Read-only. */
+  private async moonrakerFileSize(name: string): Promise<number | null> {
+    const ep = this.endpoint;
+    if (!ep || this.opts.moonraker === false) return null;
+    const body = await getJson(`http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}/server/files/metadata?filename=${encodeURIComponent(name)}`, 3000);
+    return isRecord(body) && isRecord(body.result) ? num(body.result.size) : null;
   }
 
   async listFiles(): Promise<PrinterFileEntry[] | null> {
@@ -394,10 +511,27 @@ export class K2SELiveDriver implements PrinterDriver {
     });
   }
 
-  private waitForFile(name: string, size: number): Promise<PrinterFileEntry | null> {
+  /**
+   * Waits until the printer lists `name` with exactly `size` bytes. A listed entry without a size is confirmed via
+   * Moonraker's metadata; a different size (still flushing, truncated) keeps waiting until the timeout (→ null).
+   */
+  private async waitForFile(name: string, size: number): Promise<PrinterFileEntry | null> {
+    const deadline = Date.now() + (this.opts.fileReadyTimeoutMs ?? 15_000);
+    for (;;) {
+      const left = deadline - Date.now();
+      if (left <= 0) return null;
+      const entry = await this.waitForListedFile(name, size, left);
+      if (!entry) return null;
+      if (entry.size === size) return entry;
+      // No size in the Creality list: ask Moonraker.
+      if ((await this.moonrakerFileSize(name)) === size) return entry;
+      await new Promise((r) => setTimeout(r, Math.min(1000, Math.max(0, deadline - Date.now()))));
+    }
+  }
+
+  private waitForListedFile(name: string, size: number, timeoutMs: number): Promise<PrinterFileEntry | null> {
     const match = (list: PrinterFileEntry[]) => list.find((e) => e.name === name && (e.size === null || e.size === size)) ?? null;
     return new Promise((resolve) => {
-      const timeoutMs = this.opts.fileReadyTimeoutMs ?? 10_000;
       let done = false;
       const finish = (v: PrinterFileEntry | null) => {
         if (done) return;
@@ -427,6 +561,7 @@ export class K2SELiveDriver implements PrinterDriver {
 
   private onOnline(v: boolean): void {
     this.online = v;
+    if (!v) this.lastFrameAt = 0;
     if (v) {
       this.boxTimer ??= setInterval(() => this.conn.send(cmd.reqBoxsInfo()), this.opts.boxsInfoEveryMs ?? 60_000);
       this.boxTimer.unref?.();
@@ -442,6 +577,7 @@ export class K2SELiveDriver implements PrinterDriver {
   }
 
   private onFrame(frame: Record<string, unknown>): void {
+    this.lastFrameAt = Date.now();
     const list = parseFileList(frame);
     if (list) {
       this.files = list;
@@ -450,6 +586,7 @@ export class K2SELiveDriver implements PrinterDriver {
     const prevCfs = this.raw.cfsConnect;
     const prevMaterial = `${String(this.raw.materialStatus)}|${String(this.raw.feedState)}|${String(this.raw.materialDetect)}`;
     mergeFrame(this.raw, frame);
+    for (const w of [...this.frameWaiters]) w();
     if ('cfsConnect' in frame && frame.cfsConnect !== prevCfs) this.requestBoxsInfo();
     // Filament loaded/unloaded/changed on the printer screen: ask again (read-only `get`, throttled).
     const material = `${String(this.raw.materialStatus)}|${String(this.raw.feedState)}|${String(this.raw.materialDetect)}`;

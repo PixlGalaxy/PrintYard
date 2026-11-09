@@ -365,6 +365,16 @@ export function safePrinterFileName(name: string): string {
   return `${cleaned || 'print'}.gcode`;
 }
 
+/**
+ * Printer-side name of a SliceDock upload: the sanitised name plus the print id (`Cube_p12.gcode`), so two library
+ * files that sanitise to the same name (`a b` / `a_b`, CJK names) never overwrite each other or a touchscreen file.
+ * `extra` is appended when that name is still taken on the printer.
+ */
+export function printerUploadName(name: string, printId: number, extra = ''): string {
+  const base = safePrinterFileName(name).replace(/\.gcode$/, '').slice(0, 64);
+  return `${base}_p${printId}${extra ? `_${extra.replace(/[^A-Za-z0-9]/g, '').slice(0, 8)}` : ''}.gcode`;
+}
+
 // ---- outgoing frames ----
 
 export const cmd = {
@@ -390,6 +400,12 @@ export const cmd = {
    * by the control builder / exclude-object (never raw client input).
    */
   gcode: (script: string) => ({ method: 'set', params: { gcodeCmd: script } }),
+  /**
+   * Creality Print exclude object (deviceMgr `ExcludeObject`, LAN socket): `{"method":"set","params":{"excludeObjects":[name]}}`
+   * with the Klipper object name as the printer reports it (upper case). The firmware runs `EXCLUDE_OBJECT` itself;
+   * `gcodeCmd: EXCLUDE_OBJECT ...` is ignored mid-print on the K2 SE.
+   */
+  excludeObjects: (name: string) => ({ method: 'set', params: { excludeObjects: [name] } }),
   /** Creality Print light switch (`lightSw` 1 = on, 0 = off). */
   light: (on: boolean) => ({ method: 'set', params: { lightSw: on ? 1 : 0 } }),
 };

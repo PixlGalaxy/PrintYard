@@ -80,6 +80,20 @@ export class PrinterSimulator {
   private relative = false;
   /** Test hook: make the next uploads fail with HTTP 500. */
   failUploads = false;
+  /** Test hook: list uploaded files with a wrong size (truncated/still flushing) so the upload cannot be verified. */
+  misreportUploadSize = false;
+  /** Test hook: stop reading upload bodies after the first chunk (a stalled printer). */
+  stallUploads = false;
+  /** Test hook: Moonraker HTTP answers 503 and its websocket is refused (Moonraker down/restarting). */
+  moonrakerDown = false;
+  /** Test hook: ignore the Creality `excludeObjects` frame (only the Moonraker gcode/script fallback works). */
+  ignoreExcludeFrame = false;
+  /** Test hook: ignore every exclude path (nothing is ever reported excluded). */
+  ignoreExcludes = false;
+  /** Test hook: on pause, first report a transient `state: 4` (abort) frame, like the real K2 SE glitch. */
+  pauseGlitch = false;
+  /** Test hook: the printer ignores `get ReqPrinterPara` and sends no pushes (a frozen Creality WS link). */
+  freezeCrealityWs = false;
   /** Upload throttle in bytes/s (0 = unlimited); tests may change it at runtime. */
   uploadBytesPerSec: number;
   private server: Server | null = null;
@@ -196,6 +210,7 @@ export class PrinterSimulator {
     this.wss?.close();
     const s = this.server;
     this.server = null;
+    s?.closeAllConnections(); // a stalled upload (test hook) would keep close() waiting forever
     if (s) await new Promise<void>((r) => s.close(() => r()));
   }
 
@@ -229,6 +244,21 @@ export class PrinterSimulator {
       if (req.method === 'GET' && url.pathname === '/printer/info') {
         return json(200, { result: { hostname: 'K2SE-SIM', software_version: 'sim' } });
       }
+      if (this.moonrakerDown && ['/printer/objects/query', '/server/files/metadata', '/printer/info'].includes(url.pathname)) {
+        return json(503, { error: { code: 503, message: 'Moonraker unavailable' } });
+      }
+      if (req.method === 'POST' && url.pathname === '/printer/gcode/script') {
+        const script = url.searchParams.get('script') ?? '';
+        this.moonGcode.push(script);
+        const m = /^EXCLUDE_OBJECT NAME=([A-Za-z0-9_.-]+)$/i.exec(script.trim());
+        if (m && !this.ignoreExcludes) this.excludeNamed(m[1]!);
+        return json(200, { result: 'ok' });
+      }
+      if (req.method === 'GET' && url.pathname === '/server/files/metadata') {
+        const f = this.files.get(url.searchParams.get('filename') ?? '');
+        if (!f) return json(404, { error: { code: 404, message: 'not found' } });
+        return json(200, { result: { filename: f.name, size: this.listedSize(f), modified: f.createTime, uuid: f.uuid } });
+      }
       if (req.method === 'GET' && url.pathname === '/printer/objects/query') {
         return json(200, { result: { eventtime: process.uptime(), status: this.moonObjects() } });
       }
@@ -252,7 +282,7 @@ export class PrinterSimulator {
       }
       if (req.method === 'POST' && url.pathname.startsWith('/upload/')) {
         const name = decodeURIComponent(url.pathname.slice('/upload/'.length));
-        const body = await readBody(req, 1024 * 1024 * 1024, this.uploadBytesPerSec);
+        const body = await readBody(req, 1024 * 1024 * 1024, this.uploadBytesPerSec, () => this.stallUploads);
         if (this.failUploads) return json(500, { code: 500, message: 'sim failure' });
         const file = extractMultipartFile(body, String(req.headers['content-type'] ?? ''));
         if (!file || !name.toLowerCase().endsWith('.gcode')) return json(400, { code: 400, message: 'bad upload' });
@@ -261,6 +291,8 @@ export class PrinterSimulator {
         const meta = gcodeMeta(file);
         this.addFile({ name, bytes: Buffer.from(file), seconds: meta.seconds ?? 600, layers: meta.layers ?? 50 });
         this.uploads.push({ name, size: file.length });
+        if (this.misreportUploadSize) this.misreported.add(name);
+        else this.misreported.delete(name);
         return json(200, { code: 200, message: 'OK' });
       }
       if (req.method === 'GET' && url.pathname.startsWith('/downloads/')) {
@@ -285,6 +317,7 @@ export class PrinterSimulator {
   }
 
   private onMoonWs(ws: WebSocket): void {
+    if (this.moonrakerDown) return void ws.terminate();
     this.moonClients.add(ws);
     ws.on('close', () => this.moonClients.delete(ws));
     ws.on('error', () => this.moonClients.delete(ws));
@@ -347,6 +380,7 @@ export class PrinterSimulator {
   private onWsMessage(ws: WebSocket, text: string): void {
     this.wsLog.push(text);
     if (text === 'ok') return;
+    if (this.freezeCrealityWs && !text.includes('"set"')) return;
     let msg: Raw;
     try {
       msg = JSON.parse(text) as Raw;
@@ -364,7 +398,12 @@ export class PrinterSimulator {
     if (msg.method !== 'set') return;
     this.commands.push(params);
     if ('pause' in params) {
-      if (params.pause === 1 && this.state.state === 1) this.setState(6, { to: 5, ticks: 1 });
+      if (params.pause === 1 && this.state.state === 1 && this.pauseGlitch) {
+        // Real K2 SE: a momentary non-active Creality state while Klipper keeps printing/pausing.
+        this.moonPrintState = 'paused';
+        this.push({ state: 4 });
+        this.setState(6, { to: 5, ticks: 2 });
+      } else if (params.pause === 1 && this.state.state === 1) this.setState(6, { to: 5, ticks: 1 });
       else if (params.pause === 0 && this.state.state === 5) this.setState(1);
     }
     if ('stop' in params && params.stop === 1 && this.isActive()) {
@@ -388,6 +427,9 @@ export class PrinterSimulator {
       ws.send(JSON.stringify({ retGcodeFileInfo2: this.fileList() }));
     }
     if ('lightSw' in params && (params.lightSw === 0 || params.lightSw === 1)) this.push({ lightSw: params.lightSw });
+    if (Array.isArray(params.excludeObjects) && !this.ignoreExcludeFrame && !this.ignoreExcludes) {
+      for (const n of params.excludeObjects) if (typeof n === 'string') this.excludeNamed(n);
+    }
     if (typeof params.gcodeCmd === 'string') this.runGcode(params.gcodeCmd);
   }
 
@@ -451,12 +493,20 @@ export class PrinterSimulator {
         if (Number.isFinite(n) && n > 0) delta[code === 'M220' ? 'curFeedratePct' : 'curFlowratePct'] = n;
       }
       else if (code === 'M84' || code === 'M18') this.homed = '';
-      else if (code === 'EXCLUDE_OBJECT') {
-        const name = arg('NAME=')?.toUpperCase();
-        if (name && this.current?.objects.some((o) => o.name.toUpperCase() === name) && !this.excluded.includes(name)) this.excluded.push(name);
-      }
+      // EXCLUDE_OBJECT via `gcodeCmd` is ignored mid-print by the real K2 SE (seen on hardware): emulate that.
     }
     finish();
+  }
+
+  /** Moonraker `POST /printer/gcode/script` scripts received. */
+  readonly moonGcode: string[] = [];
+
+  /** Klipper EXCLUDE_OBJECT for one (upper-case) name of the running job, then a status push. */
+  private excludeNamed(raw: string): void {
+    const name = raw.toUpperCase();
+    if (!this.current?.objects.some((o) => o.name.toUpperCase() === name) || this.excluded.includes(name)) return;
+    this.excluded.push(name);
+    this.push({});
   }
 
   /** Test helper: is the simulated toolhead in relative (G91) mode? */
@@ -567,7 +617,7 @@ export class PrinterSimulator {
   private push(delta: Raw): void {
     Object.assign(this.state, delta);
     const frame = JSON.stringify(delta);
-    for (const c of this.clients) if (c.readyState === c.OPEN) c.send(frame);
+    if (!this.freezeCrealityWs) for (const c of this.clients) if (c.readyState === c.OPEN) c.send(frame);
     if (this.moonClients.size > 0) {
       const note = JSON.stringify({ jsonrpc: '2.0', method: 'notify_status_update', params: [this.moonObjects(), process.uptime()] });
       for (const c of this.moonClients) if (c.readyState === c.OPEN) c.send(note);
@@ -585,6 +635,23 @@ export class PrinterSimulator {
     });
   }
 
+  private readonly misreported = new Set<string>();
+
+  private listedSize(f: SimFile): number {
+    return this.misreported.has(f.name) ? Math.max(0, f.size - 100) : f.size;
+  }
+
+  /** Test helper: kill the Moonraker websockets (the driver falls back / re-queries). */
+  dropMoonraker(): void {
+    for (const c of this.moonClients) c.terminate();
+    this.moonClients.clear();
+  }
+
+  /** Test helper: size of a stored file (null when absent). */
+  fileSize(name: string): number | null {
+    return this.files.get(name)?.size ?? null;
+  }
+
   private fileList(): Raw[] {
     return [...this.files.values()]
       .sort((a, b) => b.createTime - a.createTime)
@@ -593,7 +660,7 @@ export class PrinterSimulator {
         type: 8,
         name: f.name,
         path: f.path,
-        file_size: f.size,
+        file_size: this.listedSize(f),
         create_time: f.createTime,
         timeCost: f.seconds,
         consumables: 1000,
@@ -707,7 +774,7 @@ function approach(cur: number, target: number, step: number): number {
   return cur + Math.sign(target - cur) * step;
 }
 
-function readBody(req: IncomingMessage, max: number, bytesPerSec = 0): Promise<Buffer> {
+function readBody(req: IncomingMessage, max: number, bytesPerSec = 0, stall: () => boolean = () => false): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -720,6 +787,10 @@ function readBody(req: IncomingMessage, max: number, bytesPerSec = 0): Promise<B
         return;
       }
       chunks.push(c);
+      if (stall()) {
+        req.pause(); // never resumed: the sender sees no progress
+        return;
+      }
       if (bytesPerSec > 0) {
         // Throttle: stop reading until the wall clock catches up with `size / rate` (backpressure to the sender).
         const ahead = (size / bytesPerSec) * 1000 - (Date.now() - started);

@@ -18,6 +18,12 @@ export interface MultipartUploadOptions {
   fileName: string;
   localPath: string;
   timeoutMs: number;
+  /**
+   * Abort when no file byte was accepted for this long while sending, or (after the whole body went out) when the
+   * printer has not answered within `answerMs` (default 120 s). Default: no stall timeout.
+   */
+  stallMs?: number;
+  answerMs?: number;
   onProgress?: UploadProgress;
 }
 
@@ -44,6 +50,7 @@ export function postMultipartFile(o: MultipartUploadOptions): Promise<{ status: 
       settled = true;
       clearTimeout(timer);
       clearInterval(beat);
+      clearInterval(stallCheck);
       file.destroy();
       req.destroy();
       reject(err);
@@ -71,6 +78,7 @@ export function postMultipartFile(o: MultipartUploadOptions): Promise<{ status: 
           settled = true;
           clearTimeout(timer);
           clearInterval(beat);
+          clearInterval(stallCheck);
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) o.onProgress?.(total, total, true);
           resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8').slice(0, 4096) });
         });
@@ -81,6 +89,14 @@ export function postMultipartFile(o: MultipartUploadOptions): Promise<{ status: 
     req.on('error', fail);
     const file = createReadStream(o.localPath, { highWaterMark: 64 * 1024 });
     let sent = 0;
+    let lastMove = Date.now();
+    let bodyDone = total === 0;
+    const stallCheck = setInterval(() => {
+      if (!o.stallMs) return;
+      const idle = Date.now() - lastMove;
+      if (!bodyDone && idle >= o.stallMs) fail(new Error(`upload stalled (no progress for ${Math.round(idle / 1000)} s)`));
+      else if (bodyDone && idle >= (o.answerMs ?? 120_000)) fail(new Error('the printer did not answer the upload'));
+    }, Math.max(50, Math.min(1000, Math.floor((o.stallMs ?? 1000) / 4))));
     o.onProgress?.(0, total, false);
     const beat = setInterval(() => o.onProgress?.(sent, total, false), 1000);
     req.write(head);
@@ -88,6 +104,8 @@ export function postMultipartFile(o: MultipartUploadOptions): Promise<{ status: 
       const buf = chunk as Buffer;
       const ok = req.write(buf, () => {
         sent += buf.length;
+        lastMove = Date.now();
+        if (sent >= total) bodyDone = true;
         o.onProgress?.(Math.min(sent, total), total, false);
       });
       if (!ok) {

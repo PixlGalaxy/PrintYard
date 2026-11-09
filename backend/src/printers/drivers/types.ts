@@ -29,6 +29,18 @@ export interface PrinterFileInfo {
 export interface UploadResult {
   /** Full path of the file on the printer (what `startPrint` needs). */
   path: string;
+  /** Size the printer reports for the stored file (verified equal to the local file). */
+  size?: number;
+}
+
+/** Freshly confirmed motion state for validating a control command (`PrinterControlService`). */
+export interface ControlTelemetry {
+  /** The link is up and the data below is at most `maxAgeMs` old (refreshed on demand). */
+  fresh: boolean;
+  homedAxes: string | null;
+  position: [number, number, number] | null;
+  /** Epoch ms of the data used. */
+  receivedAt: number;
 }
 
 /** Live connection to one printer (one instance per configured printer, owned by the PrinterManager). */
@@ -63,6 +75,18 @@ export interface PrinterDriver {
   sendGcode(script: string): Promise<void>;
   /** Chamber light on/off (Creality WS `lightSw`). */
   setLight(on: boolean): Promise<void>;
+  /**
+   * Re-reads the homing/position state when it is older than `maxAgeMs` (read-only queries) and says whether it is
+   * fresh. Optional: without it the control service treats the published status as fresh while online.
+   */
+  controlTelemetry?(maxAgeMs: number, notBefore?: number): Promise<ControlTelemetry>;
+  /**
+   * Excludes one object of the running job and resolves true only once Klipper reports it in
+   * `exclude_object.excluded_objects` (false = not confirmed in time). Optional: fakes fall back to `sendGcode`.
+   */
+  excludeObject?(name: string): Promise<boolean>;
+  /** Klipper `print_stats.state` (`printing`, `paused`, `complete`, `cancelled`, `error`, `standby`) or null when unknown. */
+  jobState?(): string | null;
   /** Raw Klipper `exclude_object` status from Moonraker (null when unknown). */
   excludeObjectStatus(): Record<string, unknown> | null;
   /** Inputs for the ETA (modules/printing/eta.ts); optional so test fakes can omit it. */
