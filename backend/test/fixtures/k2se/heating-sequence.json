@@ -1,0 +1,14 @@
+{
+  "_comment": "Start of a real-world job reconstructed from the K2 SE captures: Object_1_PLA_3h40m37s.gcode (Creality Print timeCost 13237 s, Moonraker gcode_start_byte 13562, gcode_end_byte 5095921, file_size 5117963). The printer reports printLeftTime 0 while heating and an implausible 189 s (3 m 9 s) while homing/leveling and on the first layer.",
+  "hints": { "startByte": 13562, "endByte": 5095921, "estimatedSeconds": null, "selfTest": 100 },
+  "fileName": "Object_1_PLA_3h40m37s.gcode",
+  "fileSize": 5117963,
+  "steps": [
+    { "name": "heating-cold", "state": "printing", "nozzleTemp": 25.3, "nozzleTarget": 220, "bedTemp": 24.9, "bedTarget": 60, "layer": 0, "totalLayers": 756, "progress": 0, "elapsedSec": 2, "remainingSec": 0, "filePosition": 1830 },
+    { "name": "heating-bed-done", "state": "printing", "nozzleTemp": 140.0, "nozzleTarget": 220, "bedTemp": 59.6, "bedTarget": 60, "layer": 0, "totalLayers": 756, "progress": 0, "elapsedSec": 60, "remainingSec": 0, "filePosition": 1830 },
+    { "name": "leveling", "state": "printing", "nozzleTemp": 219.8, "nozzleTarget": 220, "bedTemp": 60.1, "bedTarget": 60, "layer": 0, "totalLayers": 756, "progress": 0, "elapsedSec": 150, "remainingSec": 189, "filePosition": 9120 },
+    { "name": "first-layer", "state": "printing", "nozzleTemp": 220.1, "nozzleTarget": 220, "bedTemp": 60.0, "bedTarget": 60, "layer": 1, "totalLayers": 756, "progress": 0, "elapsedSec": 260, "remainingSec": 189, "filePosition": 40000 },
+    { "name": "mid-print", "state": "printing", "nozzleTemp": 219.9, "nozzleTarget": 220, "bedTemp": 60.1, "bedTarget": 60, "layer": 239, "totalLayers": 756, "progress": 45, "elapsedSec": 6387, "remainingSec": 8521, "filePosition": 2342801 },
+    { "name": "end-gcode", "state": "printing", "nozzleTemp": 219.0, "nozzleTarget": 0, "bedTemp": 59.0, "bedTarget": 0, "layer": 756, "totalLayers": 756, "progress": 99, "elapsedSec": 13300, "remainingSec": 0, "filePosition": 5100000 }
+  ]
+}

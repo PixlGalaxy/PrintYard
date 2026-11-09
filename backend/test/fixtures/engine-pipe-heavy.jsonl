@@ -1,0 +1,18 @@
+{"t": 83, "line": "{\"message\":\"Start to load files\",\"plate_count\":0,\"plate_index\":0,\"plate_percent\":1,\"total_percent\":1}"}
+{"t": 10038, "line": "{\"message\":\"Prepare slicing\",\"plate_count\":0,\"plate_index\":0,\"plate_percent\":3,\"total_percent\":3}"}
+{"t": 10076, "line": "{\"plate_count\":1,\"plate_index\":1,\"plate_percent\":0,\"total_percent\":3,\"warning\":\"The flush multiplier setting is too low, value is 1.00\"}"}
+{"t": 10079, "line": "{\"message\":\"Slicing mesh\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":5,\"total_percent\":7}"}
+{"t": 10367, "line": "{\"message\":\"Generating walls\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":15,\"total_percent\":16}"}
+{"t": 10450, "line": "{\"message\":\"Generating infill regions: 1 / 8\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":25,\"total_percent\":25}"}
+{"t": 10518, "line": "{\"message\":\"Generating infill toolpath\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":35,\"total_percent\":34}"}
+{"t": 10528, "line": "{\"message\":\"Generating support\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":50,\"total_percent\":48}"}
+{"t": 10528, "line": "{\"message\":\"Detecting support overhangs (1/6, 0.00%)\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":55,\"total_percent\":52}"}
+{"t": 10709, "line": "{\"message\":\"Generating support\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":60,\"total_percent\":57}"}
+{"t": 10762, "line": "{\"message\":\"Generating support\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":63,\"total_percent\":59}"}
+{"t": 10763, "line": "{\"message\":\"Generating support\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":65,\"total_percent\":61}"}
+{"t": 10879, "line": "{\"message\":\"Generating support\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":69,\"total_percent\":65}"}
+{"t": 10885, "line": "{\"message\":\"Detect overhangs for auto-lift\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":71,\"total_percent\":66}"}
+{"t": 10923, "line": "{\"message\":\"Optimizing toolpath\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":75,\"total_percent\":70}"}
+{"t": 11027, "line": "{\"message\":\"Generating G-code\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":80,\"total_percent\":75}"}
+{"t": 11808, "line": "{\"message\":\"Slicing finished\",\"plate_count\":1,\"plate_index\":1,\"plate_percent\":100,\"total_percent\":93}"}
+{"t": 11808, "line": "{\"message\":\"All done, Success\",\"plate_count\":1,\"plate_index\":0,\"plate_percent\":100,\"total_percent\":100}"}

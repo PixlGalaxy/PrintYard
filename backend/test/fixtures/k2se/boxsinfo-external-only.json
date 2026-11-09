@@ -1,0 +1,1 @@
+{ "boxsInfo": { "materialBoxs": [ { "id": 0, "state": 0, "type": 1, "materials": [ { "id": 0, "vendor": "Generic", "type": "PLA", "color": "#07a92ac", "name": "Generic PLA", "minTemp": 200, "maxTemp": 220, "selected": 0, "pressure": 0.02, "percent": 100, "editStatus": 1, "rfid": "00001", "state": 1 } ] } ] } }
