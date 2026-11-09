@@ -88,7 +88,9 @@ export default function FilamentPresetsCard({ admin = false }: { admin?: boolean
                       <Lock size={11} /> {t('filaments.private')}
                     </Badge>
                   )}
+                  {!p.canEdit && <Badge tone="amber">{t('filaments.readOnly')}</Badge>}
                 </p>
+                {!p.canEdit && p.scope === 'shared' && <p className="text-xs text-muted">{t('filaments.sharedReadOnlyHint')}</p>}
                 <p className="truncate text-xs text-muted">
                   {t('filaments.basedOn', { name: shortPresetName(p.inherits) })} · {t('filaments.valueCount', { n: Object.keys(p.values).length })}
                   {admin && ` · ${p.ownerName}`} · {formatDate(p.updatedAt)}
@@ -106,8 +108,8 @@ export default function FilamentPresetsCard({ admin = false }: { admin?: boolean
                   </IconButton>
                 )}
                 <IconButton
-                  label={t('filaments.duplicate')}
-                  title={t('filaments.duplicate')}
+                  label={t(p.canEdit ? 'filaments.duplicate' : 'filaments.duplicateToEdit')}
+                  title={t(p.canEdit ? 'filaments.duplicate' : 'filaments.duplicateToEdit')}
                   disabled={!bundle}
                   onClick={() => setDraft({ basePresetId: p.presetId, name: copyName(p.name, t('filaments.copySuffix')) })}
                 >

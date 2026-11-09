@@ -7,7 +7,7 @@ import type { SceneDoc, SliceJob } from '../../../types'
 import { meshes } from '../../../workspace/meshes'
 import { outsideObjects } from '../../../workspace/ops'
 import { runProgress, slicing, useSlicing } from '../../../workspace/slicing'
-import { useWs } from '../../../workspace/store'
+import { useWs, workspace } from '../../../workspace/store'
 import { floatCls, menuCls, menuItemCls, useDismiss } from './styles'
 
 /** Why a plate can't be sliced right now (i18n key), or null. */
@@ -48,7 +48,7 @@ export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileI
 
   const start = (plates: number[]) => {
     setOpen(false)
-    void slicing.start(doc, plates)
+    void slicing.start(doc, plates, workspace.state.project.name)
   }
 
   // A failed job's `error` is the backend error code (e.g. projects.build_timeout): translate it when known

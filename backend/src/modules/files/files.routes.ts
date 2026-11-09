@@ -166,6 +166,27 @@ export function filesRoutes(ctx: AppContext): Router {
     res.json(ctx.files.list(viewerOf(req), q.scope, q.kind));
   });
 
+  /** Printer copies SliceDock uploaded for these files (`?ids=1,2,3`): what the delete dialog offers to remove too. */
+  router.get('/printer-copies', (req, res) => {
+    const ids = String(req.query.ids ?? '')
+      .split(',')
+      .map((v) => Number(v))
+      .filter((n) => Number.isInteger(n) && n > 0)
+      .slice(0, 500);
+    const viewer = viewerOf(req);
+    const visible = ids.filter((id) => {
+      try {
+        ctx.files.getReadable(viewer, id);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    const copies = ctx.printerRetention.copiesOfFiles(visible);
+    res.json({ items: visible.map((id) => ({ fileId: id, copies: (copies.get(id) ?? []).map(({ printerId, printerName, name }) => ({ printerId, printerName, name })) })) });
+  });
+
+
   router.get('/:id', (req, res) => {
     res.json(ctx.files.toLibraryFile(ctx.files.getReadable(viewerOf(req), idParam(req))));
   });
@@ -211,9 +232,19 @@ export function filesRoutes(ctx: AppContext): Router {
     res.json(ctx.files.patch(viewerOf(req), idParam(req), body, actorOf(req)));
   });
 
+  /**
+   * Deletes a library file. `?printer=1` also deletes the copies SliceDock uploaded to printers (verified exact
+   * name + size + upload id; never the file being printed/paused or of an open print; offline/read-only → skipped).
+   * 200 `{ printer: PrinterCopyResult[] }` with `?printer=1`, else 204.
+   */
   router.delete('/:id', async (req, res) => {
-    await ctx.files.delete(viewerOf(req), idParam(req), actorOf(req));
-    res.status(204).end();
+    const id = idParam(req);
+    const alsoPrinter = req.query.printer === '1' || req.query.printer === 'true';
+    const copies = alsoPrinter ? (ctx.printerRetention.copiesOfFiles([id]).get(id) ?? []) : [];
+    await ctx.files.delete(viewerOf(req), id, actorOf(req));
+    if (!alsoPrinter) return void res.status(204).end();
+    const results = copies.length ? await ctx.printerRetention.deleteCopies(copies, actorOf(req)) : [];
+    res.json({ printer: results.map(({ printerId, printerName, name, result, reason }) => ({ printerId, printerName, name, result, ...(reason && { reason }) })) });
   });
 
   return router;

@@ -176,7 +176,7 @@ export default function PrepareTab({ active }: { active: boolean }) {
         }
         if (k === 'enter') {
           const s = workspace.state
-          if (s.doc.objects.some((o) => o.plate === s.activePlate)) void slicing.start(s.doc, [s.activePlate])
+          if (s.doc.objects.some((o) => o.plate === s.activePlate)) void slicing.start(s.doc, [s.activePlate], s.project.name)
           done()
         }
         return

@@ -7,7 +7,10 @@
 // - Sliders with a numeric input: speed % (M220), flow % (M221), part fan %, bed and nozzle temperature (gradient
 //   track blue → green → yellow → red, current temperature marker, thumb = target). Allowed WHILE printing.
 // Every control sends a TYPED command; the server builds the G-code. Disabled in read-only mode, offline, or
-// without the "control the printer" permission (the reason is shown once, on top).
+// without the "control the printer" permission (the reason is shown once, on top). Mirrors the server's safety rules:
+// - bed occupied (last print not removed): homing, jogging and extruding are locked ("Remove the print first");
+// - a print is being uploaded: motion and motors off are locked;
+// - while a job runs/uploads: heaters, fan, speed and flow only for its owner or an admin.
 import { ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Fan, Gauge, House, Lock, Move3d, Power, PowerOff, Waves } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../../../api'
@@ -69,9 +72,13 @@ interface Props {
   /** Admin, or a user with the "can control the printer" permission */
   allowed: boolean
   readOnly: boolean
+  /** A print is being uploaded to this printer (SliceDock state `uploading`). */
+  uploading?: boolean
+  /** The running/uploading job belongs to someone else and the viewer is not an admin (tuning locked). */
+  jobLocked?: boolean
 }
 
-export default function JogPanel({ printerId, status, allowed, readOnly }: Props) {
+export default function JogPanel({ printerId, status, allowed, readOnly, uploading = false, jobLocked = false }: Props) {
   const { t } = useI18n()
   const { onError } = useToast()
   const [step, setStep] = useStoredState<(typeof STEPS)[number]>('sd:jog:step', '10')
@@ -80,7 +87,12 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
 
   const active = ACTIVE.includes(status.state)
   const blocked = readOnly || !status.online || !allowed
-  const motionOff = blocked || active
+  const bedOccupied = status.bedClear === false
+  /** Motors off: not while printing/uploading. Home/jog/extrude: also not while the bed is occupied. */
+  const motorsOff = blocked || active || uploading
+  const motionOff = motorsOff || bedOccupied
+  /** Heaters, fan, speed, flow: owner/admin only while a job runs or uploads. */
+  const tuningOff = blocked || jobLocked
   const homed = status.homedAxes ?? ''
   const maxN = status.maxNozzleTemp ?? 300
   const maxB = status.maxBedTemp ?? 100
@@ -90,7 +102,23 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
   const eSmall = Math.max(1, Math.min(50, s))
   const eBig = Math.min(50, eSmall * 10)
 
-  const reason = readOnly ? t('readOnly.tooltip') : !status.online ? t('jog.offline') : !allowed ? t('jog.noPermission') : active ? t('jog.printing') : null
+  const reason = readOnly
+    ? t('readOnly.tooltip')
+    : !status.online
+      ? t('jog.offline')
+      : !allowed
+        ? t('jog.noPermission')
+        : jobLocked
+          ? t('jog.ownerOnly')
+          : active
+            ? t('jog.printing')
+            : uploading
+              ? t('jog.uploading')
+              : bedOccupied
+                ? t('jog.bedOccupied')
+                : null
+  /** Tooltip over the locked motion controls. */
+  const motionReason = motionOff ? (bedOccupied && !blocked && !active && !uploading ? t('jog.bedOccupied') : (reason ?? undefined)) : undefined
 
   async function send(key: string, cmd: PrinterControlCommand) {
     setBusy(key)
@@ -171,7 +199,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
+        <div className={`flex items-center justify-between gap-2 ${motionReason ? 'cursor-not-allowed' : ''}`} title={motionReason}>
           <div className="flex flex-col gap-1" role="group" aria-label={t('jog.homing')}>
             {homeBtn('x', 'X')}
             {homeBtn('y', 'Y')}
@@ -227,7 +255,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
             type="button"
             title={t('jog.motorsOff')}
             aria-label={t('jog.motorsOff')}
-            disabled={motionOff || busy !== null}
+            disabled={motorsOff || busy !== null}
             onClick={() => void send('motors', { action: 'motors_off' })}
             className="inline-flex size-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-40"
           >
@@ -254,7 +282,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
             tone="cyan"
             icon={<Fan size={14} className={fanOn ? 'animate-spin [animation-duration:2s]' : ''} />}
             label={fanOn ? t('jog.fanTurnOff') : t('jog.fanTurnOn', { v: fanMemory(printerId) })}
-            disabled={blocked || busy !== null || status.fanPart == null}
+            disabled={tuningOff || busy !== null || status.fanPart == null}
             onClick={() => void toggleFan()}
           />
         </div>
@@ -263,7 +291,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
             <button
               key={p.id}
               type="button"
-              disabled={blocked || busy !== null}
+              disabled={tuningOff || busy !== null}
               title={t('jog.presetTitle', { nozzle: Math.min(p.nozzle, maxN), bed: Math.min(p.bed, maxB) })}
               onClick={() => void preheat(p.nozzle, p.bed, `preset-${p.id}`)}
               className="h-7 min-w-0 rounded-lg border border-line bg-surface-2/50 px-1 text-xs font-semibold transition-colors hover:border-orange-500/50 hover:bg-orange-500/10 focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-40"
@@ -273,7 +301,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
           ))}
           <button
             type="button"
-            disabled={blocked || busy !== null}
+            disabled={tuningOff || busy !== null}
             title={t('jog.preheatOff')}
             onClick={() => void preheat(0, 0, 'preset-off')}
             className="inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-1 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-rose-500 disabled:pointer-events-none disabled:opacity-40 dark:text-rose-400"
@@ -295,7 +323,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
           step={5}
           value={status.speedFactor ?? null}
           fallback={100}
-          disabled={blocked}
+          disabled={tuningOff}
           onCommit={(v) => send('speed', { action: 'speed_factor', percent: v })}
         />
         <SliderRow
@@ -307,7 +335,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
           step={1}
           value={status.flowFactor ?? null}
           fallback={100}
-          disabled={blocked}
+          disabled={tuningOff}
           onCommit={(v) => send('flow', { action: 'flow_factor', percent: v })}
         />
         <SliderRow
@@ -319,7 +347,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
           step={5}
           value={status.fanPart ?? null}
           fallback={0}
-          disabled={blocked}
+          disabled={tuningOff}
           onCommit={(v) => {
             rememberFan(printerId, v)
             return send('fan', { action: 'fan', percent: v })
@@ -335,7 +363,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
           value={status.bedTarget ?? null}
           fallback={0}
           current={status.bedTemp}
-          disabled={blocked}
+          disabled={tuningOff}
           onCommit={(v) => send('bed', { action: 'temp', heater: 'bed', target: v })}
         />
         <SliderRow
@@ -348,7 +376,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly }: Props
           value={status.nozzleTarget ?? null}
           fallback={0}
           current={status.nozzleTemp}
-          disabled={blocked}
+          disabled={tuningOff}
           onCommit={(v) => send('nozzle', { action: 'temp', heater: 'nozzle', target: v })}
         />
       </section>

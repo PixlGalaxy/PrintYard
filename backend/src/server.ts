@@ -77,6 +77,7 @@ function main(): void {
     ctx.engine.stop(); // B1
     ctx.slicing.stop(); // B1
     void ctx.projects.pool.terminate(); // B1: build worker
+    ctx.printerControl.stop(); // idle heater watchdog
     ctx.notificationSources.stop(); // Phase 4
     ctx.notifications.stop();
     ctx.hub.close();

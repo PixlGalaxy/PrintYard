@@ -37,14 +37,14 @@ describe('control G-code builder', () => {
     assert.equal(buildControlGcode({ action: 'home', axes: 'z' }, { ...idle, homedAxes: '' }), 'G28 Z');
     assert.equal(buildControlGcode({ action: 'home', axes: 'x' }, idle), 'G28 X');
     assert.equal(buildControlGcode({ action: 'home', axes: 'y' }, idle), 'G28 Y');
-    assert.equal(buildControlGcode({ action: 'jog', axis: 'x', distance: 10, feedrate: 6000 }, idle), 'G91\nG1 X10 F6000\nG90');
-    assert.equal(buildControlGcode({ action: 'jog', axis: 'z', distance: -0.1, feedrate: 600 }, idle), 'G91\nG1 Z-0.1 F600\nG90');
+    assert.equal(buildControlGcode({ action: 'jog', axis: 'x', distance: 10, feedrate: 6000 }, idle), 'G90\nG1 X120 F6000');
+    assert.equal(buildControlGcode({ action: 'jog', axis: 'z', distance: -0.1, feedrate: 600 }, idle), 'G90\nG1 Z9.9 F600');
     assert.equal(buildControlGcode({ action: 'temp', heater: 'nozzle', target: 210 }, idle), 'M104 S210');
     assert.equal(buildControlGcode({ action: 'temp', heater: 'bed', target: 0 }, idle), 'M140 S0');
     assert.equal(buildControlGcode({ action: 'fan', percent: 50 }, idle), 'M106 P0 S128');
     assert.equal(buildControlGcode({ action: 'fan', percent: 0 }, idle), 'M106 P0 S0');
     assert.equal(buildControlGcode({ action: 'motors_off' }, idle), 'M84');
-    assert.equal(buildControlGcode({ action: 'extrude', length: -5, speed: 5 }, { ...idle, nozzleTemp: 215 }), 'M83\nG1 E-5 F300');
+    assert.equal(buildControlGcode({ action: 'extrude', length: -5, speed: 5 }, { ...idle, nozzleTemp: 215 }), 'G92 E0\nG1 E-5 F300\nG92 E0');
   });
 
   it('speed (M220 S10-300) and flow (M221 S50-150) factors, bounded', () => {
@@ -61,8 +61,8 @@ describe('control G-code builder', () => {
   });
 
   it('caps feedrates', () => {
-    assert.equal(buildControlGcode({ action: 'jog', axis: 'y', distance: 1, feedrate: 999_999 }, idle), 'G91\nG1 Y1 F12000\nG90');
-    assert.equal(buildControlGcode({ action: 'jog', axis: 'z', distance: 1, feedrate: 999_999 }, idle), 'G91\nG1 Z1 F900\nG90');
+    assert.equal(buildControlGcode({ action: 'jog', axis: 'y', distance: 1, feedrate: 999_999 }, idle), 'G90\nG1 Y108.5 F12000');
+    assert.equal(buildControlGcode({ action: 'jog', axis: 'z', distance: 1, feedrate: 999_999 }, idle), 'G90\nG1 Z11 F900');
   });
 
   it('refuses: busy, not homed, unknown position, out of range, cold nozzle, targets above the maxima', () => {
@@ -83,7 +83,7 @@ describe('control G-code builder', () => {
     assert.equal(code(() => buildControlGcode({ action: 'jog', axis: 'z', distance: -11, feedrate: 600 }, idle)), 'printers.out_of_range');
     assert.equal(code(() => buildControlGcode({ action: 'jog', axis: 'x', distance: 50, feedrate: 600 }, { ...idle, position: [200, 0, 0] })), 'printers.out_of_range');
     // back towards the volume from outside is fine
-    assert.equal(buildControlGcode({ action: 'jog', axis: 'x', distance: 5, feedrate: 600 }, { ...idle, position: [-2, 0, 0] }), 'G91\nG1 X5 F600\nG90');
+    assert.equal(buildControlGcode({ action: 'jog', axis: 'x', distance: 5, feedrate: 600 }, { ...idle, position: [-2, 0, 0] }), 'G90\nG1 X3 F600');
     assert.equal(code(() => buildControlGcode({ action: 'extrude', length: 5, speed: 5 }, { ...idle, nozzleTemp: 169 })), 'printers.nozzle_cold');
     assert.equal(code(() => buildControlGcode({ action: 'extrude', length: 5, speed: 5 }, { ...idle, nozzleTemp: null })), 'printers.nozzle_cold');
     assert.equal(code(() => buildControlGcode({ action: 'temp', heater: 'nozzle', target: 301 }, idle)), 'printers.temp_out_of_range');
@@ -250,9 +250,10 @@ describe('printer controls + exclude object end-to-end (simulator)', () => {
     assert.equal(r.status, 200);
     await waitFor(() => status().homedAxes === 'xyz');
     assert.deepEqual(status().position, [110, 107.5, 0]);
+    await new Promise((res) => setTimeout(res, 900)); // the homing state must be reported after the G28 settled
 
     r = await control(alice, { action: 'jog', axis: 'x', distance: 10, feedrate: 6000 });
-    assert.equal(r.status, 200);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
     await waitFor(() => status().position?.[0] === 120);
     assert.equal(sim.relativeMode, false); // G90 restored
     r = await control(alice, { action: 'jog', axis: 'z', distance: -1, feedrate: 600 });
@@ -279,7 +280,7 @@ describe('printer controls + exclude object end-to-end (simulator)', () => {
     assert.ok(audit('printer.control').some((e) => JSON.stringify(e.meta).includes('"lightSw":0')));
     assert.equal((await control(alice, { action: 'motors_off' })).status, 200);
     await waitFor(() => status().homedAxes === '');
-    assert.ok(sim.gcodeLog.includes('G91\nG1 X10 F6000\nG90'));
+    assert.ok(sim.gcodeLog.includes('G90\nG1 X120 F6000'));
     assert.ok(sim.gcodeLog.includes('M84'));
     const entries = audit('printer.control');
     assert.ok(entries.length >= 8);
@@ -330,7 +331,8 @@ describe('printer controls + exclude object end-to-end (simulator)', () => {
     assert.equal(r.status, 200, JSON.stringify(r.body));
     await waitFor(() => status().job?.objects.find((o) => o.name === 'Object_1_id_0_copy_0')?.excluded);
     assert.deepEqual(sim.excluded, ['OBJECT_1_ID_0_COPY_0']);
-    assert.ok(sim.gcodeLog.includes('EXCLUDE_OBJECT NAME=Object_1_id_0_copy_0'));
+    // Creality Print's `excludeObjects` frame with the Klipper (upper-case) name, confirmed by Moonraker
+    assert.ok(sim.commands.some((c) => JSON.stringify(c.excludeObjects) === '["OBJECT_1_ID_0_COPY_0"]'));
     r = await ex(admin, 'Object_1_id_0_copy_0');
     assert.equal(r.body.error.code, 'exclude.already_excluded');
     r = await ex(admin, 'Object_2_id_1_copy_0');

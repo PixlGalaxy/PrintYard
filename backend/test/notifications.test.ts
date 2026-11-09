@@ -115,7 +115,9 @@ describe('notifications: payload builders', () => {
     assert.match(r.headers.Title!, /^=\?UTF-8\?B\?/);
     assert.equal(Buffer.from(r.headers.Title!.slice(10, -2), 'base64').toString('utf8'), 'SliceDock: La impresión falló');
     assert.equal(headerSafe('plain'), 'plain');
-    assert.equal(r.allowHttpPrivate, true);
+    // Private destinations only for a server explicitly marked as on the LAN (review 3A #4).
+    assert.equal(r.allowHttpPrivate, false);
+    assert.equal(ntfyRequest({ serverUrl: 'http://192.168.1.20', topic: 't', token: null, localServer: true }, es).allowHttpPrivate, true);
   });
 
   it('signs the generic webhook body with HMAC-SHA256', () => {
@@ -177,7 +179,7 @@ describe('notifications: routing and dedupe keys', () => {
   it('limits the toggles of regular users to the events they can receive', () => {
     assert.ok(!eventsForRole('user').includes('approval.requested'));
     assert.ok(!eventsForRole('user').includes('engine.updated'));
-    assert.equal(eventsForRole('admin').length, 14);
+    assert.equal(eventsForRole('admin').length, 15);
   });
 
   it('keys duplicates on event + print', () => {
@@ -206,18 +208,18 @@ describe('notifications: outbound requests', () => {
 
   it('follows redirects only to public https targets', async () => {
     const toPrivate = fetchStub(() => new Response(null, { status: 302, headers: { location: 'https://10.0.0.5/steal' } }));
-    await assert.rejects(postOutbound({ url: 'https://hooks.example.com/a', body: '{}', headers: {} }, { fetchImpl: toPrivate.impl }), /private address/);
+    await assert.rejects(postOutbound({ url: 'https://hooks.example.com/a', body: '{}', headers: {} }, { fetchImpl: toPrivate.impl, lookup: publicDns }), /private/);
     const toHttp = fetchStub(() => new Response(null, { status: 301, headers: { location: 'http://hooks.example.com/b' } }));
-    await assert.rejects(postOutbound({ url: 'https://hooks.example.com/a', body: '{}', headers: {} }, { fetchImpl: toHttp.impl }), /non-https/);
+    await assert.rejects(postOutbound({ url: 'https://hooks.example.com/a', body: '{}', headers: {} }, { fetchImpl: toHttp.impl, lookup: publicDns }), /non-https/);
     const ok = fetchStub((_c, n) => (n === 1 ? new Response(null, { status: 307, headers: { location: 'https://other.example.com/b' } }) : new Response('ok')));
     await postOutbound({ url: 'https://hooks.example.com/a', body: '{}', headers: {} }, { fetchImpl: ok.impl, lookup: publicDns });
     assert.equal(ok.calls[1]!.url, 'https://other.example.com/b');
   });
 
   it('marks 4xx as final and 5xx as retryable', async () => {
-    const e400 = await postOutbound({ url: 'https://h.example.com', body: '', headers: {} }, { fetchImpl: fetchStub(() => new Response('bad', { status: 400 })).impl }).catch((e) => e);
+    const e400 = await postOutbound({ url: 'https://h.example.com', body: '', headers: {} }, { fetchImpl: fetchStub(() => new Response('bad', { status: 400 })).impl, lookup: publicDns }).catch((e) => e);
     assert.equal(e400.retryable, false);
-    const e503 = await postOutbound({ url: 'https://h.example.com', body: '', headers: {} }, { fetchImpl: fetchStub(() => new Response('', { status: 503 })).impl }).catch((e) => e);
+    const e503 = await postOutbound({ url: 'https://h.example.com', body: '', headers: {} }, { fetchImpl: fetchStub(() => new Response('', { status: 503 })).impl, lookup: publicDns }).catch((e) => e);
     assert.equal(e503.retryable, true);
   });
 

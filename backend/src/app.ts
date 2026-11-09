@@ -15,6 +15,7 @@ import {
   requireAuth,
   securityHeaders,
 } from './middleware/index.js';
+import { pendingPrintCap } from './middleware/pending-cap.js';
 import { accountRoutes } from './modules/account/account.routes.js';
 import { accountAvatarRoutes, adminAvatarRoutes, avatarsRoutes } from './modules/avatars/avatars.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
@@ -72,6 +73,7 @@ export function createApp(ctx: AppContext): Express {
   api.use('/profiles', requireAuth, profilesRoutes(ctx)); // B1
   api.use('/filament-presets', requireAuth, filamentPresetsRoutes(ctx)); // FILAMENTS
   api.use('/slice', requireAuth, slicingRoutes(ctx)); // B1
+  api.post('/prints', pendingPrintCap(ctx)); // review 3A #3: cap open approval requests per user
   api.use(printingRoutes(ctx)); // /printers/:id/*, /prints/* (B2; auth enforced inside)
   api.use(apiNotFound);
   api.use(errorHandler);

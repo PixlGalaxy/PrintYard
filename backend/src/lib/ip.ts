@@ -100,3 +100,48 @@ export function isPrivateIp(raw: string | null | undefined): boolean {
 export function privateMatcherInstance(): IpMatcher {
   return privateMatcher;
 }
+
+/**
+ * Everything an outbound request (admin-configured notification URLs) must never reach: private, loopback,
+ * link-local, CGNAT, "this network", documentation/benchmark, multicast/reserved and the IPv6 forms that embed or
+ * translate IPv4 (IPv4-compatible `::/96`, NAT64 `64:ff9b::/96`, 6to4, Teredo). Phase 3 review A #4.
+ */
+export const NON_PUBLIC_RANGES = [
+  ...PRIVATE_RANGES,
+  '0.0.0.0/8',
+  '100.64.0.0/10',
+  '192.0.0.0/24',
+  '192.0.2.0/24',
+  '192.88.99.0/24',
+  '198.18.0.0/15',
+  '198.51.100.0/24',
+  '203.0.113.0/24',
+  '224.0.0.0/4',
+  '240.0.0.0/4',
+  '::/96',
+  '64:ff9b::/96',
+  '64:ff9b:1::/48',
+  '100::/64',
+  '2001::/32',
+  '2001:db8::/32',
+  '2002::/16',
+  'fec0::/10',
+  'ff00::/8',
+] as const;
+
+const nonPublicMatcher = new IpMatcher();
+for (const range of NON_PUBLIC_RANGES) nonPublicMatcher.add(range);
+
+/** True only for a valid, globally routable unicast address (IPv4-mapped IPv6 handled). */
+export function isPublicIp(raw: string | null | undefined): boolean {
+  const ip = normalizeIp(raw);
+  return ip !== null && !nonPublicMatcher.has(ip);
+}
+
+const rfc1918Matcher = new IpMatcher();
+for (const range of ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']) rfc1918Matcher.add(range);
+
+/** RFC 1918 IPv4 only (never loopback, link-local/metadata or CGNAT). */
+export function isRfc1918(raw: string | null | undefined): boolean {
+  return rfc1918Matcher.has(raw);
+}

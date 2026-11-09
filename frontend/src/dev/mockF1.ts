@@ -183,10 +183,12 @@ async function sliceResult(m: MockJob) {
   // Height/radius: a rough proxy for the plate's content (the mock does not slice the real meshes)
   const height = Math.min(80, 16 + objs.length * 8)
   const g = generateSampleGcode({ layerHeight: lh, height, radius: 18 + Math.min(14, objs.length * 3), colors })
-  const base = (scene.objects[0]?.name ?? 'plate').replace(/[^\w.-]+/g, '_').slice(0, 40)
+  // Same rule as the server (sliceOutputName): <project or first object name>_plate<N>.gcode, ≤ 64 chars
+  const clean = (v: string | undefined) => (v ?? '').replace(/\.(gcode|3mf|stl|obj)$/i, '').replace(/[^\p{L}\p{N} ._()+-]+/gu, '_').replace(/(?:^|[_ -])plate[_ -]?\d+$/i, '').trim()
+  const base = ([clean(m.req.name), clean(objs[0]?.name)].find((v) => v && !/^plate$/i.test(v)) ?? 'SliceDock').slice(0, 48)
   const file: LibraryFile = mockFiles.add({
     ownerId: m.ownerId,
-    name: `${base}_plate_${plate + 1}.gcode`,
+    name: `${base}_plate${plate + 1}.gcode`,
     kind: 'gcode',
     blob: g.blob,
     thumbnailUrl: thumbnails.large ? `data:image/png;base64,${thumbnails.large}` : undefined,

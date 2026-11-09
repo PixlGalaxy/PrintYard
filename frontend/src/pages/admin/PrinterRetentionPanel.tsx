@@ -17,7 +17,9 @@ export default function PrinterRetentionPanel() {
 
   const enabled = s.value('printers.retention.enabled') ?? true
   const keep = s.value('printers.retention.keep') ?? 10
-  const invalid = !Number.isInteger(keep) || keep < 1 || keep > 1000
+  const idleOff = s.value('printers.idleHeaterOffMinutes') ?? 15
+  const idleInvalid = !Number.isInteger(idleOff) || idleOff < 0 || idleOff > 1440
+  const invalid = !Number.isInteger(keep) || keep < 1 || keep > 1000 || idleInvalid
 
   return (
     <>
@@ -42,6 +44,21 @@ export default function PrinterRetentionPanel() {
           </div>
         </SettingRow>
         {enabled && !invalid && <Callout tone="info">{t('printers.retention.example', { n: keep })}</Callout>}
+        <SettingRow label={t('printers.idleHeater.label')} description={t('printers.idleHeater.hint')}>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={1440}
+              aria-label={t('printers.idleHeater.label')}
+              aria-invalid={idleInvalid}
+              className={`${inputCls} w-24! tabular-nums`}
+              value={Number.isFinite(idleOff) ? idleOff : ''}
+              onChange={(e) => s.set('printers.idleHeaterOffMinutes', e.target.value.trim() === '' ? Number.NaN : Number(e.target.value))}
+            />
+            <span className="text-sm text-muted">{t('printers.idleHeater.minutes')}</span>
+          </div>
+        </SettingRow>
       </Panel>
       <SaveBar dirty={s.dirty} saving={s.saving} invalid={invalid} onSave={() => void s.save()} onDiscard={s.discard} />
     </>

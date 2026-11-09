@@ -817,6 +817,11 @@ function mockControl(kind: 'control' | 'exclude-object', b: Record<string, unkno
   if (u.role !== 'admin' && !(u as { canControlPrinter?: boolean }).canControlPrinter) throw new ApiError(403, 'printers.control_forbidden', 'Not allowed')
   const a = String(b.action)
   if (active && !['fan', 'light', 'temp', 'speed_factor', 'flow_factor'].includes(a)) throw new ApiError(409, 'printers.control_busy', 'Printing')
+  // Same safety rules as the server: job tuning owner/admin only, no motion while the bed is occupied
+  if (active && ['fan', 'temp', 'speed_factor', 'flow_factor'].includes(a) && u.role !== 'admin' && st.prints.find((x) => x.id === sim.printId)?.userId !== u.id) {
+    throw new ApiError(403, 'printers.forbidden_job', 'Not the owner of the running print')
+  }
+  if (['home', 'jog', 'extrude'].includes(a) && !sim.bedClear) throw new ApiError(409, 'printers.bed_not_cleared', 'Remove the print first')
   const axisI = { x: 0, y: 1, z: 2 } as const
   const max = [220, 215, 245]
   switch (a) {
@@ -831,7 +836,7 @@ function mockControl(kind: 'control' | 'exclude-object', b: Record<string, unkno
     case 'jog': {
       const axis = String(b.axis) as 'x' | 'y' | 'z'
       const d = Number(b.distance)
-      if (!(axis in axisI) || !Number.isFinite(d) || d === 0 || Math.abs(d) > 50) throw new ApiError(400, 'validation.failed', 'Invalid')
+      if (!(axis in axisI) || !Number.isFinite(d) || Math.abs(d) < 0.01 || Math.abs(d) > 50 || !(Number(b.feedrate) >= 60)) throw new ApiError(400, 'validation.failed', 'Invalid')
       if (!sim.homed.includes(axis)) throw new ApiError(409, 'printers.not_homed', 'Not homed')
       const i = axisI[axis]
       const next = sim.pos[i] + d
@@ -1036,6 +1041,16 @@ function start(job: PrintJob, confirmBedClear = false) {
   mockPublish({ type: 'print.update', data: job }, job.userId == null ? 'admins' : { userId: job.userId, admins: true })
 }
 
+/** Printer copies of a library G-code: one per SliceDock print of it that is not running (like printer_uploads). */
+function mockPrinterCopies(fileId: number): { printerId: number; printerName: string; name: string }[] {
+  const f = mockFiles.get(fileId)
+  if (!f || f.kind !== 'gcode') return []
+  return st.prints
+    .filter((p) => p.fileId === fileId && ['done', 'failed', 'cancelled'].includes(p.state))
+    .slice(0, 3)
+    .map((p) => ({ printerId: 1, printerName: 'K2 SE', name: `${f.name.replace(/\.gcode$/i, '').replace(/[^A-Za-z0-9._-]+/g, '_')}_p${p.id}.gcode` }))
+}
+
 // ---------- router ----------
 
 export function handleF2(method: string, p: string, url: URL, b: Record<string, unknown>): unknown {
@@ -1052,15 +1067,24 @@ export function handleF2(method: string, p: string, url: URL, b: Record<string, 
     if (kind) list = list.filter((f) => f.kind === kind)
     return [...list].sort((a, b2) => b2.createdAt - a.createdAt)
   }
+  if (p === '/files/printer-copies' && method === 'GET') {
+    mockCore.requireUser()
+    const ids = (url.searchParams.get('ids') ?? '').split(',').map(Number).filter((n) => n > 0)
+    return { items: ids.map((id) => ({ fileId: id, copies: mockPrinterCopies(id) })) }
+  }
   const fm = p.match(/^\/files\/(\d+)$/)
   if (fm) {
     const f = writable(mockFiles.get(Number(fm[1])))
     if (method === 'DELETE') {
+      const copies = mockPrinterCopies(f.id)
       st.files = st.files.filter((x) => x.id !== f.id)
       blobs.delete(f.id)
       mockCore.audit('files.delete', f.name)
       save()
-      return undefined
+      if (url.searchParams.get('printer') !== '1') return undefined
+      const ro = mockCore.state.flags.readOnly
+      const off = mockCore.state.flags.printerOffline
+      return { printer: copies.map((c) => (ro ? { ...c, result: 'skipped', reason: 'read_only' } : off ? { ...c, result: 'skipped', reason: 'offline' } : { ...c, result: 'deleted' })) }
     }
     if (method === 'PATCH') {
       if (typeof b.name === 'string') {
@@ -1127,6 +1151,10 @@ export function handleF2(method: string, p: string, url: URL, b: Record<string, 
   // Prints
   if (p === '/prints' && method === 'POST') {
     const u = mockCore.requireUser()
+    // Review 3A #3: at most 3 open approval requests per (non-admin) user
+    if (u.role !== 'admin' && st.prints.filter((j) => j.userId === u.id && j.state === 'pending').length >= 3) {
+      throw new ApiError(409, 'prints.too_many_pending', 'Too many pending requests', { max: 3 })
+    }
     const f = readable(mockFiles.get(Number(b.fileId)))
     if (f.kind !== 'gcode') throw new ApiError(400, 'prints.not_gcode', 'Not G-code')
     gcodePolicy(f, u, b.allowDangerous === true && u.role === 'admin')

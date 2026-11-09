@@ -317,14 +317,23 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
     return () => cancelAnimationFrame(raf)
   }, [g, moving, finished])
 
+  // The server answers only once Klipper reports the object in `excluded_objects` (else printers.exclude_unconfirmed):
+  // until then the chip shows "Excluding…"; the excluded look comes from the confirmed status only.
+  const [pendingEx, setPendingEx] = useState<ReadonlySet<string>>(() => new Set())
   async function exclude(o: JobObject) {
+    setPendingEx((p) => new Set(p).add(o.name))
+    setSelected(null)
     try {
       await api.excludeObject(printerId, o.name)
       toast('success', t('exclude.done', { name: o.label }))
-      setSelected(null)
     } catch (err) {
       onError(err)
-      throw err
+    } finally {
+      setPendingEx((p) => {
+        const n = new Set(p)
+        n.delete(o.name)
+        return n
+      })
     }
   }
 
@@ -399,6 +408,10 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
                 <span className="truncate font-medium">{sel.label}</span>
                 {sel.excluded ? (
                   <span className="text-xs text-muted">{t('exclude.alreadyExcluded')}</span>
+                ) : pendingEx.has(sel.name) ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted">
+                    <LoaderCircle size={12} className="animate-spin" /> {t('exclude.pending')}
+                  </span>
                 ) : excludable ? (
                   remaining > 1 ? (
                     <Button variant="danger" size="xs" icon={<Ban size={13} />} onClick={() => setConfirmObj(sel)}>
@@ -430,12 +443,15 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
                     o.name === selected
                       ? 'border-sky-500/50 bg-sky-500/15 text-sky-700 dark:text-sky-300'
                       : o.excluded
-                        ? 'border-line text-muted line-through'
+                        ? 'border-line text-muted'
                         : 'border-line hover:text-fg'
                   }`}
                 >
-                  {o.current && !finished && !o.excluded && <span className="size-1.5 rounded-full bg-amber-500" aria-label={t('exclude.printingNow')} />}
-                  {o.label}
+                  {o.current && !finished && !o.excluded && !pendingEx.has(o.name) && <span className="size-1.5 rounded-full bg-amber-500" aria-label={t('exclude.printingNow')} />}
+                  {pendingEx.has(o.name) && !o.excluded && <LoaderCircle size={11} className="animate-spin" aria-label={t('exclude.pending')} />}
+                  <span className={o.excluded ? 'line-through' : ''}>{o.label}</span>
+                  {o.excluded && <span className="rounded-full bg-surface-2 px-1.5 text-[10px] no-underline">{t('exclude.alreadyExcluded')}</span>}
+                  {pendingEx.has(o.name) && !o.excluded && <span className="text-[10px] text-muted">{t('exclude.pending')}</span>}
                 </button>
               ))}
             </div>
@@ -481,7 +497,7 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
           </div>
         )}
       </div>
-      {confirmObj && <ConfirmExclude obj={confirmObj} onClose={() => setConfirmObj(null)} onConfirm={() => exclude(confirmObj)} />}
+      {confirmObj && <ConfirmExclude obj={confirmObj} onClose={() => setConfirmObj(null)} onConfirm={async () => void exclude(confirmObj)} />}
     </section>
   )
 }

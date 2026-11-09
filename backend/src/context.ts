@@ -102,6 +102,10 @@ export interface ContextOptions {
   /** B1: fake slicing engine (default: SLICEDOCK_FAKE_ENGINE=1) and a fetch stub for the engine manager. */
   engine?: { fake?: boolean; fetchImpl?: typeof fetch };
   printerManager?: Partial<Omit<PrinterManagerOptions, 'printers' | 'hub'>>;
+  /** Printing: how long a terminal printer state must stay before a print is finalised (tests). */
+  printingTerminalStableMs?: number;
+  /** Idle heater safety check cadence (tests). */
+  heaterCheckMs?: number;
   /** Phase 4: fetch / web-push stubs and timings for notification tests. */
   notifications?: NotificationsOptions;
 }
@@ -191,6 +195,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     manager: ctx.printerManager,
     files: ctx.printFiles,
     retention: ctx.printerRetention,
+    ...(opts.printingTerminalStableMs !== undefined && { terminalStableMs: opts.printingTerminalStableMs }),
   });
   ctx.printing.attach();
   ctx.liveView = new LiveViewService({
@@ -226,6 +231,10 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     users: ctx.users,
     audit: ctx.audit,
     currentOwner: (id) => ctx.printing.currentOwner(id),
+    dispatchOwner: (id) => ctx.printing.dispatchOwner(id),
+    settings,
+    notify: (event, data) => ctx.notifications?.emit(event, data),
+    ...(opts.heaterCheckMs !== undefined && { heaterCheckMs: opts.heaterCheckMs }),
   });
   ctx.printerControl.attach();
   ctx.tempHistory = new TempHistoryService({ manager: ctx.printerManager, printers: ctx.printers });

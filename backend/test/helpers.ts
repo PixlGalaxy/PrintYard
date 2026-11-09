@@ -43,7 +43,13 @@ export function createTestApp(opts: { loginGuard?: LoginGuardOptions; context?: 
   };
   const db = openDb(':memory:');
   runMigrations(db);
-  const ctx = createContext(config, db, { probe: fakeProbe, ...opts.context, ...(opts.loginGuard && { loginGuard: opts.loginGuard }) });
+  const ctx = createContext(config, db, {
+    probe: fakeProbe,
+    // Finalising a print waits for a stable terminal state (5 s in production); keep tests fast.
+    printingTerminalStableMs: 200,
+    ...opts.context,
+    ...(opts.loginGuard && { loginGuard: opts.loginGuard }),
+  });
   const app = createApp(ctx);
   return {
     ctx,
@@ -51,6 +57,7 @@ export function createTestApp(opts: { loginGuard?: LoginGuardOptions; context?: 
     request: supertest(app),
     close() {
       ctx.loginGuard.stop();
+      ctx.printerControl.stop();
       ctx.printerManager.stop();
       ctx.hub.close();
       db.close();

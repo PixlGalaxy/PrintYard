@@ -36,7 +36,8 @@ const view = (r: Row, me: { id: number; role: string }): FilamentPreset => ({
   ...r,
   presetId: `custom:${r.id}`,
   ownerName: usernameOf(r.ownerId),
-  canEdit: r.ownerId === me.id || me.role === 'admin',
+  // Shared presets: admins only (backend review 3A #7)
+  canEdit: me.role === 'admin' || (r.ownerId === me.id && r.scope !== 'shared'),
 })
 const usable = (r: Row, me: { id: number; role: string }) => r.scope === 'shared' || r.ownerId === me.id || me.role === 'admin'
 const BAD_VALUE = /^(nan|infinity)$/i
@@ -153,6 +154,9 @@ export function handleFilaments(method: string, p: string, url: URL, b: Record<s
   }
   if (method === 'GET') return view(row, me)
   if (!writable) throw new ApiError(403, 'filament_presets.forbidden', 'Owner or admin only')
+  if (me.role !== 'admin' && row.scope === 'shared' && method !== 'POST') {
+    throw new ApiError(403, 'filament_presets.shared_read_only', 'Shared: only an admin can change it')
+  }
   if (method === 'PATCH') {
     const patch = b as FilamentPresetPatch
     if (patch.name !== undefined) assertName(patch.name, row.ownerId, system, row.id)

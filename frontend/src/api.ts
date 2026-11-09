@@ -1,5 +1,7 @@
 import type {
   AccountNotifications,
+  PrinterCopy,
+  PrinterCopyResult,
   AdminNotifications,
   NotifyChannel,
   NotifyChannelConfigs,
@@ -307,7 +309,11 @@ export const api = {
     uploader('/files', file, { ...opts, fields: { ...opts.fields, ...(opts.visibility ? { visibility: opts.visibility } : {}) } }) as Promise<LibraryFile>,
   updateFile: (id: number, patch: { name?: string; visibility?: Visibility; pinned?: boolean }) =>
     req<LibraryFile>('PATCH', `/files/${id}`, patch),
-  deleteFile: (id: number) => req<void>('DELETE', `/files/${id}`),
+  /** Deletes a library file; `printer: true` also removes the copies SliceDock uploaded to printers (per-copy results) */
+  deleteFile: (id: number, opts: { printer?: boolean } = {}) =>
+    req<{ printer: PrinterCopyResult[] } | undefined>('DELETE', `/files/${id}${opts.printer ? '?printer=1' : ''}`),
+  /** Printer copies SliceDock uploaded for these files (what a delete can also remove) */
+  printerCopies: (ids: number[]) => get<{ items: { fileId: number; copies: PrinterCopy[] }[] }>(`/files/printer-copies?ids=${ids.join(',')}`),
   /** Raw file bytes for the viewers (`/files/:id/content`), with download progress */
   fileContent: (id: number, opts: TransferOptions = {}) => blobFetcher(`/files/${id}/content`, opts),
   /** Saves the file to disk under its original name */

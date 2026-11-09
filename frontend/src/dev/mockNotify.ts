@@ -19,7 +19,7 @@ import { NOT_HANDLED } from './mockF2'
 const KEY = 'sd:mock-notify'
 const MASK = '********'
 const SECRETS: Record<NotifyChannel, string[]> = { discord: ['webhookUrl'], telegram: ['botToken'], ntfy: ['token'], webhook: ['url', 'secret'] }
-const USER_EVENTS: NotifyEvent[] = NOTIFY_EVENTS.filter((e) => !['approval.requested', 'printer.offline', 'engine.update_available', 'engine.updated', 'engine.update_failed'].includes(e))
+const USER_EVENTS: NotifyEvent[] = NOTIFY_EVENTS.filter((e) => !['approval.requested', 'printer.offline', 'printer.heaters_auto_off', 'engine.update_available', 'engine.updated', 'engine.update_failed'].includes(e))
 
 interface MockDevice extends PushDevice {
   userId: number
@@ -42,7 +42,7 @@ function fresh(): NotifyState {
     channels: {
       discord: { enabled: false, webhookUrl: null, mention: null, events: all },
       telegram: { enabled: false, botToken: null, chatId: null, events: all },
-      ntfy: { enabled: false, serverUrl: 'https://ntfy.sh', topic: null, token: null, events: all },
+      ntfy: { enabled: false, serverUrl: 'https://ntfy.sh', topic: null, token: null, localServer: false, events: all },
       webhook: { enabled: false, url: null, secret: null, events: all },
     },
     status: { discord: emptyStatus(), telegram: emptyStatus(), ntfy: emptyStatus(), webhook: emptyStatus() },
@@ -55,7 +55,11 @@ function fresh(): NotifyState {
 function load(): NotifyState {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { ...fresh(), ...(JSON.parse(raw) as NotifyState) }
+    if (raw) {
+      const saved = JSON.parse(raw) as NotifyState
+      const base = fresh()
+      return { ...base, ...saved, channels: { ...base.channels, ...saved.channels, ntfy: { ...base.channels.ntfy, ...saved.channels?.ntfy } } }
+    }
   } catch {
     // ignore
   }
@@ -91,6 +95,15 @@ function adminView(): AdminNotifications {
     status: st.status,
     events: [...NOTIFY_EVENTS],
     push: { subject: email ? `mailto:${email}` : 'mailto:admin@localhost', subjectFallback: !email, devices: st.devices.length },
+    // Sample flood-protection state so the admin page shows the "held back" list in the mock
+    rateLimit: {
+      events: ['limit.blocked', 'approval.requested'],
+      maxPerWindow: 5,
+      windowMinutes: 60,
+      heldTotal: 7,
+      digestsSent: 1,
+      active: [{ userId: 2, username: 'alice', event: 'limit.blocked', sent: 5, held: 7, digestAt: Date.now() + 25 * 60_000, lastHeldAt: Date.now() - 60_000 }],
+    },
   }
 }
 
@@ -157,10 +170,10 @@ export function handleNotify(method: string, p: string, b: Record<string, unknow
       status.lastAttemptAt = now
       const target = Object.entries(cfg).filter(([k, v]) => k !== 'events' && typeof v === 'string').map(([, v]) => v).join(' ')
       if (target.includes('fail')) {
-        status.lastError = 'HTTP 401: {"message": "Invalid Webhook Token"} (simulated)'
+        status.lastError = 'HTTP 401'
         status.lastErrorAt = now
         save()
-        throw new ApiError(502, 'notify.test_failed', `The channel rejected the message: ${status.lastError}`, { error: status.lastError })
+        throw new ApiError(502, 'notify.test_failed', `The channel rejected the message: ${status.lastError}`, { error: status.lastError, status: 401 })
       }
       status.lastSuccessAt = now
       save()

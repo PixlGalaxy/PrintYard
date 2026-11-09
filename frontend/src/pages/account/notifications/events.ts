@@ -6,7 +6,7 @@ import type { NotifyEvent } from '../../../types'
 export const EVENT_GROUPS: { key: string; label: TranslationKey; events: NotifyEvent[] }[] = [
   { key: 'prints', label: 'notify.group.prints', events: ['print.started', 'print.paused', 'print.finished', 'print.failed', 'print.cancelled'] },
   { key: 'approvals', label: 'notify.group.approvals', events: ['approval.requested', 'approval.approved', 'approval.rejected', 'limit.blocked'] },
-  { key: 'printer', label: 'notify.group.printer', events: ['printer.error', 'printer.offline'] },
+  { key: 'printer', label: 'notify.group.printer', events: ['printer.error', 'printer.offline', 'printer.heaters_auto_off'] },
   { key: 'engine', label: 'notify.group.engine', events: ['engine.update_available', 'engine.updated', 'engine.update_failed'] },
 ]
 
@@ -22,6 +22,7 @@ const LABELS: Record<NotifyEvent, TranslationKey> = {
   'limit.blocked': 'notify.event.limit.blocked',
   'printer.error': 'notify.event.printer.error',
   'printer.offline': 'notify.event.printer.offline',
+  'printer.heaters_auto_off': 'notify.event.printer.heaters_auto_off',
   'engine.update_available': 'notify.event.engine.update_available',
   'engine.updated': 'notify.event.engine.updated',
   'engine.update_failed': 'notify.event.engine.update_failed',

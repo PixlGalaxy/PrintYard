@@ -37,6 +37,7 @@ import { formatDuration } from '../../gcode/format'
 import { GcodeBadges } from './GcodeBadges'
 import { useStoredState } from '../../hooks'
 import { useI18n } from '../../i18n/I18nContext'
+import type { TranslationKey } from '../../i18n/translations'
 import type { FileKind, LibraryFile } from '../../types'
 import { formatBytes } from '../../validation'
 import FileMenu, { type MenuItem } from './FileMenu'
@@ -194,15 +195,23 @@ export default function FilesPage() {
 
   const download = (f: LibraryFile) => void api.downloadFile(f).catch(onError)
 
-  const remove = async (list: LibraryFile[]) => {
-    const results = await Promise.allSettled(list.map((f) => api.deleteFile(f.id)))
+  const remove = async (list: LibraryFile[], alsoPrinter = false) => {
+    const results = await Promise.allSettled(list.map((f) => api.deleteFile(f.id, { printer: alsoPrinter })))
     const failed = results.filter((r) => r.status === 'rejected')
     const ok = list.length - failed.length
     if (failed.length) {
       onError((failed[0] as PromiseRejectedResult).reason)
       if (!ok) throw (failed[0] as PromiseRejectedResult).reason
     }
-    toast('success', t('library.deletedToast', { n: ok }))
+    // Per-copy printer results: deleted / already gone / skipped (in use, offline, read-only, unverified)
+    const copies = results.flatMap((r) => (r.status === 'fulfilled' && r.value ? r.value.printer : []))
+    const removed = copies.filter((c) => c.result !== 'skipped').length
+    const skipped = copies.filter((c) => c.result === 'skipped')
+    if (skipped.length) {
+      const reasons = [...new Set(skipped.map((c) => t(PRINTER_SKIP[c.reason ?? ''] ?? 'library.printerSkip.other')))].join(', ')
+      toast('info', t('library.deletedPrinterSkipped', { n: ok, removed, skipped: skipped.length, reasons }))
+    } else if (copies.length) toast('success', t('library.deletedWithPrinter', { n: ok, removed }))
+    else toast('success', t('library.deletedToast', { n: ok }))
     setSelected(new Set())
     const gone = new Set(list.map((f) => f.id))
     setFiles((cur) => cur?.filter((f) => !gone.has(f.id)) ?? cur)
@@ -556,17 +565,56 @@ export default function FilesPage() {
 
       {menu && <FileMenu x={menu.x} y={menu.y} items={menuItems(menu.file)} onClose={() => setMenu(null)} />}
       {renaming && <RenameModal file={renaming} onClose={() => setRenaming(null)} onSave={(name) => patch(renaming, { name })} />}
-      {deleting && (
-        <ConfirmModal
-          title={t('library.deleteTitle', { n: deleting.length })}
-          confirmLabel={t('common.delete')}
-          onClose={() => setDeleting(null)}
-          onConfirm={() => remove(deleting)}
-        >
-          {deleting.length === 1 ? t('library.deleteOne', { name: deleting[0].name }) : t('library.deleteMany', { n: deleting.length })}
-        </ConfirmModal>
-      )}
+      {deleting && <DeleteFilesDialog files={deleting} onClose={() => setDeleting(null)} onConfirm={(alsoPrinter) => remove(deleting, alsoPrinter)} />}
     </div>
+  )
+}
+
+const PRINTER_SKIP: Record<string, TranslationKey> = {
+  in_use: 'library.printerSkip.in_use',
+  offline: 'library.printerSkip.offline',
+  read_only: 'library.printerSkip.read_only',
+  unverified: 'library.printerSkip.unverified',
+}
+
+/**
+ * Delete confirmation. G-code files SliceDock uploaded to a printer list their printer copies; "Also delete from the
+ * printer" (default on) removes them there too (the server skips copies in use, offline or not verifiable).
+ */
+function DeleteFilesDialog({ files, onClose, onConfirm }: { files: LibraryFile[]; onClose: () => void; onConfirm: (alsoPrinter: boolean) => Promise<unknown> }) {
+  const { t } = useI18n()
+  const [copies, setCopies] = useState<{ files: number; printers: string[] } | null>(null)
+  const [alsoPrinter, setAlsoPrinter] = useState(true)
+  useEffect(() => {
+    const ids = files.filter((f) => f.kind === 'gcode').map((f) => f.id)
+    if (!ids.length) return
+    let alive = true
+    api
+      .printerCopies(ids)
+      .then((r) => {
+        if (!alive) return
+        const withCopies = r.items.filter((i) => i.copies.length > 0)
+        setCopies({ files: withCopies.length, printers: [...new Set(withCopies.flatMap((i) => i.copies.map((c) => c.printerName)))] })
+      })
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [files])
+  const onPrinter = copies && copies.files > 0 ? copies : null
+  return (
+    <ConfirmModal title={t('library.deleteTitle', { n: files.length })} confirmLabel={t('common.delete')} onClose={onClose} onConfirm={() => onConfirm(!!onPrinter && alsoPrinter)}>
+      <p>{files.length === 1 ? t('library.deleteOne', { name: files[0].name }) : t('library.deleteMany', { n: files.length })}</p>
+      {onPrinter && (
+        <div className="mt-3 space-y-2 rounded-lg border border-line bg-surface-2/50 p-2.5 text-sm">
+          <p>{t('library.alsoOnPrinter', { n: onPrinter.files, printer: onPrinter.printers.join(', ') })}</p>
+          <label className="flex items-center gap-2 font-medium">
+            <input type="checkbox" className="size-4 accent-sky-500" checked={alsoPrinter} onChange={(e) => setAlsoPrinter(e.target.checked)} />
+            {t('library.alsoDeleteFromPrinter')}
+          </label>
+        </div>
+      )}
+    </ConfirmModal>
   )
 }
 

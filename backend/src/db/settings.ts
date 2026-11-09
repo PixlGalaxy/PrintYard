@@ -66,6 +66,8 @@ export const SETTING_DEFS = {
   // Printer-side retention: after each upload keep only the newest N files SliceDock uploaded to that printer.
   'printers.retention.enabled': def(z.boolean(), true),
   'printers.retention.keep': def(z.number().int().min(1).max(1000), 10),
+  // Idle heater safety: no print running and a heater target > 0 for this long without a control action → heaters off (0 = disabled).
+  'printers.idleHeaterOffMinutes': def(z.number().int().min(0).max(24 * 60), 15),
   // B2: default of the "Print calibration" toggle (Creality `enableSelfTest`) when a request does not say.
   'printing.calibrateByDefault': def(z.boolean(), false),
   'limits.costPerKg': def(z.number().min(0).max(1_000_000).nullable(), null as number | null),

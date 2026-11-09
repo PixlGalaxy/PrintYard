@@ -47,6 +47,7 @@ describe('SettingsService', () => {
       'slicing.maxMemoryMb': 0,
       'printers.retention.enabled': true,
       'printers.retention.keep': 10,
+      'printers.idleHeaterOffMinutes': 15,
       'printing.calibrateByDefault': false,
       'limits.costPerKg': null,
       'limits.currency': 'USD',

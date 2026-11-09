@@ -8,9 +8,9 @@ export const CUSTOM_PREFIX = 'custom:'
 export const isCustomPresetId = (id: string) => id.startsWith(CUSTOM_PREFIX)
 export const customRowId = (id: string) => (isCustomPresetId(id) ? Number(id.slice(CUSTOM_PREFIX.length)) || null : null)
 
-/** Owner or admin may edit/delete a custom preset */
-export const canEditPreset = (p: Pick<PresetSummary, 'custom' | 'ownerId'> | null | undefined, user: User | null | undefined) =>
-  !!p?.custom && !!user && (user.role === 'admin' || p.ownerId === user.id)
+/** Owner or admin may edit/delete a custom preset; once shared, admins only (the owner duplicates it to edit) */
+export const canEditPreset = (p: Pick<PresetSummary, 'custom' | 'ownerId' | 'scope'> | null | undefined, user: User | null | undefined) =>
+  !!p?.custom && !!user && (user.role === 'admin' || (p.ownerId === user.id && p.scope !== 'shared'))
 
 /** Presets of a list scope; reloads whenever custom presets change (invalidateCustomFilaments). */
 export function useFilamentPresets(scope: 'usable' | 'mine' | 'shared' | 'everyone', enabled = true) {

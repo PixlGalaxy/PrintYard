@@ -456,6 +456,9 @@ export type GcodeScanReason =
   | 'motion_limit'
   | 'invalid_value'
   | 'unknown_heater'
+  | 'malformed_command'
+  | 'duplicate_parameter'
+  | 'flow_limit'
   | 'unknown_command';
 
 export interface GcodeScanFinding {

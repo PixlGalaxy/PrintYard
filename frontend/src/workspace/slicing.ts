@@ -70,7 +70,7 @@ export const slicing = {
     return () => void listeners.delete(cb)
   },
   /** Starts slicing the given plates (sequential POSTs; the server queues them). */
-  async start(doc: SceneDoc, plates: number[]) {
+  async start(doc: SceneDoc, plates: number[], name?: string) {
     if (run && !run.finished) return
     const id = nextRun++
     set({ id, plates, jobs: {}, error: null, finished: false })
@@ -79,7 +79,7 @@ export const slicing = {
       const vp = env.viewport
       const thumbnails = vp ? { small: vp.renderThumbnail(plate, 96), large: vp.renderThumbnail(plate, 300) } : { small: '', large: '' }
       try {
-        const job = await api.sliceStart({ scene: doc, plate, thumbnails })
+        const job = await api.sliceStart({ scene: doc, plate, thumbnails, ...(name?.trim() && { name: name.trim().slice(0, 120) }) })
         if (!run || run.id !== id) return
         set({ ...run, jobs: { ...run.jobs, [plate]: job } })
         patchJob(job)

@@ -72,7 +72,8 @@ describe('print calibration (enableSelfTest) and live estimate, against the simu
     const res = await api(live.base, carol, 'POST', '/api/prints', { printerId, fileId: 1 });
     assert.equal(res.status, 201, JSON.stringify(res.body));
     assert.equal(res.body.calibrate, false);
-    assert.deepEqual(sim.lastStart, { path: '/usr/data/printer_data/gcodes/Cube.gcode', enableSelfTest: 0 });
+    assert.ok(/gcodes[/]Cube_p[0-9]+[.]gcode$/.test(sim.lastStart!.path), sim.lastStart!.path);
+    assert.equal(sim.lastStart!.enableSelfTest, 0);
 
     const heating = await waitFor(() => status().estimate?.phase === 'heating' && status().estimate);
     assert.equal(heating.source, 'slicer');
@@ -88,8 +89,9 @@ describe('print calibration (enableSelfTest) and live estimate, against the simu
     const res = await api(live.base, carol, 'POST', '/api/prints', { printerId, fileId: 1, calibrate: true });
     assert.equal(res.status, 201, JSON.stringify(res.body));
     assert.equal(res.body.calibrate, true);
-    assert.deepEqual(sim.lastStart, { path: '/usr/data/printer_data/gcodes/Cube.gcode', enableSelfTest: 1 });
-    assert.deepEqual(sim.commands.at(-1), { opGcodeFile: 'printprt:/usr/data/printer_data/gcodes/Cube.gcode', enableSelfTest: 1 });
+    assert.ok(/gcodes[/]Cube_p[0-9]+[.]gcode$/.test(sim.lastStart!.path), sim.lastStart!.path);
+    assert.equal(sim.lastStart!.enableSelfTest, 1);
+    assert.deepEqual(sim.commands.at(-1), { opGcodeFile: `printprt:${sim.lastStart!.path}`, enableSelfTest: 1 });
     const prep = await waitFor(() => status().estimate?.phase === 'preparing' && status().estimate, 10_000);
     assert.ok(prep.remainingSec! > 600);
     await finish();

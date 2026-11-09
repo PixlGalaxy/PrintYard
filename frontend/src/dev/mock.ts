@@ -99,6 +99,7 @@ const DEFAULT_SETTINGS: Settings = {
   'files.retention.keep': 10,
   'printers.retention.enabled': true,
   'printers.retention.keep': 10,
+  'printers.idleHeaterOffMinutes': 15,
   'files.maxUploadMb': 200,
 }
 

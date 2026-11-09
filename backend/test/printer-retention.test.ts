@@ -20,8 +20,8 @@ describe('printer file retention (simulator)', () => {
   const files = new Map<number, PrintableFile>();
   const audit = (action: string) => (t.ctx.audit.list(500) as { action: string; target: string }[]).filter((e) => e.action === action);
   const upload = async (name: string) => {
-    const { path } = await t.ctx.printerManager.driver(printerId).uploadFile(name, gpath);
-    t.ctx.printerRetention.recordUpload(printerId, path, null, null);
+    const { path, size } = await t.ctx.printerManager.driver(printerId).uploadFile(name, gpath);
+    t.ctx.printerRetention.recordUpload(printerId, path, null, size ?? null);
     return path;
   };
 
@@ -88,7 +88,7 @@ describe('printer file retention (simulator)', () => {
     const res = await t.agent.post('/api/prints').send({ printerId, fileId: 1, confirmBedClear: true });
     assert.equal(res.status, 201, JSON.stringify(res.body));
     const first = (await t.ctx.printing.lastRetention) as { deleted: string[]; kept: { path: string; reason: string }[] };
-    // Newest = Printing_now.gcode (kept by N=1); c.gcode deleted; d.gcode kept for the pending print.
+    // Newest = Printing_now_p2.gcode (kept by N=1); c.gcode deleted; d.gcode kept for the pending print.
     assert.deepEqual(first.deleted, [`${DIR}/c.gcode`]);
     assert.deepEqual(first.kept, [{ path: `${DIR}/d.gcode`, reason: 'in_use' }]);
     await waitFor(() => t.ctx.printerManager.status(printerId).state === 'printing', 8000);
@@ -96,11 +96,11 @@ describe('printer file retention (simulator)', () => {
     // A newer upload pushes the printing file over the limit: it is kept while active.
     await upload('e.gcode');
     const second = await t.ctx.printerRetention.run(printerId);
-    assert.ok(second.kept.some((k) => k.path === `${DIR}/Printing_now.gcode` && k.reason === 'in_use'), JSON.stringify(second));
-    assert.ok(sim.fileNames().includes('Printing_now.gcode'));
+    assert.ok(second.kept.some((k) => k.path === `${DIR}/Printing_now_p2.gcode` && k.reason === 'in_use'), JSON.stringify(second));
+    assert.ok(sim.fileNames().includes('Printing_now_p2.gcode'));
     // The driver itself also refuses to delete the active file.
-    await assert.rejects(t.ctx.printerManager.driver(printerId).deleteFile(`${DIR}/Printing_now.gcode`), (e: { code?: string }) => e.code === 'printers.file_in_use');
-    assert.ok(sim.fileNames().includes('Printing_now.gcode'));
+    await assert.rejects(t.ctx.printerManager.driver(printerId).deleteFile(`${DIR}/Printing_now_p2.gcode`), (e: { code?: string }) => e.code === 'printers.file_in_use');
+    assert.ok(sim.fileNames().includes('Printing_now_p2.gcode'));
   });
 
   it('forgets uploads that are already gone and does nothing when disabled or read-only', async () => {

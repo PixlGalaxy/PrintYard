@@ -40,7 +40,7 @@ import { useI18n } from '../../../i18n/I18nContext'
 import { usePrinterStatus, useRealtimeMessage, useRealtimeState } from '../../../realtime'
 import type { CfsSlot, LastJob, LibraryFile, PrintJob, Printer, PrinterState, TempSample } from '../../../types'
 import { useReadOnly } from '../../../readOnly'
-import { BedIcon, LightIcon, NozzleIcon, PrinterLayers, PrinterModelIcon } from '../../../components/printerIcons'
+import { BedIcon, NozzleIcon, PrinterLayers, PrinterModelIcon } from '../../../components/printerIcons'
 import { Segmented } from '../../../components/ui'
 import JogPanel from './JogPanel'
 import LiveView from './LiveView'
@@ -130,7 +130,6 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
   const [confirm, setConfirm] = useState<Command | null>(null)
   const [confirmBed, setConfirmBed] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [lightBusy, setLightBusy] = useState(false)
   const [temps, setTemps] = useState<TempSample[]>([])
   // Main is always the tab shown when the page opens (not remembered)
   const [activeTab, setTab] = useState<Tab>('main')
@@ -180,6 +179,10 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
   const owner = isAdmin || (current != null && current.userId === user?.id)
   const canCommand = !readOnly && !!status && owner
   const canJog = isAdmin || !!user?.canControlPrinter
+  // A job of ours being sent to the printer (others' uploads are refused by the server: printers.control_busy)
+  const uploadingJob = prints.find((p) => p.printerId === printer.id && p.state === 'uploading') ?? null
+  // Heaters/fan/speed/flow of a running or uploading job: its owner or an admin only
+  const jobLocked = !isAdmin && ((active && !owner) || (uploadingJob != null && uploadingJob.userId !== user?.id))
   // While the bed is occupied, the last job stays on screen with its final values
   const lastJob = status && !active && status.bedClear === false ? (status.lastJob ?? null) : null
   const thumb = fileOf(current?.fileId)?.thumbnailUrl ?? (lastJob ? fileOf(last?.fileId)?.thumbnailUrl : null) ?? null
@@ -207,16 +210,6 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
     }
   }
 
-  async function setLight(on: boolean) {
-    setLightBusy(true)
-    try {
-      await api.printerControl(printer.id, { action: 'light', on })
-    } catch (err) {
-      onError(err)
-    } finally {
-      setLightBusy(false)
-    }
-  }
 
   if (!status) {
     return (
@@ -267,8 +260,6 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
 
   // Why pause/cancel are disabled (tooltip; disabled buttons get no pointer events, so it sits on a wrapper)
   const commandReason = readOnly ? t('readOnly.tooltip') : active && !owner ? t('printerTab.controlsOwnerOnly') : undefined
-  const lightReason = readOnly ? t('readOnly.tooltip') : !status.online ? t('jog.offline') : !canJog ? t('printerTab.noControlPermission') : undefined
-  const lightBlocked = !!lightReason || lightBusy || status.lightOn == null
 
   // ---------------------------------------------------------------- floating cards (over the 3D)
   const overlay = (
@@ -390,21 +381,6 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
           value={status.fanPart != null ? `${status.fanPart}%` : '—'}
         />
         <FilamentChip slots={status.cfs} />
-        <span title={lightReason ?? (status.lightOn == null ? t('printerTab.lightUnknown') : t(status.lightOn ? 'printerTab.lightTurnOff' : 'printerTab.lightTurnOn'))} className={lightReason ? 'cursor-not-allowed' : ''}>
-          <button
-            type="button"
-            aria-pressed={!!status.lightOn}
-            aria-label={t('printerTab.light')}
-            disabled={lightBlocked}
-            onClick={() => void setLight(!status.lightOn)}
-            className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-60 ${
-              status.lightOn ? 'border-amber-500/40 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 dark:text-amber-200' : 'border-line bg-surface-2/60 text-muted hover:text-fg'
-            }`}
-          >
-            {lightBusy ? <LoaderCircle size={13} className="animate-spin" /> : <LightIcon on={status.lightOn} size={13} />}
-            {t('printerTab.light')}
-          </button>
-        </span>
       </div>
       <div className="ml-auto flex items-center gap-1.5">
         {status.errorCode ? <Badge tone="red">{t('printerTab.errorCode', { code: status.errorCode })}</Badge> : null}
@@ -429,7 +405,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
   )
 
   // ---------------------------------------------------------------- right panel tabs
-  const main = <JogPanel printerId={printer.id} status={status} allowed={canJog} readOnly={readOnly} />
+  const main = <JogPanel printerId={printer.id} status={status} allowed={canJog} readOnly={readOnly} uploading={uploadingJob != null} jobLocked={jobLocked} />
   const tempsTab = (
     <section className="flex min-h-[22rem] flex-1 flex-col rounded-2xl border border-line bg-surface p-3 shadow-sm">
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -656,7 +632,7 @@ function ConfirmCommand({ cmd, fileName, onClose, onConfirm }: { cmd: Command; f
       footer={
         <>
           <Button onClick={onClose} disabled={busy} data-autofocus>
-            {t('printerTab.keep')}
+            {t(cmd === 'resume' ? 'printerTab.stayPaused' : 'printerTab.keep')}
           </Button>
           <Button variant={cmd === 'cancel' ? 'danger' : 'primary'} loading={busy} onClick={() => void go()}>
             {t(`printerTab.${cmd}`)}

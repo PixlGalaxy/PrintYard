@@ -275,6 +275,8 @@ export interface Settings {
   /** keep only the newest N SliceDock uploads on each printer (others are deleted from the printer) */
   'printers.retention.enabled': boolean
   'printers.retention.keep': number
+  /** idle heater safety: heaters on with no print and no control action for this long → off (0 = never) */
+  'printers.idleHeaterOffMinutes': number
   'files.maxUploadMb': number
 }
 
@@ -344,6 +346,9 @@ export type GcodeScanReason =
   | 'motion_limit'
   | 'invalid_value'
   | 'unknown_heater'
+  | 'malformed_command'
+  | 'duplicate_parameter'
+  | 'flow_limit'
   | 'unknown_command'
 
 export interface GcodeScanFinding {
@@ -818,6 +823,8 @@ export interface SliceRequest {
   plate: number
   /** base64 PNG without the data: prefix */
   thumbnails: { small: string; large: string }
+  /** Base name of the output (project name); the server builds `<name>_plate<N>.gcode`. */
+  name?: string
 }
 
 /** POST /api/projects and PUT /api/projects/:id */
@@ -829,6 +836,21 @@ export interface ProjectBody {
 }
 
 // ---------- Phase 4: notifications (backend/src/modules/notifications) ----------
+
+/** A G-code copy SliceDock uploaded to a printer for a library file */
+export interface PrinterCopy {
+  printerId: number
+  printerName: string
+  /** File name on the printer */
+  name: string
+}
+
+/** What happened to one printer copy when its library file was deleted */
+export interface PrinterCopyResult extends PrinterCopy {
+  result: 'deleted' | 'missing' | 'skipped'
+  /** Why it was skipped: in_use, unverified, offline, read_only, not_confirmed, … */
+  reason?: string
+}
 
 export const NOTIFY_EVENTS = [
   'print.started',
@@ -842,6 +864,7 @@ export const NOTIFY_EVENTS = [
   'limit.blocked',
   'printer.error',
   'printer.offline',
+  'printer.heaters_auto_off',
   'engine.update_available',
   'engine.updated',
   'engine.update_failed',
@@ -855,7 +878,8 @@ export type NotifyChannel = (typeof NOTIFY_CHANNELS)[number]
 export interface NotifyChannelConfigs {
   discord: { enabled: boolean; webhookUrl: string | null; mention: string | null; events: NotifyEvent[] }
   telegram: { enabled: boolean; botToken: string | null; chatId: string | null; events: NotifyEvent[] }
-  ntfy: { enabled: boolean; serverUrl: string; topic: string | null; token: string | null; events: NotifyEvent[] }
+  /** `localServer`: self-hosted on the LAN, private (192.168.x / 10.x / 172.16-31.x) addresses allowed */
+  ntfy: { enabled: boolean; serverUrl: string; topic: string | null; token: string | null; localServer: boolean; events: NotifyEvent[] }
   webhook: { enabled: boolean; url: string | null; secret: string | null; events: NotifyEvent[] }
 }
 
@@ -872,6 +896,19 @@ export interface AdminNotifications {
   status: Record<NotifyChannel, NotifyChannelStatus>
   events: NotifyEvent[]
   push: { subject: string; subjectFallback: boolean; devices: number }
+  /** Flood protection of user-triggered events (limit.blocked, approval.requested), per user */
+  rateLimit: NotifyRateLimit
+}
+
+export interface NotifyRateLimit {
+  events: NotifyEvent[]
+  maxPerWindow: number
+  windowMinutes: number
+  /** Events held back since the server started (grouped into digests) */
+  heldTotal: number
+  digestsSent: number
+  /** Users currently held back: their digest ("N more…") goes out at `digestAt` */
+  active: { userId: number; username: string | null; event: NotifyEvent; sent: number; held: number; digestAt: number | null; lastHeldAt: number | null }[]
 }
 
 export interface PushDevice {

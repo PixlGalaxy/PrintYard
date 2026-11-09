@@ -47,7 +47,8 @@ describe('G-code analyzer (finding #1)', () => {
   it('follows Klipper tokenizing and E modes (G90/G91, M82/M83, G92)', () => {
     assert.deepEqual(parseGcodeLine('N12 g1x10Y-2.5e0.4 ; c', 1)?.params, { X: '10', Y: '-2.5', E: '0.4' });
     assert.equal(parseGcodeLine('N12 g1x10', 1)?.name, 'G1');
-    assert.deepEqual(parseGcodeLine('SET_HEATER_TEMPERATURE HEATER=extruder TARGET=300', 2)?.params, { HEATER: 'EXTRUDER', TARGET: '300' });
+    // Extended commands keep the value case like Klipper's _get_extended_params (keys are upper-cased).
+    assert.deepEqual(parseGcodeLine('SET_HEATER_TEMPERATURE HEATER=extruder TARGET=300', 2)?.params, { HEATER: 'extruder', TARGET: '300' });
     assert.equal(parseGcodeLine('  ; only a comment', 3), null);
     // absolute E with a G92 reset in the middle: 10 + 5
     assert.equal(analyze('M82\nG1 X1 E10\nG92 E0\nG1 X2 E5').mm[0], 15);

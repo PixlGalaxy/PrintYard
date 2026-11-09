@@ -1,4 +1,4 @@
-import { BellRing, CircleCheck, CircleX, MessageSquare, Save, Send, Smartphone, Webhook, type LucideIcon } from 'lucide-react'
+import { BellRing, CircleCheck, CircleX, Gauge, MessageSquare, Save, Send, Smartphone, Webhook, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { ApiError, notifyApi } from '../../../api'
@@ -86,6 +86,7 @@ export default function NotificationsSection() {
         <Smartphone size={16} aria-hidden />
         {t('notify.pushInfo', { count: data.push.devices })}
       </div>
+      <RateLimitInfo data={data} />
       {NOTIFY_CHANNELS.map((c) => (
         <ChannelCard key={c} channel={c} data={data} onSaved={setData} reload={() => void reload()} />
       ))}
@@ -212,6 +213,16 @@ function ChannelCard({
         })}
       </div>
 
+      {channel === 'ntfy' && (
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-line p-3">
+          <div>
+            <div className="text-sm font-medium">{t('notify.field.localServer')}</div>
+            <p className="text-xs text-muted">{t('notify.field.localServerHint')}</p>
+          </div>
+          <Toggle checked={value('localServer') === true} label={t('notify.field.localServer')} onChange={(v) => set('localServer', v)} />
+        </div>
+      )}
+
       <EventPicker value={events} onChange={(v) => set('events', v)} />
 
       <div className="flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -226,6 +237,39 @@ function ChannelCard({
         </div>
       </div>
     </Panel>
+  )
+}
+
+/** Flood protection: what is rate-limited and who is being held back right now (review 3A #3). */
+function RateLimitInfo({ data }: { data: AdminNotifications }) {
+  const { t, formatDate } = useI18n()
+  const rl = data.rateLimit
+  if (!rl) return null
+  return (
+    <div className="rounded-lg border border-line p-3 text-sm">
+      <div className="flex items-center gap-2 font-medium">
+        <Gauge size={16} aria-hidden />
+        {t('notify.rateLimit.title')}
+      </div>
+      <p className="mt-1 text-xs text-muted">
+        {t('notify.rateLimit.desc', { max: rl.maxPerWindow, minutes: rl.windowMinutes, events: rl.events.map((e) => eventLabel(t, e)).join(', ') })}
+      </p>
+      {rl.heldTotal > 0 && <p className="mt-1 text-xs text-muted">{t('notify.rateLimit.totals', { held: rl.heldTotal, digests: rl.digestsSent })}</p>}
+      {rl.active.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {rl.active.map((a) => (
+            <li key={`${a.userId}:${a.event}`} className="flex flex-wrap items-center gap-x-2 text-xs">
+              <span className="font-medium">{a.username ?? `#${a.userId}`}</span>
+              <span className="text-muted">{eventLabel(t, a.event)}</span>
+              <span className="text-amber-600 dark:text-amber-400">
+                {t('notify.rateLimit.held', { n: a.held })}
+                {a.digestAt !== null && ` · ${t('notify.rateLimit.digestAt', { date: formatDate(a.digestAt) })}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

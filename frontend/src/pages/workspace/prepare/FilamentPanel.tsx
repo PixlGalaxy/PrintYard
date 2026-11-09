@@ -536,7 +536,7 @@ function PresetPicker({
                           <PencilLine size={12} />
                         </button>
                       )}
-                      <button type="button" tabIndex={-1} aria-label={t('filaments.duplicatePreset', { name: p.name })} title={t('filaments.duplicate')} onClick={() => act('duplicate')} className="inline-flex size-6 items-center justify-center rounded text-muted hover:bg-surface-2 hover:text-fg">
+                      <button type="button" tabIndex={-1} aria-label={t('filaments.duplicatePreset', { name: p.name })} title={t(editable || p.ownerId !== user?.id ? 'filaments.duplicate' : 'filaments.duplicateToEdit')} onClick={() => act('duplicate')} className="inline-flex size-6 items-center justify-center rounded text-muted hover:bg-surface-2 hover:text-fg">
                         <Copy size={12} />
                       </button>
                       {editable && (

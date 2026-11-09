@@ -138,12 +138,12 @@ describe('printing end-to-end against the printer simulator', () => {
     assert.equal(res.body.grams, 20);
     assert.equal(res.body.seconds, 600);
     firstJob = res.body.id;
-    assert.deepEqual(sim.uploads.at(-1), { name: 'Cube_1.gcode', size: Buffer.byteLength(GCODE) });
-    assert.deepEqual(sim.commands.at(-1), { opGcodeFile: 'printprt:/usr/data/printer_data/gcodes/Cube_1.gcode', enableSelfTest: 0 });
+    assert.deepEqual(sim.uploads.at(-1), { name: 'Cube_1_p1.gcode', size: Buffer.byteLength(GCODE) });
+    assert.deepEqual(sim.commands.at(-1), { opGcodeFile: 'printprt:/usr/data/printer_data/gcodes/Cube_1_p1.gcode', enableSelfTest: 0 });
 
     await waitState('printing');
     const st = await aliceWs.next('printer.status', (d) => d.state === 'printing' && d.currentPrintId === firstJob);
-    assert.equal(st.fileName, 'Cube_1.gcode');
+    assert.equal(st.fileName, 'Cube_1_p1.gcode');
 
     const bobPause = await api(live.base, bob, 'POST', `/api/printers/${printerId}/pause`);
     assert.equal(bobPause.status, 403);
@@ -154,7 +154,7 @@ describe('printing end-to-end against the printer simulator', () => {
 
     // live view while paused: Moonraker job fields, the library copy of the G-code, the preview image
     const job = await waitFor(() => status().job);
-    assert.equal(job.fileName, 'Cube_1.gcode');
+    assert.equal(job.fileName, 'Cube_1_p1.gcode');
     assert.equal(job.fileSize, Buffer.byteLength(GCODE));
     assert.equal(job.slicer, 'SliceDock-sim');
     assert.ok(job.toolhead && job.toolhead.length === 3);
