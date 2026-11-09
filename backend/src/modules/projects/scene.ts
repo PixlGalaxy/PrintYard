@@ -5,6 +5,8 @@ import type { SceneDoc } from '../../types.js';
 import type { Mesh } from '../files/mesh.js';
 import { firstValue, type ProfilesService, type ProfileViewer, type RawPreset } from '../profiles/profiles.service.js';
 import { filamentOptionDefs, processOptionDefs, UNSAFE_OPTION_KEY } from '../profiles/profiles.service.js';
+import type { OptionDef } from '../../types.js';
+import { assertOptionValues } from '../profiles/option-bounds.js';
 import type { BuildObject, BuildPlate } from './threemf.js';
 
 /**
@@ -62,23 +64,25 @@ export const sceneSchema = z.object({
  * Keys a client may override. Only real config options are accepted, and never ones that run code or change where
  * the engine writes (post-processing scripts, output names, raw G-code templates).
  */
-let allowedKeys: Set<string> | null = null;
-let allowedFilamentKeys: Set<string> | null = null;
-function isOverridable(key: string, kind: 'process' | 'filament'): boolean {
-  if (UNSAFE_OPTION_KEY.test(key)) return false;
-  if (kind === 'filament') {
-    if (!allowedFilamentKeys) allowedFilamentKeys = new Set(filamentOptionDefs().map((o) => o.key));
-    return allowedFilamentKeys.has(key);
-  }
-  if (!allowedKeys) allowedKeys = new Set(processOptionDefs().map((o) => o.key));
-  return allowedKeys.has(key);
+let processDefs: Map<string, OptionDef> | null = null;
+let filamentDefs: Map<string, OptionDef> | null = null;
+function defsFor(kind: 'process' | 'filament'): Map<string, OptionDef> {
+  if (kind === 'filament') return (filamentDefs ??= new Map(filamentOptionDefs().map((o) => [o.key, o])));
+  return (processDefs ??= new Map(processOptionDefs().map((o) => [o.key, o])));
 }
 
+/**
+ * Keys must be overridable options and values must fit their type, range and the hard safety caps
+ * (`option-bounds.ts`): `nozzle_temperature_initial_layer: 999` is a 400 `slice.invalid_override` with
+ * `details: { keys, issues }` (phase 3 review A #2).
+ */
 export function assertOverrides(o: Record<string, string>, where: string, kind: 'process' | 'filament' = 'process'): void {
-  const bad = Object.keys(o).filter((k) => !isOverridable(k, kind));
+  const defs = defsFor(kind);
+  const bad = Object.keys(o).filter((k) => UNSAFE_OPTION_KEY.test(k) || !defs.has(k));
   if (bad.length > 0) {
     throw new AppError(400, 'slice.invalid_override', `Unsupported setting override in ${where}`, { keys: bad.slice(0, 20) });
   }
+  assertOptionValues(o, defs, where);
 }
 
 /** Applies a string override to a raw value: arrays get every entry replaced (or split on commas). */
@@ -97,11 +101,22 @@ function applyOverride(cfg: RawPreset, key: string, value: string): void {
 export function buildProjectConfig(profiles: ProfilesService, scene: SceneDoc, viewer?: ProfileViewer): RawPreset {
   assertOverrides(scene.processOverrides, 'processOverrides');
   for (const f of scene.filaments) if (f.overrides) assertOverrides(f.overrides, `filaments[slot ${f.slot}].overrides`, 'filament');
+  for (const o of scene.objects) assertOverrides(o.overrides, `object "${o.name}"`);
   const machine = profiles.raw(scene.printerModel, 'machine', scene.machinePresetId);
   const process = profiles.raw(scene.printerModel, 'process', scene.processPresetId);
   const slots = [...scene.filaments].sort((a, b) => a.slot - b.slot);
   const resolved = slots.map((f) => profiles.filament(scene.printerModel, f.presetId, viewer));
   const filaments = resolved.map((r) => r.raw);
+  // Custom presets saved before the safety caps (or edited directly in the DB) are re-checked on every use.
+  resolved.forEach((r, i) => {
+    if (r.customKeys.length === 0) return;
+    const custom: Record<string, string> = {};
+    for (const k of r.customKeys) {
+      const v = firstValue(r.raw[k]);
+      if (v !== undefined) custom[k] = v;
+    }
+    assertOptionValues(custom, defsFor('filament'), `filament preset "${r.settingsId}" (slot ${slots[i]!.slot})`);
+  });
 
   const cfg: RawPreset = { ...machine, ...process };
   const filamentKeys = new Set(filaments.flatMap((f) => Object.keys(f)));

@@ -11,6 +11,7 @@ import type { EngineManager } from '../engine/engine.service.js';
 import { EngineError } from '../engine/engine.types.js';
 import { hashFile, type FilesService } from '../files/files.service.js';
 import { injectThumbnails, parseGcodeSummary, pngSize, type Thumbnail } from '../files/gcode.js';
+import { scanGcodeFile } from '../files/gcode-scan.js';
 import type { ProfilesService } from '../profiles/profiles.service.js';
 import { buildProjectConfig } from '../projects/scene.js';
 import { ProgressModel, type ProgressSnapshot } from './progress.js';
@@ -52,6 +53,27 @@ function errorOf(err: unknown): { code: string; message: string } {
   if (err instanceof EngineError) return { code: err.code, message: err.message };
   if (err instanceof AppError) return { code: err.code, message: err.message };
   return { code: 'slice.failed', message: (err as Error)?.message ?? String(err) };
+}
+
+const MAX_OUTPUT_NAME = 64;
+
+/**
+ * Library name of a sliced plate: `<project or first object name>_plate<N>.gcode`, sanitized, ≤ 64 characters.
+ * The engine writes `plate_1.gcode`; that name (or a base that already is "plate…"/ends in `_plateN`) never leaks
+ * into the result, so no `plate_plate1.gcode`.
+ */
+export function sliceOutputName(projectName: string | undefined, firstObjectName: string, plate: number): string {
+  const clean = (v: string | undefined) =>
+    (v ?? '')
+      .replace(/\.(gcode|3mf|stl|obj|step|stp)$/i, '')
+      .replace(/[^\p{L}\p{N} ._()+-]+/gu, '_')
+      .replace(/[\s_]+/g, (m) => (m.includes('_') ? '_' : ' '))
+      .replace(/(?:^|[_ -])plate[_ -]?\d+$/i, '')
+      .replace(/^[\s._-]+|[\s._-]+$/g, '');
+  const usable = (v: string) => v !== '' && !/^plate$/i.test(v);
+  const base = [clean(projectName), clean(firstObjectName)].find(usable) ?? 'SliceDock';
+  const suffix = `_plate${plate + 1}.gcode`;
+  return `${Array.from(base).slice(0, MAX_OUTPUT_NAME - suffix.length).join('').replace(/[\s._-]+$/, '')}${suffix}`;
 }
 
 export class SlicingService {
@@ -173,8 +195,7 @@ export class SlicingService {
     if (pending.length >= MAX_QUEUED || pending.filter((j) => j.userId === user.id).length >= MAX_QUEUED_PER_USER) {
       throw new AppError(429, 'slice.queue_full', 'Too many slicing jobs are waiting; try again when one finishes');
     }
-    const firstName = scene.objects.find((o) => o.plate === plate)?.name ?? 'plate';
-    const base = (body.name?.trim() || (scene.objects.filter((o) => o.plate === plate).length > 1 ? 'plate' : firstName)).replace(/\.[^.]+$/, '');
+    const firstName = scene.objects.find((o) => o.plate === plate)?.name ?? '';
     const job: Job = {
       id: randomUUID(),
       state: 'queued',
@@ -186,7 +207,7 @@ export class SlicingService {
       username: user.username,
       role: user.role,
       scene,
-      name: `${base.slice(0, 120)}_plate${plate + 1}.gcode`,
+      name: sliceOutputName(body.name, firstName, plate),
       thumbs,
       abort: new AbortController(),
       ip,
@@ -319,9 +340,22 @@ export class SlicingService {
       const finalTmp = await this.deps.files.tempPath('gcode');
       if (job.thumbs.length > 0) await injectThumbnails(result.gcodePath, finalTmp, job.thumbs);
       else await rename(result.gcodePath, finalTmp);
-      // Server-trusted: SliceDock produced this file (overrides are CR/LF-free, G-code templates refused), so its
-      // own summary is used for limits. G-code files are never rewritten; sha256 is re-checked before printing.
-      const summary = { ...(await parseGcodeSummary(finalTmp)), estimateSource: 'slicer' as const };
+      // Defence in depth (phase 3 review A #2): overrides and presets are range-checked, but the engine output is
+      // still run through the dangerous-command scanner. A failing scan fails the job; it is never marked trusted.
+      model.postprocessing('saving', 'Checking the G-code');
+      this.apply(job, model.tick());
+      const scan = await scanGcodeFile(finalTmp);
+      if (!scan.ok) {
+        await rm(finalTmp, { force: true }).catch(() => undefined);
+        logger.warn(`Slice ${job.id}: output failed the G-code scan (${scan.total} finding(s), first: ${scan.findings[0]?.reason ?? '?'})`);
+        throw new AppError(422, 'slice.unsafe_output', 'The sliced G-code contains commands or values outside the safety limits', {
+          total: scan.total,
+          findings: scan.findings.slice(0, 10),
+        });
+      }
+      // Server-trusted: SliceDock produced this file (overrides are CR/LF-free and range-checked, G-code templates
+      // refused, output scanned), so its own summary is used for limits. sha256 is re-checked before printing.
+      const summary = { ...(await parseGcodeSummary(finalTmp)), estimateSource: 'slicer' as const, scan };
       const { sha256, size } = await hashFile(finalTmp);
       const file = await this.deps.files.addFile(
         { id: job.userId, username: job.username },

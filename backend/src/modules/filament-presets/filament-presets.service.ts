@@ -15,6 +15,7 @@ import {
   type ProfilesService,
   type ProfileViewer,
 } from '../profiles/profiles.service.js';
+import { checkOptionValue } from '../profiles/option-bounds.js';
 
 interface Row {
   id: number;
@@ -90,22 +91,6 @@ export const patchSchema = z.object({
 export type CreateBody = z.infer<typeof createSchema>;
 export type PatchBody = z.infer<typeof patchSchema>;
 
-/** Numeric range per key (checked after the type). Units come from the option table. */
-function boundsFor(def: OptionDef): { min: number; max: number } {
-  const k = def.key;
-  if (def.unit === '°C' || /temp/.test(k)) return { min: 0, max: 500 };
-  if (def.type === 'percent' || def.unit === '%' || /fan_speed|fan_min_speed|fan_max_speed/.test(k)) return { min: 0, max: 100 };
-  if (k === 'filament_diameter') return { min: 0.5, max: 5 };
-  if (k === 'filament_density') return { min: 0, max: 30 };
-  if (k === 'filament_flow_ratio') return { min: 0.01, max: 5 };
-  if (k === 'pressure_advance') return { min: 0, max: 5 };
-  if (k === 'filament_cost') return { min: 0, max: 1_000_000 };
-  if (k === 'filament_max_volumetric_speed') return { min: 0, max: 500 };
-  return { min: -100_000, max: 100_000 };
-}
-
-const NUMBER = /^-?(\d+(\.\d*)?|\.\d+)$/;
-
 let defsByKey: Map<string, OptionDef> | null = null;
 function filamentDefs(): Map<string, OptionDef> {
   if (!defsByKey) defsByKey = new Map(filamentOptionDefs().map((o) => [o.key, o]));
@@ -114,7 +99,8 @@ function filamentDefs(): Map<string, OptionDef> {
 
 /**
  * Validates and normalises custom values: keys must be filament options (same allowlist as slot overrides), values
- * are single-line engine text, numbers are finite and inside the key's bounds, bools are 0/1, enums known values.
+ * are single-line engine text, numbers are finite and inside the key's bounds and safety caps (temperatures at most
+ * the scanner limits, not 500), bools are 0/1, enums known values.
  * `nil` ("use the printer's value") is accepted for the Setting Overrides keys.
  */
 export function validateFilamentValues(values: Record<string, string>): Record<string, string> {
@@ -131,40 +117,9 @@ export function validateFilamentValues(values: Record<string, string>): Record<s
       continue;
     }
     const v = rawValue.replace(CONTROL_CHARS, ' ').trim();
-    const fail = (reason: string) => badValues.push({ key, reason });
-    if (v === 'nil' && def.page === 'Setting Overrides') {
-      out[key] = v;
-      continue;
-    }
-    switch (def.type) {
-      case 'bool':
-        if (v !== '0' && v !== '1') fail('bool');
-        break;
-      case 'int':
-      case 'float':
-      case 'percent':
-      case 'floatOrPercent': {
-        const num = def.type === 'percent' || def.type === 'floatOrPercent' ? v.replace(/%$/, '') : v;
-        if (!NUMBER.test(num)) {
-          fail('number');
-          break;
-        }
-        if (def.type === 'int' && !/^-?\d+$/.test(num)) {
-          fail('integer');
-          break;
-        }
-        const n = Number(num);
-        const b = v.endsWith('%') ? { min: 0, max: 1000 } : boundsFor(def);
-        if (!Number.isFinite(n) || n < b.min || n > b.max) fail(`range ${b.min}..${b.max}`);
-        break;
-      }
-      case 'enum':
-        if (def.enumValues?.length && !def.enumValues.some((e) => e.value === v)) fail('enum');
-        break;
-      default:
-        if (key === 'default_filament_colour' && v !== '' && !/^#[0-9a-fA-F]{6}$/.test(v)) fail('color');
-        break;
-    }
+    // Type, range and hard safety caps shared with scene overrides (option-bounds.ts; review 3A #2).
+    const reason = checkOptionValue(def, v);
+    if (reason) badValues.push({ key, reason });
     out[key] = v;
   }
   if (badKeys.length > 0) {
@@ -175,6 +130,18 @@ export function validateFilamentValues(values: Record<string, string>): Record<s
       keys: badValues.slice(0, 20).map((b) => b.key),
       issues: badValues.slice(0, 20),
     });
+  }
+  return out;
+}
+
+/** Audit detail of a values edit: changed keys with old → new (values are capped, at most 50 keys). */
+function changedValues(before: Record<string, string>, after: Record<string, string>): { key: string; from: string | null; to: string | null }[] {
+  const out: { key: string; from: string | null; to: string | null }[] = [];
+  for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    const from = before[key] ?? null;
+    const to = after[key] ?? null;
+    if (from !== to) out.push({ key, from: from?.slice(0, 64) ?? null, to: to?.slice(0, 64) ?? null });
+    if (out.length >= 50) break;
   }
   return out;
 }
@@ -229,7 +196,8 @@ export class FilamentPresetsService implements CustomFilamentProvider {
       values: rec.values,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
-      canEdit: r.owner_id === viewer.id || viewer.role === 'admin',
+      // Shared presets are admin-only to edit (the owner duplicates to change them; review 3A #7).
+      canEdit: viewer.role === 'admin' || (r.owner_id === viewer.id && r.scope !== 'shared'),
     };
   }
 
@@ -248,10 +216,16 @@ export class FilamentPresetsService implements CustomFilamentProvider {
     return r;
   }
 
+  /**
+   * Owner or admin; once shared, admins only: everyone slices with a shared preset, so its owner must not change it
+   * silently afterwards (phase 3 review A #7). The owner can still duplicate it ("Duplicate to edit").
+   */
   private writableRow(id: number, viewer: ProfileViewer): Row {
     const r = this.visibleRow(id, viewer);
-    if (r.owner_id !== viewer.id && viewer.role !== 'admin') {
-      throw forbidden('filament_presets.forbidden', 'Only the owner or an admin can change this filament');
+    if (viewer.role === 'admin') return r;
+    if (r.owner_id !== viewer.id) throw forbidden('filament_presets.forbidden', 'Only the owner or an admin can change this filament');
+    if (r.scope === 'shared') {
+      throw forbidden('filament_presets.shared_read_only', 'This filament is shared: only an admin can change it. Duplicate it to make your own version');
     }
     return r;
   }
@@ -383,8 +357,10 @@ export class FilamentPresetsService implements CustomFilamentProvider {
       this.db.prepare(`UPDATE filament_presets SET ${sets.join(', ')} WHERE id = ?`).run(...args, id);
       this.audit.log('filament_preset.update', actor, patch.name ?? r.name, {
         id,
+        ownerId: r.owner_id,
+        scope: r.scope,
         fields: Object.keys(patch),
-        ...(values && { keys: Object.keys(values).length }),
+        ...(values && { keys: Object.keys(values).length, changed: changedValues(this.toRecord(r).values, values) }),
       });
     }
     return this.get(viewer, id);

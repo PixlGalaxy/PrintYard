@@ -14,7 +14,7 @@ import { analyzeGcodeFile, type GcodeCommand, type GcodeHook } from './gcode-ana
  */
 
 /** Bump when the rules change: stored scans with another version are recomputed before printing. */
-export const SCAN_VERSION = 1;
+export const SCAN_VERSION = 2;
 /** Findings kept in `meta.gcode.scan` (the total is counted separately). */
 const MAX_STORED_FINDINGS = 50;
 
@@ -31,9 +31,22 @@ export interface ScanLimits {
   accel: number;
   /** mm/s: square corner velocity cap (`machine_max_jerk_x/y`, default 20). */
   squareCornerVelocity: number;
+  /** % : highest `M220 S` speed factor (default 200). */
+  speedFactor: number;
+  /** % : highest `M221 S` extrusion factor (default 150). */
+  flowFactor: number;
 }
 
-export const DEFAULT_SCAN_LIMITS: ScanLimits = { nozzle: 300, bed: 110, chamber: 60, velocity: 800, accel: 20000, squareCornerVelocity: 20 };
+export const DEFAULT_SCAN_LIMITS: ScanLimits = {
+  nozzle: 300,
+  bed: 110,
+  chamber: 60,
+  velocity: 800,
+  accel: 20000,
+  squareCornerVelocity: 20,
+  speedFactor: 200,
+  flowFactor: 150,
+};
 
 /** Named dangerous commands → reason. */
 const DANGEROUS: Record<string, GcodeScanReason> = {
@@ -76,11 +89,24 @@ const ALLOWED = new Set<string>([
   'SET_PRESSURE_ADVANCE', 'SET_VELOCITY_LIMIT', 'SET_PRINT_STATS_INFO', 'SET_HEATER_TEMPERATURE', 'TEMPERATURE_WAIT',
 ]);
 
+/**
+ * Plain decimal numbers only. Python's `float()` (Klipper `get_float`) also takes `nan`, `inf`, `1_000` and non-ASCII
+ * digits, and NaN passes every `maxval` check there, so anything that is not a plain number is `invalid_value`.
+ */
+const DECIMAL = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const num = (v: string | undefined): number | null => {
   if (v === undefined || v === '') return null;
-  const n = Number(v.replace(/^"|"$/g, ''));
+  const t = v.trim();
+  if (!DECIMAL.test(t)) return NaN;
+  const n = Number(t);
   return Number.isFinite(n) ? n : NaN;
 };
+
+/** Commands whose parameters are range-checked: ambiguous or malformed parameters there are findings. */
+const CHECKED = new Set([
+  'M104', 'M109', 'M140', 'M190', 'M141', 'M191', 'M201', 'M203', 'M204', 'M220', 'M221',
+  'START_PRINT', 'SET_HEATER_TEMPERATURE', 'SET_VELOCITY_LIMIT', 'TEMPERATURE_WAIT',
+]);
 
 let cachedLimits: ScanLimits | null = null;
 
@@ -153,8 +179,12 @@ export class GcodeScanner {
     const L = this.limits;
     const danger = DANGEROUS[name];
     if (danger) return this.add(cmd, danger);
+    // Over-long lines (parameters past the cut were never seen) and lines Klipper refuses with "Malformed command".
+    if (cmd.malformed !== undefined) return this.add(cmd, 'malformed_command', cmd.malformed);
     if (/^T\d{1,2}$/.test(name)) return;
     if (!ALLOWED.has(name)) return this.add(cmd, 'unknown_command');
+    // Klipper keeps the last value (checked below); a repeated key on a checked command is suspicious in itself.
+    if (CHECKED.has(name) && cmd.duplicates?.length) this.add(cmd, 'duplicate_parameter', cmd.duplicates.slice(0, 5).join(', '));
     switch (name) {
       case 'M104':
       case 'M109':
@@ -171,7 +201,7 @@ export class GcodeScanner {
         this.temp(cmd, 'CHAMBER_TEMP', L.chamber);
         return;
       case 'SET_HEATER_TEMPERATURE': {
-        const heater = (cmd.params.HEATER ?? '').replace(/^"|"$/g, '');
+        const heater = (cmd.params.HEATER ?? '').toUpperCase();
         const max = heater.startsWith('EXTRUDER') ? L.nozzle : heater === 'HEATER_BED' ? L.bed : heater.includes('CHAMBER') ? L.chamber : null;
         if (max === null) return this.add(cmd, 'unknown_heater', heater || undefined);
         return this.temp(cmd, 'TARGET', max);
@@ -192,6 +222,15 @@ export class GcodeScanner {
       case 'M203':
         for (const k of ['X', 'Y']) this.motion(cmd, k, L.velocity);
         return;
+      case 'M220':
+        return this.motion(cmd, 'S', L.speedFactor);
+      case 'M221': {
+        const v = num(cmd.params.S);
+        if (v === null) return;
+        if (Number.isNaN(v)) return this.add(cmd, 'invalid_value', `S=${cmd.params.S}`);
+        if (v > L.flowFactor) return this.add(cmd, 'flow_limit', `S=${v} > ${L.flowFactor}`);
+        return;
+      }
       default:
         return;
     }
