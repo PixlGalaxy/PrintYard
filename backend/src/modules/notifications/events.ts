@@ -13,6 +13,7 @@ export const NOTIFY_EVENTS = [
   'limit.blocked',
   'printer.error',
   'printer.offline',
+  'printer.heaters_auto_off',
   'engine.update_available',
   'engine.updated',
   'engine.update_failed',
@@ -80,6 +81,7 @@ export const EVENT_META: Record<DeliverableEvent, EventMeta> = {
   'limit.blocked': { audience: 'owner', color: 0xf97316, emoji: '⛔', tag: 'no_entry', priority: 'default', url: '/', forUsers: true },
   'printer.error': { audience: 'owner+admins', color: 0xdc2626, emoji: '⚠️', tag: 'warning', priority: 'urgent', url: '/', forUsers: true },
   'printer.offline': { audience: 'admins', color: 0x64748b, emoji: '📴', tag: 'electric_plug', priority: 'high', url: '/', forUsers: false },
+  'printer.heaters_auto_off': { audience: 'admins', color: 0xf59e0b, emoji: '🔥', tag: 'fire', priority: 'high', url: '/', forUsers: false },
   'engine.update_available': { audience: 'admins', color: 0x0ea5e9, emoji: '🔔', tag: 'bell', priority: 'low', url: '/admin?section=engine', forUsers: false },
   'engine.updated': { audience: 'admins', color: 0x22c55e, emoji: '⬆️', tag: 'arrow_up', priority: 'low', url: '/admin?section=engine', forUsers: false },
   'engine.update_failed': { audience: 'admins', color: 0xef4444, emoji: '❌', tag: 'x', priority: 'high', url: '/admin?section=engine', forUsers: false },
@@ -111,6 +113,8 @@ export function recipientsFor(event: NotifyEvent, users: readonly Recipient[]): 
 /** Two events with the same key within the dedupe window are delivered once. */
 export function dedupeKey(event: NotifyEvent): string {
   const d = event.data;
+  // limit.blocked: per user + limit, never the file name (renaming a file must not defeat the dedupe; review 3A #3).
+  if (event.type === 'limit.blocked') return `${event.type}|user:${d.userId ?? ''}|${d.code ?? ''}`;
   const subject = d.printId ?? (d.printerId != null ? `printer:${d.printerId}` : null) ?? d.version ?? (d.userId != null ? `user:${d.userId}` : '');
-  return `${event.type}|${subject}|${event.type === 'limit.blocked' ? (d.fileName ?? '') : ''}`;
+  return `${event.type}|${subject}|`;
 }

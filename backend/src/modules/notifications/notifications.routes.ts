@@ -5,6 +5,7 @@ import { SettingsValidationError } from '../../db/settings.js';
 import { AppError, notFound, validationFailed } from '../../errors.js';
 import { idParam, parse } from '../../middleware/index.js';
 import { eventsForRole, NOTIFY_EVENTS } from './events.js';
+import { USER_TRIGGERED_EVENTS } from './flood.js';
 import { CHANNEL_FIELDS, CHANNELS, isChannel, type ChannelName } from './settings.js';
 
 const TEST_COOLDOWN_MS = 5_000;
@@ -46,11 +47,25 @@ function adminView(ctx: AppContext) {
     channels[c] = obj;
   }
   const subject = ctx.notifications.push.subject();
+  const flood = ctx.notifications.floodStats();
+  const nameOf = ctx.db.prepare('SELECT username FROM users WHERE id = ?');
   return {
     channels,
     status: ctx.notifications.channelStatus(),
     events: [...NOTIFY_EVENTS],
     push: { subject: subject.subject, subjectFallback: subject.fallback, devices: ctx.notifications.push.count() },
+    // Review 3A #3: user-triggered events (limit.blocked, approval.requested) are rate-limited per user.
+    rateLimit: {
+      events: [...USER_TRIGGERED_EVENTS],
+      maxPerWindow: flood.maxPerWindow,
+      windowMinutes: Math.round(flood.windowMs / 60_000),
+      heldTotal: flood.heldTotal,
+      digestsSent: flood.digestsSent,
+      active: flood.active.map((a) => ({
+        ...a,
+        username: (nameOf.get(a.userId) as { username: string } | undefined)?.username ?? null,
+      })),
+    },
   };
 }
 

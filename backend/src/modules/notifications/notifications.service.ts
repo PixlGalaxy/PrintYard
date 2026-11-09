@@ -25,6 +25,7 @@ import {
   type Recipient,
 } from './events.js';
 import { renderMessage, type RenderedMessage } from './i18n.js';
+import { FloodGuard, heldBackText, sanitizeEventData, type FloodStats } from './flood.js';
 import { DeliveryError, postOutbound, type FetchFn, type LookupFn } from './outbound.js';
 import { PushService, type PushPayload, type SendPushFn } from './push.js';
 import { CHANNELS, type ChannelName } from './settings.js';
@@ -65,9 +66,13 @@ export interface NotificationServiceOptions {
   sendPush?: SendPushFn;
   retryDelaysMs?: number[];
   dedupeMs?: number;
+  /** Flood guard for user-triggered events (tests): deliveries per user + event per window. */
+  floodMax?: number;
+  floodWindowMs?: number;
 }
 
-export type EmitResult = 'queued' | 'duplicate';
+/** `held`: rate-limited (user-triggered event), it will be part of a digest. */
+export type EmitResult = 'queued' | 'duplicate' | 'held';
 
 /**
  * Dispatcher: turns internal events into localized deliveries (admin channels + each recipient's Web Push devices),
@@ -75,6 +80,7 @@ export type EmitResult = 'queued' | 'duplicate';
  */
 export class NotificationService {
   readonly push: PushService;
+  readonly flood: FloodGuard;
   private readonly recent = new Map<string, number>();
   private readonly active = new Set<Promise<void>>();
   private readonly timers = new Set<NodeJS.Timeout>();
@@ -83,6 +89,17 @@ export class NotificationService {
 
   constructor(private readonly o: NotificationServiceOptions) {
     this.retryDelays = o.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+    this.flood = new FloodGuard({
+      ...(o.floodMax !== undefined && { max: o.floodMax }),
+      ...(o.floodWindowMs !== undefined && { windowMs: o.floodWindowMs }),
+      onDigest: (type, data, held, at) => {
+        try {
+          this.fanOut({ type, data, at }, held);
+        } catch (err) {
+          log.error(`Cannot dispatch the ${type} digest`, err);
+        }
+      },
+    });
     this.push = new PushService({
       db: o.db,
       keyFile: join(o.appdataRoot, 'vapid.json'),
@@ -103,6 +120,7 @@ export class NotificationService {
 
   stop(): void {
     this.stopped = true;
+    this.flood.stop();
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
   }
@@ -129,6 +147,7 @@ export class NotificationService {
         serverUrl: s.get('notify.ntfy.serverUrl'),
         topic: s.get('notify.ntfy.topic'),
         token: s.get('notify.ntfy.token'),
+        localServer: s.get('notify.ntfy.localServer'),
         events: s.get('notify.ntfy.events'),
       },
       webhook: {
@@ -190,8 +209,12 @@ export class NotificationService {
 
   // ------------------------------------------------------------------ dispatch
 
-  /** Fans an event out. Duplicates (same event + subject within 60 s) are dropped. */
-  emit(type: NotifyEventType, data: NotifyEventData, at = Date.now()): EmitResult {
+  /**
+   * Fans an event out. Duplicates (same event + subject within 60 s) are dropped; user-triggered events beyond the
+   * flood limit are held for a digest. User-controlled text is cleaned and truncated for every channel.
+   */
+  emit(type: NotifyEventType, rawData: NotifyEventData, at = Date.now()): EmitResult {
+    const data = sanitizeEventData(rawData);
     const event: NotifyEvent = { type, data, at };
     const key = dedupeKey(event);
     const window = this.o.dedupeMs ?? DEDUPE_WINDOW_MS;
@@ -199,6 +222,7 @@ export class NotificationService {
     const last = this.recent.get(key);
     if (last !== undefined && at - last <= window) return 'duplicate';
     this.recent.set(key, at);
+    if (!this.flood.admit(type, data, at)) return 'held';
 
     try {
       this.fanOut(event);
@@ -208,7 +232,13 @@ export class NotificationService {
     return 'queued';
   }
 
-  private fanOut(event: NotifyEvent): void {
+  /** Rate-limit facts for the admin page (users currently held back, totals). */
+  floodStats(): FloodStats {
+    return this.flood.stats();
+  }
+
+  /** `held` > 0: digest delivery, the body ends with "N more…". */
+  private fanOut(event: NotifyEvent, held = 0): void {
     const publicUrl = this.o.settings.get('exposure.publicUrl');
     const ctx: MessageContext = { data: event.data, at: event.at };
 
@@ -219,7 +249,7 @@ export class NotificationService {
     for (const name of CHANNELS) {
       const cfg = cfgs[name];
       if (!cfg.enabled || !isReady(name, cfgs) || !cfg.events.includes(event.type)) continue;
-      channelMsg ??= renderMessage(event.type, event.data, lang, publicUrl);
+      channelMsg ??= withHeld(renderMessage(event.type, event.data, lang, publicUrl), held);
       this.enqueue({ kind: 'channel', channel: name, message: channelMsg, ctx, attempt: 0 });
     }
 
@@ -229,6 +259,7 @@ export class NotificationService {
       const devices = this.push.deviceIds(r.id);
       if (devices.length === 0) continue;
       const payload = this.pushPayload(event.type, event.data, r.language, event.at);
+      if (held > 0) payload.body = `${payload.body} ${heldBackText(held, r.language)}`;
       const urgent = EVENT_META[event.type].priority === 'high' || EVENT_META[event.type].priority === 'urgent';
       for (const deviceId of devices) this.enqueue({ kind: 'push', deviceId, userId: r.id, payload, urgent, attempt: 0 });
     }
@@ -272,6 +303,7 @@ export class NotificationService {
       const label = job.kind === 'channel' ? job.channel : `push #${job.deviceId}`;
       const event = job.kind === 'channel' ? job.message.event : job.payload.event;
       const message = job.kind === 'channel' ? scrub(e.message, secretsOf(job.channel, this.channelConfigs())) : e.message;
+      const scrubDetail = (d: string, j: Job) => (j.kind === 'channel' ? scrub(d, secretsOf(j.channel, this.channelConfigs())) : d);
       const delay = this.retryDelays[job.attempt];
       if (e.retryable && delay !== undefined && !this.stopped) {
         log.warn(`${label}: ${event} failed (${message}); retry ${job.attempt + 1}/${this.retryDelays.length} in ${Math.round(delay / 1000)} s`);
@@ -286,7 +318,7 @@ export class NotificationService {
         if (this.stopped) return;
         return this.run({ ...job, attempt: job.attempt + 1 });
       }
-      log.error(`${label}: ${event} could not be delivered: ${message}`);
+      log.error(`${label}: ${event} could not be delivered: ${message}${e.detail ? ` (${scrubDetail(e.detail, job)})` : ''}`);
       if (job.kind === 'channel') this.recordFailure(job.channel, event, message);
     }
   }
@@ -324,10 +356,12 @@ export class NotificationService {
     try {
       await postOutbound(buildRequest(name, cfgs, msg, { data: {}, at: Date.now() }), this.outboundDeps());
     } catch (err) {
-      const message = scrub((err as Error).message, secretsOf(name, cfgs));
+      // Status code + a generic reason only: response bodies never reach the client (review 3A #4).
+      const e = err instanceof DeliveryError ? err : new DeliveryError('Network error');
+      const message = scrub(e.message, secretsOf(name, cfgs));
       this.recordFailure(name, 'test', message);
-      log.warn(`${name}: test notification failed: ${message}`);
-      throw new AppError(502, 'notify.test_failed', `The channel rejected the message: ${message}`, { error: message });
+      log.warn(`${name}: test notification failed: ${message}${e.detail ? ` (${scrub(e.detail, secretsOf(name, cfgs))})` : ''}`);
+      throw new AppError(502, 'notify.test_failed', `The channel rejected the message: ${message}`, { error: message, status: e.status });
     }
     this.recordSuccess(name);
   }
@@ -374,6 +408,10 @@ export class NotificationService {
   private recordFailure(channel: ChannelName, event: string, error: string): void {
     this.upsertStatus(channel, { last_event: event, last_error: error.slice(0, 500), last_error_at: Date.now() });
   }
+}
+
+function withHeld(msg: RenderedMessage, held: number): RenderedMessage {
+  return held > 0 ? { ...msg, body: `${msg.body}\n${heldBackText(held, msg.language)}` } : msg;
 }
 
 export { isNotifyEvent };

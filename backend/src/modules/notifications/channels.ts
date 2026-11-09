@@ -25,6 +25,8 @@ export interface NtfyConfig {
   serverUrl: string;
   topic: string | null;
   token: string | null;
+  /** Self-hosted on the LAN: RFC 1918 destinations (and plain http there) are allowed. */
+  localServer: boolean;
   events: string[];
 }
 export interface WebhookConfig {
@@ -92,7 +94,7 @@ export function headerSafe(v: string): string {
   return `=?UTF-8?B?${Buffer.from(v, 'utf8').toString('base64')}?=`;
 }
 
-export function ntfyRequest(cfg: Pick<NtfyConfig, 'serverUrl' | 'topic' | 'token'>, msg: RenderedMessage): OutboundRequest {
+export function ntfyRequest(cfg: Pick<NtfyConfig, 'serverUrl' | 'topic' | 'token'> & { localServer?: boolean }, msg: RenderedMessage): OutboundRequest {
   const meta = EVENT_META[msg.event];
   const body = [msg.body, ...msg.fields.map((f) => `${f.name}: ${f.value}`)].join('\n');
   const headers: Record<string, string> = {
@@ -103,7 +105,7 @@ export function ntfyRequest(cfg: Pick<NtfyConfig, 'serverUrl' | 'topic' | 'token
   };
   if (msg.link) headers.Click = msg.link;
   if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
-  return { url: `${cfg.serverUrl.replace(/\/+$/, '')}/${encodeURIComponent(cfg.topic ?? '')}`, body, headers, allowHttpPrivate: true };
+  return { url: `${cfg.serverUrl.replace(/\/+$/, '')}/${encodeURIComponent(cfg.topic ?? '')}`, body, headers, allowHttpPrivate: cfg.localServer === true };
 }
 
 /** `sha256=<hex HMAC-SHA256 of the raw body>`; receivers recompute it with the shared secret. */

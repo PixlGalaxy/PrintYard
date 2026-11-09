@@ -6,7 +6,7 @@ export { NotificationService } from './notifications.service.js';
 export { NotificationSources } from './sources.js';
 export { adminNotificationRoutes, accountNotificationRoutes } from './notifications.routes.js';
 
-export interface NotificationsOptions extends Partial<Pick<NotificationServiceOptions, 'fetchImpl' | 'lookup' | 'sendPush' | 'retryDelaysMs' | 'dedupeMs'>> {
+export interface NotificationsOptions extends Partial<Pick<NotificationServiceOptions, 'fetchImpl' | 'lookup' | 'sendPush' | 'retryDelaysMs' | 'dedupeMs' | 'floodMax' | 'floodWindowMs'>> {
   offlineAfterMs?: number;
 }
 
@@ -21,6 +21,8 @@ export function createNotifications(ctx: AppContext, opts: NotificationsOptions 
     ...(opts.sendPush && { sendPush: opts.sendPush }),
     ...(opts.retryDelaysMs && { retryDelaysMs: opts.retryDelaysMs }),
     ...(opts.dedupeMs !== undefined && { dedupeMs: opts.dedupeMs }),
+    ...(opts.floodMax !== undefined && { floodMax: opts.floodMax }),
+    ...(opts.floodWindowMs !== undefined && { floodWindowMs: opts.floodWindowMs }),
   });
   const sources = new NotificationSources(service, {
     db: ctx.db,

@@ -92,6 +92,8 @@ export const NOTIFY_SETTING_DEFS = {
   'notify.ntfy.serverUrl': def(ntfyServer, 'https://ntfy.sh'),
   'notify.ntfy.topic': def(nullable(z.string().trim().regex(/^[\w-]{1,64}$/, 'Letters, digits, - and _ (max 64)')), null as string | null),
   'notify.ntfy.token': def(nullable(z.string().trim().max(256).regex(/^[\x21-\x7e]+$/, 'No spaces')), null as string | null, true),
+  // Review 3A #4: private (RFC 1918) destinations only when the admin says the server is on the LAN.
+  'notify.ntfy.localServer': def(z.boolean(), false),
   'notify.ntfy.events': def(events, ALL_EVENTS),
   'notify.webhook.enabled': def(z.boolean(), false),
   // The URL may embed a token, so it is a secret too.
@@ -106,6 +108,6 @@ export type NotifySettingKey = keyof typeof NOTIFY_SETTING_DEFS;
 export const CHANNEL_FIELDS = {
   discord: ['enabled', 'webhookUrl', 'mention', 'events'],
   telegram: ['enabled', 'botToken', 'chatId', 'events'],
-  ntfy: ['enabled', 'serverUrl', 'topic', 'token', 'events'],
+  ntfy: ['enabled', 'serverUrl', 'topic', 'token', 'localServer', 'events'],
   webhook: ['enabled', 'url', 'secret', 'events'],
 } as const satisfies Record<ChannelName, readonly string[]>;
