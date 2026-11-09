@@ -17,6 +17,7 @@ import {
   cmd,
   gcodeDirFromList,
   isActiveState,
+  isThumbnailName,
   mergeFrame,
   num,
   offlineStatus,
@@ -343,10 +344,21 @@ export class K2SELiveDriver implements PrinterDriver {
 
   /** `GET :80/downloads/original/current_print_image.png` (null when the printer has none). */
   async fetchThumbnail(maxBytes = 2 * 1024 * 1024): Promise<Buffer | null> {
+    return this.fetchPng('/downloads/original/current_print_image.png', maxBytes);
+  }
+
+  /** `GET :80/downloads/humbnail/<n>.png` (the stock UI's file-list thumbnail; "humbnail" is the firmware's spelling). */
+  async fetchFileThumbnail(thumbName: string, maxBytes = 1024 * 1024): Promise<Buffer | null> {
+    if (!isThumbnailName(thumbName)) return null;
+    return this.fetchPng(`/downloads/humbnail/${encodeURIComponent(thumbName)}`, maxBytes);
+  }
+
+  /** Read-only GET of a PNG on the printer's port 80 (null on any failure or non-PNG content). */
+  private async fetchPng(path: string, maxBytes: number): Promise<Buffer | null> {
     const ep = this.endpoint;
     if (!this.online || !ep) return null;
     try {
-      const res = await fetch(`http://${formatHostForUrl(ep.host)}:${ep.httpPort}/downloads/original/current_print_image.png`, {
+      const res = await fetch(`http://${formatHostForUrl(ep.host)}:${ep.httpPort}${path}`, {
         redirect: 'manual',
         signal: AbortSignal.timeout(5000),
       });

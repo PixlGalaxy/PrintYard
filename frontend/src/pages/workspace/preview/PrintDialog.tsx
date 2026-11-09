@@ -23,6 +23,11 @@ export interface PrintTarget {
   fileName: string
   grams: number | null
   seconds: number | null
+  /**
+   * Files → On the printer: print this file that is already on the printer (downloaded + checked by the server,
+   * then started in place). `fileId` is ignored and the printer is fixed.
+   */
+  printerFile?: { printerId: number; name: string }
 }
 
 /**
@@ -69,7 +74,7 @@ export default function PrintDialog({
   const { t, errorMessage, formatNumber } = useI18n()
   const { toast } = useToast()
   const [printers, setPrinters] = useState<Printer[] | null>(null)
-  const [printerId, setPrinterId] = useState<number | null>(null)
+  const [printerId, setPrinterId] = useState<number | null>(target.printerFile?.printerId ?? null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [bedServer, setBedServer] = useState<BedInfo | null>(null)
@@ -95,11 +100,11 @@ export default function PrintDialog({
     api.printers().then(
       (list) => {
         setPrinters(list)
-        setPrinterId((cur) => cur ?? list[0]?.id ?? null)
+        setPrinterId((cur) => cur ?? target.printerFile?.printerId ?? list[0]?.id ?? null)
       },
       (err: unknown) => setError(err),
     )
-  }, [])
+  }, [target.printerFile?.printerId])
 
   const problems = limitProblems(usage, target.grams, target.seconds)
   const needsApproval = !!usage?.limits.enabled && usage.limits.requiresApproval
@@ -116,7 +121,9 @@ export default function PrintDialog({
     setError(null)
     try {
       rememberCalibrate(user?.id, calibrate, calibrateDefault)
-      const job = await api.createPrint(printerId, target.fileId, bedOccupied && bedConfirmed, allowDangerous, calibrate)
+      const job = target.printerFile
+        ? (await api.printPrinterFile(target.printerFile.printerId, target.printerFile.name, { confirmBedClear: bedOccupied && bedConfirmed, allowDangerous, calibrate })).job
+        : await api.createPrint(printerId, target.fileId, bedOccupied && bedConfirmed, allowDangerous, calibrate)
       if (job.state === 'pending') toast('info', t('prints.sentForApproval'))
       else toast('success', t('prints.started', { name: target.fileName }))
       onDone(job)
@@ -168,7 +175,8 @@ export default function PrintDialog({
           <Stat icon={<PackageCheck size={15} />} label={t('preview.stat.cost')} value={cost != null ? money(cost) : '—'} />
         </div>
 
-        {busy && !needsApproval && (
+        {busy && target.printerFile && <p className="text-xs text-muted">{t('printerFiles.checking')}</p>}
+        {busy && !needsApproval && !target.printerFile && (
           <div className="space-y-1.5">
             <PrinterUploadCard
               entry={
@@ -179,7 +187,7 @@ export default function PrintDialog({
           </div>
         )}
 
-        {printers && printers.length > 1 && (
+        {printers && printers.length > 1 && !target.printerFile && (
           <div className="space-y-1.5">
             <label htmlFor="print-printer" className="text-sm font-medium">
               {t('prints.printer')}

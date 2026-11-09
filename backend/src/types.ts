@@ -471,6 +471,35 @@ export interface GcodeScanFinding {
   detail?: string;
 }
 
+/** Files → On the printer: one G-code file stored on the printer (`GET /api/printers/:id/files`). */
+export interface PrinterStoredFile {
+  name: string;
+  /** Full path on the printer. */
+  path: string;
+  size: number | null;
+  /** Epoch ms (printer clock; null when the firmware reports none). */
+  createdAt: number | null;
+  /** mm (Creality `floorHeight` / 100). */
+  layerHeight: number | null;
+  filamentMm: number | null;
+  /** Rough estimate from the length (1.75 mm, material density); null when unknown. */
+  filamentGrams: number | null;
+  /** Slicer estimate (seconds). */
+  estimatedSec: number | null;
+  materials: string[];
+  /** `#rrggbb` per extruder/filament. */
+  colors: string[];
+  software: string | null;
+  /** `/api/printers/:id/files/thumbnail?name=…` or null. */
+  thumbnailUrl: string | null;
+  /** SliceDock uploaded it (a `printer_uploads` record that is still active). */
+  uploadedBySliceDock: boolean;
+  /** Library file it was uploaded from (still in the library), when known. */
+  libraryFileId: number | null;
+  /** Printing/paused file or file of an open print (cannot be deleted). */
+  inUse: boolean;
+}
+
 export interface GcodeScan {
   ok: boolean;
   /** First 50 findings (see `total`). */

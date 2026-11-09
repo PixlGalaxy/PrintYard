@@ -852,6 +852,41 @@ export interface PrinterCopyResult extends PrinterCopy {
   reason?: string
 }
 
+/** Files → On the printer: one G-code file stored on the printer (`GET /api/printers/:id/files`) */
+export interface PrinterStoredFile {
+  name: string
+  /** Full path on the printer */
+  path: string
+  size: number | null
+  /** Epoch ms (printer clock) */
+  createdAt: number | null
+  /** mm */
+  layerHeight: number | null
+  filamentMm: number | null
+  /** Rough estimate from the length */
+  filamentGrams: number | null
+  /** Slicer estimate (seconds) */
+  estimatedSec: number | null
+  materials: string[]
+  /** `#rrggbb` per filament */
+  colors: string[]
+  software: string | null
+  thumbnailUrl: string | null
+  /** SliceDock uploaded it */
+  uploadedBySliceDock: boolean
+  libraryFileId: number | null
+  /** Printing/paused or used by an open print (cannot be deleted) */
+  inUse: boolean
+}
+
+/** Per-name result of `DELETE /api/printers/:id/files` */
+export interface PrinterFileDeleteResult {
+  name: string
+  result: 'deleted' | 'missing' | 'skipped'
+  /** in_use, offline, read_only, not_confirmed, … */
+  reason?: string
+}
+
 export const NOTIFY_EVENTS = [
   'print.started',
   'print.finished',

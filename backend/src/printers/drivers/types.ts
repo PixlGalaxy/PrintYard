@@ -1,4 +1,5 @@
 import type { PrinterModel, PrinterModelInfo, PrinterStatus, ProbeResult } from '../../types.js';
+import type { PrinterFileDetails } from '../k2se/protocol.js';
 
 /** What the driver learns about the device once connected (persisted by the printer manager). */
 export interface PrinterIdentity {
@@ -24,6 +25,8 @@ export interface PrinterFileInfo {
   /** Full path on the printer (what start/delete need). */
   path: string;
   size: number | null;
+  /** Creality list metadata (layer height, filament, thumbnail…), when the firmware sends it. */
+  details?: PrinterFileDetails;
 }
 
 export interface UploadResult {
@@ -101,6 +104,11 @@ export interface PrinterDriver {
   downloadGcode(relPath: string, dest: string, maxBytes: number): Promise<number>;
   /** Current job preview PNG, or null. */
   fetchThumbnail(maxBytes?: number): Promise<Buffer | null>;
+  /**
+   * Thumbnail of a stored file (`thumbName` = `details.thumbnail` from the printer's own list, `<n>.png`), PNG only,
+   * null when missing / too large / not a PNG. Optional (test fakes).
+   */
+  fetchFileThumbnail?(thumbName: string, maxBytes?: number): Promise<Buffer | null>;
 }
 
 export interface CurrentJobFile {

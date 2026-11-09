@@ -117,11 +117,14 @@ describe('K2 SE protocol: status merge from captured frames', () => {
   it('parses the printer file list and derives the gcode directory', () => {
     const list = parseFileList(JSON.parse(fixture('gcode-file-list.json')) as Record<string, unknown>)!;
     assert.equal(list.length, 3);
-    assert.deepEqual(list[0], {
+    const { details, ...entry } = list[0]!;
+    assert.deepEqual(entry, {
       name: 'Object_1_PLA_3h40m37s.gcode',
       path: '/usr/data/printer_data/gcodes/Object_1_PLA_3h40m37s.gcode',
       size: 5117963,
     });
+    assert.equal(details?.layerHeight, 0.2);
+    assert.equal(details?.thumbnail, 'Object_1_PLA_3h40m37s.png');
     assert.equal(gcodeDirFromList(list), '/usr/data/printer_data/gcodes');
     assert.equal(gcodeDirFromList([{ name: 'a', path: '/mnt/UDISK/printer_data/gcodes/a', size: 1 }]), '/mnt/UDISK/printer_data/gcodes');
     assert.equal(gcodeDirFromList(null), '/usr/data/printer_data/gcodes');

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { crc32, deflateSync } from 'node:zlib';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { logger } from '../../logger.js';
 
@@ -30,6 +31,26 @@ export interface SimulatorOptions {
    * simulator reads `SLICEDOCK_SIM_UPLOAD_KBPS` (default 1024 KiB/s).
    */
   uploadBytesPerSec?: number;
+  /**
+   * Also store files "from elsewhere" (Creality Print / the touchscreen samples), with Creality metadata and
+   * thumbnails, like the user's real K2 SE. Off by default so tests see only the two sample files.
+   */
+  foreignFiles?: boolean;
+}
+
+/** Creality list metadata of a stored file (what `retGcodeFileInfo2` reports). */
+export interface SimFileMeta {
+  /** Epoch seconds. */
+  createTime?: number;
+  /** mm × 100. */
+  floorHeight?: number;
+  /** Filament length in mm. */
+  consumables?: number;
+  material?: string;
+  materialColors?: string;
+  software?: string;
+  /** false = no thumbnail on the printer. */
+  thumbnail?: boolean;
 }
 
 interface SimObject {
@@ -50,6 +71,7 @@ interface SimFile {
   seconds: number;
   layers: number;
   createTime: number;
+  meta: SimFileMeta;
 }
 
 const GCODE_DIR = '/usr/data/printer_data/gcodes';
@@ -125,11 +147,13 @@ export class PrinterSimulator {
       mac: 'AA:BB:CC:00:51:4D',
       startDelayTicks: 1,
       uploadBytesPerSec: 0,
+      foreignFiles: false,
       ...opts,
     };
     this.uploadBytesPerSec = this.o.uploadBytesPerSec;
     this.addFile({ name: 'calibration_cube.gcode', bytes: sampleGcode(100), seconds: 900, layers: 100 });
     this.addFile({ name: 'two_cubes.gcode', bytes: twoObjectGcode(60), seconds: 1200, layers: 60 });
+    if (this.o.foreignFiles) for (const f of FOREIGN_FILES) this.addStoredFile(f.name, sampleGcode(f.layers, f.label), f.seconds, f.meta);
     this.state = {
       TotalLayer: 0,
       layer: 0,
@@ -294,6 +318,18 @@ export class PrinterSimulator {
         if (this.misreportUploadSize) this.misreported.add(name);
         else this.misreported.delete(name);
         return json(200, { code: 200, message: 'OK' });
+      }
+      if (req.method === 'GET' && url.pathname.startsWith('/downloads/humbnail/')) {
+        const png = decodeURIComponent(url.pathname.slice('/downloads/humbnail/'.length));
+        const f = [...this.files.values()].find((x) => x.meta.thumbnail !== false && `${x.name.replace(/\.gcode$/i, '')}.png` === png);
+        if (!f) {
+          res.writeHead(404).end();
+          return;
+        }
+        this.thumbnailRequests++;
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.end(thumbnailPng(f.meta.materialColors?.split(';')[0] ?? '#3B82F6', f.name));
+        return;
       }
       if (req.method === 'GET' && url.pathname.startsWith('/downloads/')) {
         res.writeHead(404).end();
@@ -514,6 +550,18 @@ export class PrinterSimulator {
     return this.relative;
   }
 
+  /** `GET /downloads/humbnail/*` served (tests check the proxy cache). */
+  thumbnailRequests = 0;
+
+  /**
+   * Test helper: stores a file as if it came from Creality Print / the touchscreen / a USB stick (not SliceDock),
+   * with Creality list metadata. Replaces a file with the same name.
+   */
+  addStoredFile(name: string, bytes: Buffer, seconds = 600, meta: SimFileMeta = {}): void {
+    const m = gcodeMeta(bytes);
+    this.addFile({ name, bytes, seconds: seconds || m.seconds || 600, layers: m.layers ?? 50, meta });
+  }
+
   /** Test helper: names of the files stored on the simulated printer. */
   fileNames(): string[] {
     return [...this.files.keys()];
@@ -624,14 +672,15 @@ export class PrinterSimulator {
     }
   }
 
-  private addFile(f: Omit<SimFile, 'path' | 'createTime' | 'size' | 'uuid' | 'objects'>): void {
+  private addFile(f: Omit<SimFile, 'path' | 'createTime' | 'size' | 'uuid' | 'objects' | 'meta'> & { meta?: SimFileMeta }): void {
     this.files.set(f.name, {
       ...f,
+      meta: f.meta ?? {},
       objects: simObjects(f.bytes),
       size: f.bytes.length,
       uuid: randomUUID(),
       path: `${GCODE_DIR}/${f.name}`,
-      createTime: Math.floor(Date.now() / 1000),
+      createTime: f.meta?.createTime ?? Math.floor(Date.now() / 1000),
     });
   }
 
@@ -663,13 +712,24 @@ export class PrinterSimulator {
         file_size: this.listedSize(f),
         create_time: f.createTime,
         timeCost: f.seconds,
-        consumables: 1000,
-        floorHeight: 20,
-        material: 'PLA',
+        consumables: f.meta.consumables ?? 1000,
+        floorHeight: f.meta.floorHeight ?? 20,
+        modelX: 0,
+        modelY: 0,
+        modelZ: 0,
+        material: f.meta.material ?? 'PLA',
         nozzleTemp: 22000,
         bedTemp: 6000,
-        software: 'SliceDock',
-        thumbnail: `/usr/data/creality/local_gcode/humbnail/${f.name.replace(/\.gcode$/, '')}.png`,
+        software: f.meta.software ?? 'SliceDock',
+        thumbnail: f.meta.thumbnail === false ? '' : `/usr/data/creality/local_gcode/humbnail/${f.name.replace(/\.gcode$/, '')}.png`,
+        startPixel: 0,
+        endPixel: 0,
+        modelHeight: 0,
+        layerHeight: 0,
+        preview: `/usr/data/creality/local_gcode/original/${f.name.replace(/\.gcode$/, '')}.png`,
+        materialColors: f.meta.materialColors ?? '#3B82F6',
+        materialIds: (f.meta.material ?? 'PLA').split(';').map(() => '01001').join(';'),
+        match: '',
       }));
   }
 
@@ -705,9 +765,71 @@ const TINY_PNG = Buffer.from(
   'base64',
 );
 
+/**
+ * Files "from elsewhere" on the user's real K2 SE (names from the probe and from Creality Print's Local files),
+ * with the metadata the firmware reports for them. Used when `foreignFiles` is on (the shared dev simulator).
+ */
+const FOREIGN_FILES: { name: string; label: string; layers: number; seconds: number; meta: SimFileMeta }[] = [
+  { name: 'Object_1_PLA_3h40m37s.gcode', label: 'Object_1', layers: 120, seconds: 13237,
+    meta: { createTime: 1794175463, floorHeight: 20, consumables: 35888, material: 'PLA', materialColors: '#56DF3D', software: 'Creality' } },
+  { name: 'plate_plate1.gcode', label: 'plate', layers: 80, seconds: 5420,
+    meta: { createTime: 1794090000, floorHeight: 16, consumables: 14210, material: 'PLA', materialColors: '#F97316', software: 'Creality' } },
+  { name: 'PantherPaw_plate1.gcode', label: 'PantherPaw', layers: 60, seconds: 2710,
+    meta: { createTime: 1793990000, floorHeight: 20, consumables: 6875, material: 'PLA;PLA', materialColors: '#111111;#FFFFFF', software: 'Creality' } },
+  { name: '4color_3DBenchy_PLA_1h0m.gcode', label: '3DBenchy', layers: 240, seconds: 3602,
+    meta: { createTime: 1583064866, floorHeight: 20, consumables: 5237, material: 'PLA;PLA;PLA;PLA', materialColors: '#FF0000;#FFFFFF;#0000FF;#000000', software: 'Creality' } },
+  { name: 'Spatula_PLA_32m19s.gcode', label: 'Spatula', layers: 40, seconds: 1939,
+    meta: { createTime: 1583064866, floorHeight: 20, consumables: 6258, material: 'PLA', materialColors: '#FFFFFF', software: 'Creality' } },
+  { name: '3DBenchy_PLA_22m53s.gcode', label: '3DBenchy', layers: 240, seconds: 1373,
+    meta: { createTime: 1583064866, floorHeight: 20, consumables: 3720, material: 'PLA', materialColors: '#FF6A13', software: 'Creality' } },
+];
+
+/** A 96×96 PNG: a rounded "part" in `color` on a transparent plate (a stand-in for Creality's thumbnails). */
+function thumbnailPng(color: string, seed: string): Buffer {
+  const hex = /^#?([0-9a-f]{6})$/i.exec(color.trim())?.[1] ?? '3b82f6';
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+  const w = 96;
+  const k = [...seed].reduce((a, c) => a + c.charCodeAt(0), 0) % 12;
+  const stride = w * 4 + 1;
+  const raw = Buffer.alloc(stride * w);
+  for (let y = 0; y < w; y++) {
+    for (let x = 0; x < w; x++) {
+      const o = y * stride + 1 + x * 4;
+      const dx = (x - 48) / (26 + k);
+      const dy = (y - 50) / (22 + (11 - k));
+      if (dx ** 4 + dy ** 4 > 1) continue;
+      const shade = 0.7 + 0.3 * (1 - Math.max(0, Math.min(1, (y - 28) / 44)));
+      raw[o] = Math.round(r * shade);
+      raw[o + 1] = Math.round(g * shade);
+      raw[o + 2] = Math.round(b * shade);
+      raw[o + 3] = 255;
+    }
+  }
+  const chunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(td) >>> 0);
+    return Buffer.concat([len, td, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(w, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // RGBA
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
 /** A small real-looking G-code (one square perimeter per layer) for the preloaded sample file. */
-export function sampleGcode(layers: number): Buffer {
-  const out = ['; generated by SliceDock printer simulator', `; total layer number: ${layers}`, 'G28', 'M104 S220', 'M140 S60', 'G90', 'M83'];
+export function sampleGcode(layers: number, label?: string): Buffer {
+  const head = label ? `; generated by Creality Print (simulated "${label}")` : '; generated by SliceDock printer simulator';
+  const out = [head, `; total layer number: ${layers}`, 'G28', 'M104 S220', 'M140 S60', 'G90', 'M83'];
   for (let l = 1; l <= layers; l++) {
     const z = (l * 0.2).toFixed(2);
     out.push(';LAYER_CHANGE', `;Z:${z}`, `G1 Z${z} F600`, ';TYPE:Outer wall');
@@ -860,6 +982,7 @@ export async function sharedSimulator(): Promise<{ sim: PrinterSimulator; port: 
     shared = new PrinterSimulator({
       ...(Number.isFinite(secs) && secs > 0 && { simSecondsPerTick: secs }),
       uploadBytesPerSec: Number.isFinite(kbps) && kbps > 0 ? kbps * 1024 : 0,
+      foreignFiles: process.env.SLICEDOCK_SIM_FILES !== '0',
     });
     sharedStart = shared.start(0, '127.0.0.1');
     logger.printer.info('Printer simulator enabled');

@@ -31,4 +31,10 @@ export interface StartPrintInput {
   allowDangerous?: boolean;
   /** Run the printer's pre-print calibration (`enableSelfTest: 1`). Default: setting `printing.calibrateByDefault`. */
   calibrate?: boolean;
+  /**
+   * Files → On the printer: start this file that is already stored on the printer (no upload). `fileId` is the
+   * library copy of its downloaded content (scanned + hashed); dispatch re-checks that the printer still lists
+   * `path` with the same size as that copy.
+   */
+  printerFile?: { path: string };
 }

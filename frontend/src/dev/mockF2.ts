@@ -20,6 +20,7 @@ import type {
 } from '../types'
 import { mockCore } from './mock'
 import { generateSampleGcode, sampleStl, STRESS_OPTIONS, TWO_OBJECT_OPTIONS, type SampleOptions } from './sampleGcode'
+import { seedPrinterFiles, toStoredFile, type MockPrinterFile } from './mockPrinterFiles'
 
 export const NOT_HANDLED = Symbol('not-handled')
 
@@ -227,6 +228,7 @@ const save = () => {
 
 export function resetF2() {
   st = seed()
+  printerFiles = seedPrinterFiles()
   blobs.clear()
   Object.assign(sim, { bedClear: true, bedOccupiedSince: null, lastPrintId: null, state: 'idle', printId: null, fileName: null })
   save()
@@ -1041,6 +1043,114 @@ function start(job: PrintJob, confirmBedClear = false) {
   mockPublish({ type: 'print.update', data: job }, job.userId == null ? 'admins' : { userId: job.userId, admins: true })
 }
 
+// ---------- Files → On the printer ----------
+
+let printerFiles: MockPrinterFile[] = seedPrinterFiles()
+const delay = <T>(ms: number, v: () => T) => new Promise<T>((r, j) => setTimeout(() => {
+  try {
+    r(v())
+  } catch (err) {
+    j(err)
+  }
+}, ms))
+
+function printerFileByName(name: unknown): MockPrinterFile {
+  const f = printerFiles.find((x) => x.name === name)
+  if (!f) throw new ApiError(404, 'printers.file_not_found', 'The file is not on the printer')
+  return f
+}
+
+function printerFileInUse(name: string): boolean {
+  const active = ['printing', 'paused', 'pausing', 'stopping'].includes(sim.state)
+  return (active && sim.fileName === name) || st.prints.some((j) => j.state === 'pending' && j.fileName === name)
+}
+
+/** Library copy of a printer file (reused by name for the same user, like the backend's sha256 match). */
+function importPrinterFile(f: MockPrinterFile, ownerId: number, forPrint = false): { file: LibraryFile; imported: boolean } {
+  const linked = f.libraryFileId != null ? mockFiles.get(f.libraryFileId) : undefined
+  const u = mockCore.requireUser()
+  if (forPrint && linked && (linked.ownerId === ownerId || linked.visibility === 'shared' || u.role === 'admin')) return { file: linked, imported: false }
+  const existing = st.files.find((x) => x.ownerId === ownerId && x.kind === 'gcode' && x.name === f.name)
+  if (existing) return { file: existing, imported: false }
+  const s = sample('default')
+  const scan = f.dangerous ? SCAN_BAD : SCAN_OK
+  const file = mockFiles.add({
+    ownerId,
+    name: f.name,
+    kind: 'gcode',
+    blob: s.blob,
+    thumbnailUrl: mockThumbnail(f.seed, f.shape),
+    meta: {
+      gcode: {
+        printSeconds: f.estimatedSec,
+        filamentGrams: f.filamentMm ? [Math.round(((f.filamentMm * Math.PI * 0.875 * 0.875) / 1000) * 1.24 * 10) / 10] : [],
+        filamentMm: f.filamentMm ? [f.filamentMm] : [],
+        layers: s.layers,
+        printerModel: 'Creality K2 SE',
+        slicer: f.software,
+        estimateSource: 'computed',
+        scan,
+      },
+    },
+  })
+  return { file, imported: true }
+}
+
+function handlePrinterFiles(method: string, printerId: number, action: string | null, url: URL, b: Record<string, unknown>): unknown {
+  const u = mockCore.requireUser()
+  if (printerId !== 1 || !mockCore.state.printers.some((x) => x.id === 1)) throw new ApiError(404, 'common.not_found', 'Not found')
+  if (mockCore.state.flags.printerOffline) throw new ApiError(409, 'prints.printer_offline', 'Printer offline')
+  if (!action && method === 'GET') {
+    return delay(url.searchParams.get('refresh') ? 600 : 250, () =>
+      printerFiles.map((f) => toStoredFile(f, (seed, shape) => mockThumbnail(seed, shape), printerFileInUse(f.name))),
+    )
+  }
+  if (action === 'import' && method === 'POST') {
+    const f = printerFileByName(b.name)
+    return delay(700, () => {
+      mockCore.audit('printer.file_import', f.name)
+      return importPrinterFile(f, u.id).file
+    })
+  }
+  if (action === 'print' && method === 'POST') {
+    readOnlyGuard()
+    const f = printerFileByName(b.name)
+    if (u.role !== 'admin' && !(u as { canPrintUploadedGcode?: boolean }).canPrintUploadedGcode && !f.uploadedBySliceDock) {
+      throw new ApiError(403, 'prints.untrusted_gcode', 'Only G-code sliced in SliceDock can be printed')
+    }
+    return delay(600, () => importPrinterFile(f, u.id, true)).then(async ({ file, imported }) => {
+      const job = (await handleF2('POST', '/prints', url, {
+        printerId: 1,
+        fileId: file.id,
+        confirmBedClear: b.confirmBedClear,
+        allowDangerous: b.allowDangerous,
+        calibrate: b.calibrate,
+        _printerFile: true,
+      })) as PrintJob
+      return { job, fileId: file.id, imported }
+    })
+  }
+  if (!action && method === 'DELETE') {
+    readOnlyGuard()
+    if (u.role !== 'admin' && !(u as { canControlPrinter?: boolean }).canControlPrinter) {
+      throw new ApiError(403, 'printers.control_forbidden', 'You are not allowed to manage files on the printer')
+    }
+    const names = Array.isArray(b.names) ? b.names.filter((n): n is string => typeof n === 'string') : []
+    if (!names.length) throw new ApiError(400, 'common.validation', 'names is required')
+    return delay(500, () => {
+      const results = names.map((name) => {
+        if (!printerFiles.some((x) => x.name === name)) return { name, result: 'missing' as const }
+        if (printerFileInUse(name)) return { name, result: 'skipped' as const, reason: 'in_use' }
+        printerFiles = printerFiles.filter((x) => x.name !== name)
+        mockCore.audit('printer.file_delete', name, { manual: true })
+        return { name, result: 'deleted' as const }
+      })
+      return { results }
+    })
+  }
+  throw new ApiError(404, 'common.not_found', 'Not found')
+}
+
 /** Printer copies of a library G-code: one per SliceDock print of it that is not running (like printer_uploads). */
 function mockPrinterCopies(fileId: number): { printerId: number; printerName: string; name: string }[] {
   const f = mockFiles.get(fileId)
@@ -1101,6 +1211,10 @@ export function handleF2(method: string, p: string, url: URL, b: Record<string, 
       return f
     }
   }
+
+  // Files → On the printer (the printer's own G-code list)
+  const pf = p.match(/^\/printers\/(\d+)\/files(?:\/(import|print))?$/)
+  if (pf) return handlePrinterFiles(method, Number(pf[1]), pf[2] ?? null, url, b)
 
   // Temperature history
   const th = p.match(/^\/printers\/(\d+)\/temps$/)
@@ -1195,7 +1309,9 @@ export function handleF2(method: string, p: string, url: URL, b: Record<string, 
     }
     // Calibrate before printing (auto bed leveling): accepted like the real API (`calibrate: boolean`)
     const calibrate = typeof b.calibrate === 'boolean' ? b.calibrate : undefined
-    return sendToPrinter(job, b.confirmBedClear === true).then(() => {
+    // Files → On the printer: the printer's own file starts in place (no upload)
+    const send = b._printerFile === true ? Promise.resolve().then(() => start(job, b.confirmBedClear === true)) : sendToPrinter(job, b.confirmBedClear === true)
+    return send.then(() => {
       st.prints.push(job)
       mockCore.audit('prints.start', f.name, calibrate !== undefined ? { calibrate } : undefined)
       save()

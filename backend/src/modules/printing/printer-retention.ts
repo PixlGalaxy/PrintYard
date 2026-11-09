@@ -56,6 +56,13 @@ export interface PrinterCopyResult extends PrinterCopy {
   reason?: string;
 }
 
+/** Files → On the printer delete outcome per name (`skipped` reasons: in_use, offline, read_only, not_confirmed, error code). */
+export interface ManualDeleteResult {
+  name: string;
+  result: 'deleted' | 'missing' | 'skipped';
+  reason?: string;
+}
+
 /**
  * Printer-side file retention. SliceDock records every file it uploads (`printer_uploads`); after a successful
  * upload it deletes the oldest of *those* beyond `printers.retention.keep` (Creality WS `deleteprt:<path>`).
@@ -177,6 +184,78 @@ export class PrinterRetentionService {
   }
 
   /**
+   * Files → On the printer → Delete (an explicit user action, so files SliceDock did not upload are allowed too).
+   * Each name must be in the printer's own fresh list (its path comes from there, never from the client); never
+   * the printing/paused file or a file of a pending/approved/printing print. Serialised with retention per printer.
+   * Matching `printer_uploads` rows are marked deleted. Never throws for a single file (per-name result).
+   */
+  async deleteManual(
+    printerId: number,
+    names: string[],
+    actor: { userId: number | null; username: string; ip: string | null },
+  ): Promise<ManualDeleteResult[]> {
+    return this.serial(
+      printerId,
+      () => this.deleteManualNow(printerId, names, actor),
+      (err) => {
+        logger.printer.warn(`printer #${printerId}: deleting printer files failed`, err);
+        return names.map((name) => ({ name, result: 'skipped' as const, reason: 'error' }));
+      },
+    );
+  }
+
+  private async deleteManualNow(
+    printerId: number,
+    names: string[],
+    actor: { userId: number | null; username: string; ip: string | null },
+  ): Promise<ManualDeleteResult[]> {
+    const skip = (reason: string) => names.map((name) => ({ name, result: 'skipped' as const, reason }));
+    if (isReadOnly()) return skip('read_only');
+    if (!this.d.manager.hasDriver(printerId) || !this.d.manager.status(printerId).online) return skip('offline');
+    const driver = this.d.manager.driver(printerId);
+    const list = await driver.listFiles();
+    if (!list) return skip('offline');
+    const byName = new Map(list.map((f) => [f.name, f]));
+    const protectedNames = this.protectedNames(printerId);
+    const uploads = this.activeUploads(printerId);
+    const out: ManualDeleteResult[] = [];
+    for (const name of [...new Set(names)]) {
+      const entry = byName.get(name);
+      if (!entry) {
+        out.push({ name, result: 'missing' });
+        continue;
+      }
+      if (protectedNames.has(name)) {
+        out.push({ name, result: 'skipped', reason: 'in_use' });
+        continue;
+      }
+      const upload = uploads.find((u) => u.remote_path === entry.path);
+      try {
+        const gone = await driver.deleteFile(entry.path);
+        if (!gone) {
+          out.push({ name, result: 'skipped', reason: 'not_confirmed' });
+          continue;
+        }
+        if (upload) this.markDeleted(upload.id, 'manual');
+        this.d.audit.log('printer.file_delete', actor, name, {
+          printerId,
+          path: entry.path,
+          size: entry.size,
+          manual: true,
+          uploadedBySliceDock: !!upload,
+          printId: upload?.print_id ?? null,
+        });
+        out.push({ name, result: 'deleted' });
+      } catch (err) {
+        const code = err instanceof AppError ? err.code : 'error';
+        logger.printer.warn(`printer #${printerId}: could not delete ${entry.path} (${code})`);
+        out.push({ name, result: 'skipped', reason: code === 'printers.file_in_use' ? 'in_use' : code });
+      }
+    }
+    return out;
+  }
+
+  /**
    * The one delete path for printer files: never a protected name (active job / open prints), never a file whose
    * name, size or upload id differ from SliceDock's record; confirmed by the printer's file list.
    */
@@ -257,7 +336,7 @@ export class PrinterRetentionService {
   }
 
   /** Printer-side names that must stay: the active job's file and files of open SliceDock prints. */
-  private protectedNames(printerId: number): Set<string> {
+  protectedNames(printerId: number): Set<string> {
     const names = new Set<string>();
     const status = this.d.manager.status(printerId);
     if (isActiveState(status.state)) {
@@ -266,11 +345,13 @@ export class PrinterRetentionService {
       if (current) names.add(current.fileName);
     }
     const open = this.d.db
-      .prepare(`SELECT id, file_name, printer_path FROM prints WHERE printer_id = ? AND state IN ('pending','approved','printing')`)
-      .all(printerId) as { id: number; file_name: string; printer_path: string | null }[];
+      .prepare(`SELECT id, file_name, printer_path, printer_file FROM prints WHERE printer_id = ? AND state IN ('pending','approved','printing')`)
+      .all(printerId) as { id: number; file_name: string; printer_path: string | null; printer_file: string | null }[];
     for (const p of open) {
       const n = basename(p.printer_path);
       if (n) names.add(n);
+      const existing = basename(p.printer_file);
+      if (existing) names.add(existing);
       names.add(safePrinterFileName(p.file_name));
       names.add(printerUploadName(p.file_name, p.id));
     }

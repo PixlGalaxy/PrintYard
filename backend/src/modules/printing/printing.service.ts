@@ -41,6 +41,8 @@ interface PrintRow {
   started_at: number | null;
   ended_at: number | null;
   calibrate?: number;
+  /** Existing printer file to start instead of uploading (Files → On the printer). */
+  printer_file?: string | null;
 }
 
 interface Tracking {
@@ -178,8 +180,9 @@ export class PrintingService {
     const cost = costFor(estimate.grams, this.d.settings.get('limits.costPerKg'));
     const calibrate = input.calibrate ?? this.d.settings.get('printing.calibrateByDefault');
 
+    const printerFile = input.printerFile?.path ?? null;
     if (decision.needsApproval) {
-      const job = this.insert(actor, printer.id, file, content, estimate, cost, 'pending', input.source, decision.approvalReason ?? null, calibrate);
+      const job = this.insert(actor, printer.id, file, content, estimate, cost, 'pending', input.source, decision.approvalReason ?? null, calibrate, printerFile);
       if (allowedDangerous) this.auditDangerous(actor, file.name, job.id, allowedDangerous);
       this.d.audit.log('print.request', auditActor(actor), file.name, { printId: job.id, printerId: printer.id, reason: decision.approvalReason });
       this.d.hub.publish(TOPICS.approvalPending, job, forAdmins);
@@ -189,7 +192,7 @@ export class PrintingService {
 
     this.assertPrinterReady(printer.id);
     this.ensureBedClear(actor, printer.id, input.source === 'web' && input.confirmBedClear === true);
-    const job = this.insert(actor, printer.id, file, content, estimate, cost, 'approved', input.source, null, calibrate);
+    const job = this.insert(actor, printer.id, file, content, estimate, cost, 'approved', input.source, null, calibrate, printerFile);
     if (allowedDangerous) this.auditDangerous(actor, file.name, job.id, allowedDangerous);
     this.d.audit.log('print.start', auditActor(actor), file.name, { printId: job.id, printerId: printer.id, source: input.source });
     return { status: 201, job: await this.dispatch(job.id, file) };
@@ -527,15 +530,16 @@ export class PrintingService {
     source: string,
     reason: string | null,
     calibrate = false,
+    printerFile: string | null = null,
   ): PrintJob {
     const r = this.d.db
       .prepare(
         `INSERT INTO prints (user_id, username, printer_id, file_id, file_name, file_sha256, file_size, file_owner_id, grams, seconds,
-           cost_estimate, state, reason, source, created_at, calibrate)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           cost_estimate, state, reason, source, created_at, calibrate, printer_file)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(actor.id, actor.username, printerId, file.id, file.name, content.sha256, content.size, file.ownerId, est.grams, est.seconds,
-        cost, state, reason, source, Date.now(), calibrate ? 1 : 0);
+        cost, state, reason, source, Date.now(), calibrate ? 1 : 0, printerFile);
     return this.toJob(this.row(Number(r.lastInsertRowid)));
   }
 
@@ -551,6 +555,7 @@ export class PrintingService {
       // Unique per print and never an existing printer file (no overwrite of touchscreen/other uploads).
       const existing = await driver.listFiles();
       if (!existing) throw new AppError(502, 'prints.upload_failed', 'The printer did not report its file list');
+      if (row.printer_file) return await this.startExisting(jobId, row, existing);
       const taken = new Set(existing.map((f) => f.name));
       let name = printerUploadName(file.name, jobId);
       while (taken.has(name)) name = printerUploadName(file.name, jobId, randomBytes(3).toString('hex'));
@@ -590,6 +595,35 @@ export class PrintingService {
       // After a successful upload, trim older SliceDock uploads on that printer (background, never throws).
       if (uploaded && this.d.retention) this.lastRetention = this.d.retention.run(printerId);
     }
+  }
+
+  /**
+   * Files → On the printer: start the printer's own file (no upload, no retention record: SliceDock did not put it
+   * there). The printer must still list the exact path with the size of the content that was scanned and hashed.
+   */
+  private async startExisting(jobId: number, row: PrintRow, list: { name: string; path: string; size: number | null }[]): Promise<PrintJob> {
+    const printerId = row.printer_id;
+    const path = row.printer_file!;
+    const entry = list.find((f) => f.path === path);
+    if (!entry || (entry.size !== null && row.file_size !== null && entry.size !== row.file_size)) {
+      throw new AppError(409, 'prints.file_changed', 'The file on the printer changed or was removed after the print was requested');
+    }
+    await this.d.manager.driver(printerId).startPrint(path, { calibrate: this.row(jobId).calibrate === 1 });
+    const now = Date.now();
+    this.d.db.prepare(`UPDATE prints SET state = 'printing', printer_path = ?, started_at = ?, reason = NULL WHERE id = ?`).run(path, now, jobId);
+    this.tracking.set(printerId, {
+      jobId,
+      userId: row.user_id,
+      expectName: entry.name,
+      startedAt: now,
+      seenActive: false,
+      lastProgress: null,
+      cancelledBy: null,
+    });
+    logger.printer.info(`printer #${printerId}: print #${jobId} started from the printer's file ${entry.name}`);
+    const job = this.publishJob(jobId);
+    this.d.manager.republish(printerId);
+    return job;
   }
 
   private onStatus(s: PrinterStatus, prev: PrinterStatus | null): void {

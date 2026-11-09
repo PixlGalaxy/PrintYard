@@ -313,6 +313,61 @@ export interface PrinterFileEntry {
   name: string;
   path: string;
   size: number | null;
+  /** Extra metadata from `retGcodeFileInfo2` (absent on the old `retGcodeFileInfo` format). */
+  details?: PrinterFileDetails;
+}
+
+/** What Creality Print's "Local files" shows per file (`retGcodeFileInfo2`). */
+export interface PrinterFileDetails {
+  /** `create_time` (epoch seconds on the printer) → epoch ms; null when missing or 0. */
+  createdAt: number | null;
+  /** `floorHeight` (mm × 100, e.g. 20 → 0.2 mm). */
+  layerHeight: number | null;
+  /** `consumables` (filament length in mm). */
+  filamentMm: number | null;
+  /** `timeCost` (slicer estimate in seconds). */
+  estimatedSec: number | null;
+  /** `material` split on ";" (e.g. ["PLA","PLA"]). */
+  materials: string[];
+  /** `materialColors` split on ";" (normalised `#rrggbb`). */
+  colors: string[];
+  /** `software` (e.g. "Creality"). */
+  software: string | null;
+  /** File name of the printer-side thumbnail (`thumbnail` basename, `<n>.png`), null when none. */
+  thumbnail: string | null;
+}
+
+const listOf = (v: unknown): string[] =>
+  typeof v === 'string' ? v.split(';').map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 40).slice(0, 16) : [];
+
+/** Thumbnail basename from the printer's own path; only `<safe name>.png` is accepted. */
+function thumbnailName(v: unknown): string | null {
+  const b = basename(v);
+  return b && isThumbnailName(b) ? b : null;
+}
+
+/** `<name>.png` without path separators, colons, control chars or a leading dot. */
+export function isThumbnailName(name: string): boolean {
+  return /^[^/\\:\x00-\x1f]{1,200}\.png$/i.test(name) && !name.startsWith('.');
+}
+
+function fileDetails(r: Record<string, unknown>): PrinterFileDetails {
+  const pos = (v: unknown) => {
+    const n = num(v);
+    return n !== null && n > 0 ? n : null;
+  };
+  const created = pos(r.create_time);
+  const floor = pos(r.floorHeight);
+  return {
+    createdAt: created !== null ? Math.round(created * 1000) : null,
+    layerHeight: floor !== null ? Math.round(floor) / 100 : null,
+    filamentMm: pos(r.consumables),
+    estimatedSec: pos(r.timeCost),
+    materials: listOf(r.material),
+    colors: listOf(r.materialColors).map((c) => normalizeColor(c) ?? '').filter(Boolean),
+    software: typeof r.software === 'string' && r.software ? r.software.slice(0, 60) : null,
+    thumbnail: thumbnailName(r.thumbnail),
+  };
 }
 
 /** `retGcodeFileInfo2` (newer firmware) or `retGcodeFileInfo.fileInfo` ("dir:name:size:..;") → entries. */
@@ -323,7 +378,7 @@ export function parseFileList(frame: Record<string, unknown>): PrinterFileEntry[
       if (typeof e !== 'object' || e === null) return [];
       const r = e as Record<string, unknown>;
       if (typeof r.name !== 'string' || typeof r.path !== 'string') return [];
-      return [{ name: r.name, path: r.path, size: num(r.file_size) }];
+      return [{ name: r.name, path: r.path, size: num(r.file_size), details: fileDetails(r) }];
     });
   }
   const v1 = frame.retGcodeFileInfo;

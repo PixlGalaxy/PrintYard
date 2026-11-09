@@ -1,4 +1,4 @@
-// Files library (/files): Private / Shared (+ All for admins) tabs, grid or list, drag & drop uploads
+// Files library (/files): Private / Shared (+ All for admins) / On the printer tabs, grid or list, drag & drop uploads
 // with the global queue, search + kind filter + sort, multi-select with bulk actions, context menu,
 // thumbnails, retention info. Logic borrowed from WebinCloud's file explorer, in SliceDock's design.
 import {
@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { useNavigate } from 'react-router'
 import { adminApi, api } from '../../api'
 import ConfirmModal from '../../components/ConfirmModal'
+import { PrinterLayers } from '../../components/printerIcons'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import StorageUsage from '../../components/StorageUsage'
@@ -47,8 +48,11 @@ import { openPath } from './lookup'
 import { useUploads } from './uploads/UploadContext'
 import { PendingUploadCard, PendingUploadRow } from './PendingUploads'
 import { usePendingUploads } from './uploads/pending'
+import PrinterFilesView from './PrinterFilesView'
 
 type Scope = 'private' | 'shared' | 'all'
+/** Library scopes plus "On the printer" (the printer's own G-code files) */
+type Tab = Scope | 'printer'
 type Sort = 'date' | 'name' | 'size'
 
 export default function FilesPage() {
@@ -59,7 +63,9 @@ export default function FilesPage() {
   const uploads = useUploads()
   const isAdmin = user?.role === 'admin'
 
-  const [scope, setScope] = useStoredState<Scope>('sd:files:scope', 'private')
+  const [tab, setTab] = useStoredState<Tab>('sd:files:scope', 'private')
+  const onPrinter = tab === 'printer'
+  const scope: Scope = tab === 'printer' ? 'private' : tab
   const [view, setView] = useStoredState<'grid' | 'list'>('sd:files:view', 'grid')
   const [sort, setSort] = useStoredState<Sort>('sd:files:sort', 'date')
   const [kind, setKind] = useState<FileKind | 'all'>('all')
@@ -111,6 +117,7 @@ export default function FilesPage() {
     setSelected(new Set())
   }
   useEffect(() => {
+    if (onPrinter) return
     let alive = true
     api.files(effectiveScope).then(
       (list) => alive && setFiles(list),
@@ -119,7 +126,7 @@ export default function FilesPage() {
     return () => {
       alive = false
     }
-  }, [effectiveScope])
+  }, [effectiveScope, onPrinter])
 
   useEffect(() => uploads.onUploaded(() => void load()), [uploads, load])
 
@@ -157,6 +164,7 @@ export default function FilesPage() {
   // Keyboard: Ctrl/Cmd+A select all, Delete removes the selection, Esc clears it
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (onPrinter) return
       if ((e.target as HTMLElement).closest('input,textarea,select,[role=dialog]')) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault()
@@ -276,11 +284,22 @@ export default function FilesPage() {
     return c
   }, [files])
 
-  const tabs: { value: Scope; label: string; icon: ReactNode }[] = [
+  const tabs: { value: Tab; label: string; icon: ReactNode }[] = [
     { value: 'private', label: t('library.scope.private'), icon: <Lock size={13} /> },
     { value: 'shared', label: t('library.scope.shared'), icon: <Globe size={13} /> },
-    ...(isAdmin ? [{ value: 'all' as Scope, label: t('library.scope.all'), icon: <FolderKanban size={13} /> }] : []),
+    ...(isAdmin ? [{ value: 'all' as Tab, label: t('library.scope.all'), icon: <FolderKanban size={13} /> }] : []),
+    { value: 'printer', label: t('library.scope.printer'), icon: <PrinterLayers size={13} /> },
   ]
+  const scopeSwitch = <Segmented value={onPrinter ? 'printer' : effectiveScope} onChange={setTab} label={t('library.scope.label')} options={tabs} />
+
+  if (onPrinter) {
+    return (
+      <div className="relative space-y-5">
+        <PageHeader title={t('library.title')} subtitle={t('library.subtitle')} />
+        <PrinterFilesView scopeSwitch={scopeSwitch} />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -316,7 +335,7 @@ export default function FilesPage() {
 
       {/* Toolbar */}
       <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3 shadow-sm lg:flex-row lg:items-center">
-        <Segmented value={effectiveScope} onChange={setScope} label={t('library.scope.label')} options={tabs} />
+        {scopeSwitch}
         <div className="relative min-w-0 flex-1">
           <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
           <input

@@ -23,6 +23,7 @@ import { JobInfoService } from './modules/printing/job-info.js';
 import { EtaService } from './modules/printing/eta.js';
 import { PrinterControlService } from './modules/printing/control.js';
 import { TempHistoryService } from './modules/printing/temp-history.js';
+import { PrinterFilesService } from './modules/printer-files/printer-files.service.js';
 import { EngineManager } from './modules/engine/engine.service.js';
 import { FilesService } from './modules/files/files.service.js';
 import { ProfilesService } from './modules/profiles/profiles.service.js';
@@ -67,6 +68,8 @@ export interface AppContext {
   /** Motion/temperature/fan controls + exclude object (server-built G-code, audited). */
   printerControl: PrinterControlService;
   tempHistory: TempHistoryService;
+  /** PRINTER-FILES: the printer's own G-code files (list, thumbnails, import, print in place, delete). */
+  printerFiles: PrinterFilesService;
   /** B1: file library (models, projects, G-code), retention, thumbnails. */
   files: FilesService;
   /** B1: official printer profiles (installed engine's, else the bundled snapshot). */
@@ -142,6 +145,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     printerRetention: null as unknown as PrinterRetentionService,
     printFiles: null as unknown as PrintFileSource,
     liveView: null as unknown as LiveViewService,
+    printerFiles: null as unknown as PrinterFilesService,
     jobInfo: null as unknown as JobInfoService,
     eta: null as unknown as EtaService,
     printerControl: null as unknown as PrinterControlService,
@@ -241,6 +245,16 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
 
   // ---- B1: files, profiles, projects, engine, slicing ----
   ctx.files = new FilesService(db, config.dataRoot, config.appdataRoot, settings, ctx.audit);
+  ctx.printerFiles = new PrinterFilesService({
+    db,
+    manager: ctx.printerManager,
+    printers: ctx.printers,
+    files: ctx.files,
+    printing: ctx.printing,
+    retention: ctx.printerRetention,
+    users: ctx.users,
+    audit: ctx.audit,
+  });
   ctx.engine = new EngineManager({
     appdataRoot: config.appdataRoot,
     settings,

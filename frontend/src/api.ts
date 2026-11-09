@@ -2,6 +2,8 @@ import type {
   AccountNotifications,
   PrinterCopy,
   PrinterCopyResult,
+  PrinterFileDeleteResult,
+  PrinterStoredFile,
   AdminNotifications,
   NotifyChannel,
   NotifyChannelConfigs,
@@ -341,6 +343,19 @@ export const api = {
       ...(allowDangerous && { allowDangerous }),
       ...(calibrate !== undefined && { calibrate }),
     }),
+  // Files → On the printer (the printer's own G-code files)
+  printerFiles: (printerId: number, refresh = false) => get<PrinterStoredFile[]>(`/printers/${printerId}/files${refresh ? '?refresh=1' : ''}`),
+  importPrinterFile: (printerId: number, name: string) => req<LibraryFile>('POST', `/printers/${printerId}/files/import`, { name }),
+  /** Downloads + scans the printer's file, then starts it in place (no re-upload); same rules as uploaded G-code */
+  printPrinterFile: (printerId: number, name: string, opts: { confirmBedClear?: boolean; allowDangerous?: boolean; calibrate?: boolean } = {}) =>
+    req<{ job: PrintJob; fileId: number; imported: boolean }>('POST', `/printers/${printerId}/files/print`, {
+      name,
+      ...(opts.confirmBedClear && { confirmBedClear: true }),
+      ...(opts.allowDangerous && { allowDangerous: true }),
+      ...(opts.calibrate !== undefined && { calibrate: opts.calibrate }),
+    }),
+  deletePrinterFiles: (printerId: number, names: string[]) =>
+    req<{ results: PrinterFileDeleteResult[] }>('DELETE', `/printers/${printerId}/files`, { names }),
   prints: (scope: 'mine' | 'all' = 'mine') => get<PrintJob[]>(`/prints${qs({ scope })}`),
   cancelPrintRequest: (id: number) => req<void>('DELETE', `/prints/${id}`),
   usage: () => get<UsageSummary>('/usage/me'),
