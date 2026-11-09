@@ -367,7 +367,12 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
           </div>
         )}
 
-        {load.phase === 'idle' && <PickGcode onOpen={openFile} />}
+        {load.phase === 'idle' && !dragging && (
+          <p className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg border border-line bg-surface/85 px-2.5 py-1.5 text-xs text-muted shadow-sm backdrop-blur">
+            <UploadCloud size={13} />
+            {t('preview.dropHint')}
+          </p>
+        )}
 
         {parsed && load.phase === 'ready' && parsed.count === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -407,7 +412,7 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted">{t('preview.noFile')}</p>
+            <PickGcode onOpen={openFile} />
           )}
 
           {parsed && (
@@ -539,8 +544,7 @@ function PickGcode({ onOpen }: { onOpen: (id: number) => void }) {
     )
   }, [])
   return (
-    <div className="absolute inset-0 flex items-center justify-center overflow-auto p-6">
-      <div className="w-full max-w-lg space-y-3">
+    <div className="space-y-3">
       {busy && (
         <Link
           to="/?tab=printer"
@@ -563,7 +567,7 @@ function PickGcode({ onOpen }: { onOpen: (id: number) => void }) {
           </span>
         </Link>
       )}
-      <div className="w-full rounded-2xl border border-line bg-surface p-5 shadow-xl">
+      <div className="w-full">
         <div className="flex items-center gap-3">
           <span className="flex size-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500">
             <Box size={20} />
@@ -600,11 +604,6 @@ function PickGcode({ onOpen }: { onOpen: (id: number) => void }) {
             ))}
           </ul>
         )}
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted">
-          <UploadCloud size={13} />
-          {t('preview.dropHint')}
-        </p>
-      </div>
       </div>
     </div>
   )
