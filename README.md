@@ -13,7 +13,7 @@
 
 > SliceDock is a community project. It is compatible with Creality printers but is **not affiliated with or endorsed by Creality**.
 
-> 🚧 Early development. Phase 1 (setup, auth, admin panel) is in progress.
+> Early development. Expect breaking changes until the first release.
 
 ## Features
 
@@ -52,7 +52,7 @@ docker run -d \
 
 Then open `http://<server-lan-ip>:3000` **from your local network** to run the setup wizard.
 
-> ⚠️ **Finish the setup wizard before exposing SliceDock to the internet.** Until an admin account exists, whoever reaches the setup page first can create it. SliceDock blocks setup requests that come through Cloudflare or a reverse proxy that sends `X-Forwarded-*` headers, but a plain TCP tunnel or a proxy that strips those headers cannot be told apart from a local visitor. Do not publish the port, tunnel or proxy host until setup is complete.
+> **Finish the setup wizard before exposing SliceDock to the internet.** Until an admin account exists, whoever reaches the setup page first can create it. SliceDock blocks setup requests that come through Cloudflare or a reverse proxy that sends `X-Forwarded-*` headers, but a plain TCP tunnel or a proxy that strips those headers cannot be told apart from a local visitor. Do not publish the port, tunnel or proxy host until setup is complete.
 
 ### Dynamic printer IP (find by MAC)
 
