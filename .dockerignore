@@ -1,0 +1,12 @@
+.git
+.github
+status
+**/node_modules
+**/dist
+backend/public
+backend/appdata
+backend/data
+appdata
+data
+**/.env
+*.log

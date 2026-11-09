@@ -1,0 +1,18 @@
+# Notas internas de planificación (no se suben)
+status/
+
+# Node
+node_modules/
+dist/
+
+# Entorno
+.env
+*.env
+!.env.example
+
+# Volúmenes locales de desarrollo
+/appdata/
+/data/
+backend/appdata/
+backend/data/
+backend/public/
