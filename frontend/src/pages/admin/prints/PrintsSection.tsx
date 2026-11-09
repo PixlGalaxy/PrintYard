@@ -3,6 +3,7 @@
 import { Check, ClipboardList, FileCode2, Hourglass, Scale, ShieldAlert, TriangleAlert, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { adminApi, api, ApiError } from '../../../api'
+import Avatar from '../../../components/Avatar'
 import GcodeFindings from '../../../components/GcodeFindings'
 import Modal from '../../../components/Modal'
 import { selectCls, tdCls, textareaCls, thCls } from '../../../components/styles'
@@ -144,7 +145,11 @@ export default function PrintsSection() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{j.fileName}</p>
                     <p className="text-xs text-muted">
-                      <span className="font-medium text-fg/80">{j.username}</span> · {timeAgo(t, j.createdAt)} · {formatDuration(j.seconds)} · {g(j.grams)}
+                      <span className="inline-flex items-center gap-1.5 align-middle font-medium text-fg/80">
+                        <Avatar user={{ id: j.userId, username: j.username, avatarUrl: u ? u.avatarUrl : undefined }} size={16} />
+                        {j.username}
+                      </span>{' '}
+                      · {timeAgo(t, j.createdAt)} · {formatDuration(j.seconds)} · {g(j.grams)}
                       {j.costEstimate != null && ` · ${formatNumber(j.costEstimate, { maximumFractionDigits: 2 })}`}
                     </p>
                     {overMonth && (
@@ -186,7 +191,12 @@ export default function PrintsSection() {
                 const l = user.limits
                 return (
                   <tr key={user.id}>
-                    <td className={`${tdCls} font-medium`}>{user.username}</td>
+                    <td className={`${tdCls} font-medium`}>
+                      <span className="flex items-center gap-2">
+                        <Avatar user={user} size={22} />
+                        {user.username}
+                      </span>
+                    </td>
                     <td className={`${tdCls} w-1/3 min-w-40`}>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs tabular-nums">
@@ -257,7 +267,12 @@ export default function PrintsSection() {
                       {p.fileName}
                       {p.reason && <span className="block truncate text-xs font-normal text-muted">{p.reason === 'user_deleted' ? t('prints.reason.userDeleted') : p.reason}</span>}
                     </td>
-                    <td className={tdCls}>{p.username}</td>
+                    <td className={tdCls}>
+                      <span className="flex items-center gap-2">
+                        <Avatar user={{ id: p.userId, username: p.username }} size={22} />
+                        {p.username}
+                      </span>
+                    </td>
                     <td className={tdCls}>
                       <PrintStateBadge state={p.state} />
                     </td>

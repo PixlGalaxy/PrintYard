@@ -174,6 +174,26 @@ const xhrUpload: Uploader = (path, file, { onProgress, signal, fields }) =>
     xhr.send(form)
   })
 
+export type BinarySender = (method: Method, path: string, blob: Blob) => Promise<unknown>
+
+/** Raw binary body (Content-Type = the blob's type), JSON response. */
+const httpBinary: BinarySender = async (method, path, blob) => {
+  let res: Response
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'Content-Type': blob.type || 'application/octet-stream' },
+      body: blob,
+    })
+  } catch {
+    throw new ApiError(0, 'common.network', 'Cannot reach the SliceDock server.')
+  }
+  const text = await res.text().catch(() => '')
+  if (!res.ok) throw errorFromBody(res.status, text)
+  return text ? JSON.parse(text) : undefined
+}
+
 /** Fetches a binary response, reporting download progress. */
 const httpBlob: BlobFetcher = async (path, { onProgress, signal }) => {
   let res: Response
@@ -216,8 +236,10 @@ export function saveBlob(blob: Blob, name: string) {
 let transport: Transport = httpTransport
 let uploader: Uploader = xhrUpload
 let blobFetcher: BlobFetcher = httpBlob
+let binarySender: BinarySender = httpBinary
 if (import.meta.env.DEV && import.meta.env.VITE_MOCK === '1') {
   const mock = import('./dev/mock')
+  binarySender = async (method, path, blob) => (await mock).mockBinary(method, path, blob)
   transport = async (method, path, body) => (await mock).mockTransport(method, path, body)
   uploader = async (path, file, opts) => (await mock).mockUpload(path, file, opts)
   blobFetcher = async (path, opts) => (await mock).mockBlob(path, opts)
@@ -253,6 +275,12 @@ export const api = {
   updateAccount: (patch: AccountPatch) => req<{ user: User }>('PATCH', '/account', patch),
   changePassword: (currentPassword: string, newPassword: string) =>
     req<void>('POST', '/account/password', { currentPassword, newPassword }),
+
+  /** Profile picture: the (client-cropped) image as a raw body; the server re-encodes it to 256×256 WebP */
+  uploadAvatar: (image: Blob) => binarySender('PUT', '/account/avatar', image) as Promise<{ user: User }>,
+  removeAvatar: () => req<{ user: User }>('DELETE', '/account/avatar'),
+  /** `{ userId: avatarUrl }` for users with a picture (prints/audit lists only carry ids) */
+  avatars: () => get<{ avatars: Record<string, string> }>('/avatars'),
 
   sessions: () => get<{ sessions: AccountSession[] }>('/account/sessions'),
   revokeSession: (id: string) => req<void>('DELETE', `/account/sessions/${encodeURIComponent(id)}`),
@@ -332,6 +360,8 @@ export const api = {
 }
 
 export const adminApi = {
+  /** Moderation: removes a user's profile picture (audited) */
+  removeAvatar: (id: number) => req<AdminUser>('DELETE', `/admin/users/${id}/avatar`),
   users: () => get<AdminUser[]>('/admin/users'),
   createUser: (body: CreateUserRequest) => req<AdminUser>('POST', '/admin/users', body),
   updateUser: (id: number, body: UpdateUserRequest) => req<AdminUser>('PATCH', `/admin/users/${id}`, body),

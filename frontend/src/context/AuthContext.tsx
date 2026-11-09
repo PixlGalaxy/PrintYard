@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, isUnauthorized } from '../api'
+import { resetAvatarDirectory } from '../avatars'
 import { setNavPrefs } from '../three/navPrefs'
 import type { AccountPatch, AppConfig, User } from '../types'
 
@@ -80,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api.logout().catch(() => undefined)
+    resetAvatarDirectory()
     setUser(null)
   }, [setUser])
 

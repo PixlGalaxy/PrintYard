@@ -10,6 +10,7 @@ import type { TranslationKey } from '../i18n/translations'
 import { usePendingApprovals } from '../pages/admin/prints/usePendingApprovals'
 import { useUploads } from '../pages/files/uploads/UploadContext'
 import type { User } from '../types'
+import Avatar from './Avatar'
 import { useReadOnly } from '../readOnly'
 import Logo from './Logo'
 import Modal from './Modal'
@@ -132,21 +133,6 @@ export default function Header({ user }: { user: User }) {
         </Modal>
       )}
     </header>
-  )
-}
-
-export function Avatar({ user, size = 28 }: { user: User; size?: number }) {
-  if (user.avatarUrl) {
-    return <img src={user.avatarUrl} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover" />
-  }
-  return (
-    <span
-      aria-hidden
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }}
-      className="flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 font-semibold text-white uppercase"
-    >
-      {user.username.slice(0, 1)}
-    </span>
   )
 }
 

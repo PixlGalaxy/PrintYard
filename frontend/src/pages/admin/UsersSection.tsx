@@ -2,7 +2,7 @@ import { FolderInput, Gauge, KeyRound, Pencil, Trash2, UserPlus, Users } from 'l
 import { useState } from 'react'
 import { adminApi } from '../../api'
 import ConfirmModal from '../../components/ConfirmModal'
-import { Avatar } from '../../components/Header'
+import Avatar from '../../components/Avatar'
 import { tdCls, thCls } from '../../components/styles'
 import { Badge, Button, Empty, ErrorState, IconButton, Loading, RadioCard } from '../../components/ui'
 import { useAuth } from '../../context/AuthContext'

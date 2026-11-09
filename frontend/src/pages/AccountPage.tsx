@@ -3,7 +3,6 @@ import { useState, type FormEvent } from 'react'
 import { api } from '../api'
 import { ModePicker, SkinGrid } from '../components/AppearancePicker'
 import Card, { SettingRow } from '../components/Card'
-import { Avatar } from '../components/Header'
 import LanguageSwitcher from '../components/LanguageSwitcher'
 import PageHeader from '../components/PageHeader'
 import PasswordStrength from '../components/PasswordStrength'
@@ -16,6 +15,7 @@ import { useToast } from '../context/ToastContext'
 import { useI18n } from '../i18n/I18nContext'
 import type { User } from '../types'
 import { isEmail, passwordProblem } from '../validation'
+import AvatarEditor from './account/AvatarEditor'
 import Nav3dCard from './account/Nav3dCard'
 import FilamentPresetsCard from './account/FilamentPresetsCard'
 import NotificationsCard from './account/notifications/NotificationsCard'
@@ -74,8 +74,7 @@ function ProfileCard({ user }: { user: User }) {
 
   return (
     <Card title={t('account.profile')} description={t('account.profileDesc')} icon={<UserRound size={18} />}>
-      <div className="flex items-center gap-3">
-        <Avatar user={user} size={44} />
+      <AvatarEditor user={user}>
         <div className="min-w-0">
           <p className="truncate font-semibold">{user.username}</p>
           <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -83,7 +82,7 @@ function ProfileCard({ user }: { user: User }) {
             {t('account.memberSince')} {formatDate(user.createdAt)}
           </p>
         </div>
-      </div>
+      </AvatarEditor>
       <form onSubmit={save} className="flex flex-col gap-3 sm:flex-row sm:items-start" noValidate>
         <Field
           className="flex-1"

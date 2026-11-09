@@ -9,6 +9,7 @@ import { DEFAULT_LOGIN_GUARD, IpBansService, LoginGuard, type LoginGuardOptions 
 import { SessionsService } from './modules/auth/sessions.service.js';
 import { PrintersService } from './modules/printers/printers.service.js';
 import { UsersService } from './modules/users/users.service.js';
+import { AvatarsService } from './modules/avatars/avatars.service.js';
 import type { ExposureMode } from './types.js';
 import type { ProbeFn } from './printers/drivers/registry.js';
 import { probePrinter } from './printers/drivers/registry.js';
@@ -40,6 +41,8 @@ export interface AppContext {
   db: Db;
   settings: SettingsService;
   users: UsersService;
+  /** AVATARS: profile pictures in `<appdata>/avatars/<userId>.webp`. */
+  avatars: AvatarsService;
   sessions: SessionsService;
   audit: AuditService;
   bans: IpBansService;
@@ -123,6 +126,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     db,
     settings,
     users: new UsersService(db),
+    avatars: new AvatarsService(db, join(config.appdataRoot, 'avatars')),
     sessions,
     audit: new AuditService(db),
     bans,

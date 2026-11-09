@@ -2,7 +2,7 @@
 // guarded by `import.meta.env.DEV && VITE_MOCK`, so production builds never contain it.
 // State lives in localStorage (`sd:mock`) so actions survive reloads; the dev toolbar switches scenarios
 // (or add `?mock-scenario=<fresh|blocked|lowMemory|loggedOut|admin|user>` to any URL).
-import { ApiError, type Transport } from '../api'
+import { ApiError, type BinarySender, type Transport } from '../api'
 import { handleF1 } from './mockF1'
 import { handleNotify, resetNotify } from './mockNotify'
 import { engineInstalledVersion, handleF2, mockFiles, mockPublish, NOT_HANDLED, resetF2 } from './mockF2'
@@ -161,6 +161,7 @@ function seededState(flags: MockFlags): State {
     user(2, 'maria', 'user', {
       email: 'maria@example.com',
       language: 'en',
+      avatarUrl: seedAvatar('M', '#f472b6', '#7c3aed'),
       lastLoginAt: t - 26 * HOUR,
       limits: { enabled: true, maxGramsPerPrint: 250, maxGramsPerMonth: 2000, maxHoursPerPrint: 12, requiresApproval: true },
     }),
@@ -485,6 +486,26 @@ export const mockTransport: Transport = async (method, path, body) => {
       const u = requireUser()
       return { sessions: state.sessions.filter((s) => s.userId === u.id).map(({ userId: _u, ...s }) => s) }
     }
+    // AVATARS: the mock keeps the (client-cropped) image as a data URL; the real server re-encodes to 256×256 WebP
+    if (p === '/account/avatar' && method === 'PUT') {
+      const u = requireUser()
+      const dataUrl = String(b.dataUrl ?? '')
+      if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(dataUrl)) throw new ApiError(400, 'avatar.invalid_image', 'Invalid image')
+      if (dataUrl.length > (5 * 1024 * 1024 * 4) / 3) throw new ApiError(413, 'avatar.too_large', 'Too large')
+      u.avatarUrl = dataUrl
+      audit('account.avatar', null, { bytes: Math.round((dataUrl.length * 3) / 4) })
+      return { user: selfUser(u) }
+    }
+    if (p === '/account/avatar' && method === 'DELETE') {
+      const u = requireUser()
+      if (u.avatarUrl) audit('account.avatar_remove')
+      u.avatarUrl = null
+      return { user: selfUser(u) }
+    }
+    if (p === '/avatars') {
+      requireUser()
+      return { avatars: Object.fromEntries(state.users.filter((u) => u.avatarUrl).map((u) => [String(u.id), u.avatarUrl!])) }
+    }
     if (p.startsWith('/account/sessions/') && method === 'DELETE') {
       const u = requireUser()
       const sid = p.split('/').pop()
@@ -540,6 +561,11 @@ export const mockTransport: Transport = async (method, path, body) => {
       if (p.startsWith('/admin/users/')) {
         const u = state.users.find((x) => x.id === id)
         if (!u) throw new ApiError(404, 'common.not_found', 'Not found')
+        if (p.endsWith('/avatar') && method === 'DELETE') {
+          if (u.avatarUrl) audit('user.avatar_remove', u.username, { id: u.id })
+          u.avatarUrl = null
+          return adminUser(u)
+        }
         if (p.endsWith('/limits')) {
           u.limits = b as unknown as UserLimits
           audit('user.limits', u.username, b)
@@ -643,3 +669,20 @@ export const mockTransport: Transport = async (method, path, body) => {
 }
 
 export { mockBlob, mockUpload } from './mockF2'
+
+/** Raw-body uploads (profile picture): sent through the router as a data URL. */
+export const mockBinary: BinarySender = async (method, path, blob) => {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+  return mockTransport(method, path, { dataUrl })
+}
+
+/** A seeded profile picture (gradient + initial), so lists show both photos and initials. */
+function seedAvatar(letter: string, from: string, to: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="256" height="256" fill="url(#g)"/><circle cx="128" cy="100" r="46" fill="#fff" fill-opacity=".85"/><path d="M40 256c10-60 48-88 88-88s78 28 88 88z" fill="#fff" fill-opacity=".85"/><text x="214" y="236" font-family="sans-serif" font-size="34" font-weight="700" fill="#fff" text-anchor="middle">${letter}</text></svg>`
+  return `data:image/svg+xml;base64,${btoa(svg)}`
+}

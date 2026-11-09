@@ -1,6 +1,7 @@
 import { RefreshCw, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { adminApi } from '../../api'
+import Avatar from '../../components/Avatar'
 import { tdCls, thCls } from '../../components/styles'
 import { Button, Chip, Empty, ErrorState, Loading } from '../../components/ui'
 import { useToast } from '../../context/ToastContext'
@@ -103,7 +104,16 @@ export default function AuditSection() {
                       <td className={`${tdCls} text-muted`} title={formatDate(e.createdAt)}>
                         {timeAgo(t, e.createdAt)}
                       </td>
-                      <td className={tdCls}>{e.username ?? '—'}</td>
+                      <td className={tdCls}>
+                        {e.username ? (
+                          <span className="flex items-center gap-2">
+                            <Avatar user={{ id: e.userId, username: e.username }} size={20} />
+                            {e.username}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className={`${tdCls} font-mono text-xs font-medium ${ACTION_TONE(e.action)}`}>{e.action}</td>
                       <td className={`${tdCls} text-xs`}>{e.target ?? '—'}</td>
                       <td className={tdCls}>{e.ip ? <Chip>{e.ip.replace(/^::ffff:/, '')}</Chip> : '—'}</td>

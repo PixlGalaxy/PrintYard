@@ -131,6 +131,7 @@ export function adminRoutes(ctx: AppContext): Router {
         : await ctx.files.deleteAllOf(id);
     ctx.filamentPresets.handOver(id, target.username, me.id, mode.data);
     const removed = ctx.users.delete(me.id, id);
+    ctx.avatars.deleteFile(id);
     ctx.hub.disconnectUser(id);
     ctx.audit.log('user.delete', actor(req), removed.username, { id, files: mode.data, fileCount: files, cancelledRequests: cancelled });
     logger.auth.info(`User "${removed.username}" deleted by "${me.username}" (files: ${mode.data}, ${files})`);

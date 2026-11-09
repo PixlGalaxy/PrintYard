@@ -1,6 +1,8 @@
 import { Gauge, KeyRound, UserPlus, UserRound } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { adminApi } from '../../api'
+import { setDirectoryAvatar } from '../../avatars'
+import Avatar from '../../components/Avatar'
 import Modal from '../../components/Modal'
 import PasswordStrength from '../../components/PasswordStrength'
 import { inputCls, selectCls } from '../../components/styles'
@@ -37,6 +39,23 @@ export function UserFormModal({
   const [canControl, setCanControl] = useState(user?.canControlPrinter ?? false)
   const [touched, setTouched] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? null)
+  const [removingAvatar, setRemovingAvatar] = useState(false)
+
+  async function removeAvatar() {
+    if (!user) return
+    setRemovingAvatar(true)
+    try {
+      const updated = await adminApi.removeAvatar(user.id)
+      setAvatarUrl(null)
+      setDirectoryAvatar(user.id, null)
+      onSaved(updated)
+    } catch (err) {
+      onError(err)
+    } finally {
+      setRemovingAvatar(false)
+    }
+  }
 
   const errors = {
     username: user ? null : !username.trim() ? 'validation.required' : !isUsername(username.trim()) ? 'validation.username' : null,
@@ -140,6 +159,20 @@ export function UserFormModal({
             </select>
           )}
         </Field>
+        {user && avatarUrl && (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface-2/50 p-3.5 sm:col-span-2">
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar user={{ id: user.id, username: user.username, avatarUrl }} size={40} />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{t('avatar.adminTitle')}</p>
+                <p className="text-xs text-muted">{t('avatar.adminHint')}</p>
+              </div>
+            </div>
+            <Button variant="danger" onClick={() => void removeAvatar()} loading={removingAvatar} disabled={saving}>
+              {t('avatar.remove')}
+            </Button>
+          </div>
+        )}
         {user && (
           <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface-2/50 p-3.5 sm:col-span-2">
             <div>

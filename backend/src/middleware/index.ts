@@ -64,6 +64,7 @@ export const csrf: RequestHandler = (req, _res, next) => {
 const BINARY_UPLOADS: { method: string; path: RegExp; type: RegExp }[] = [
   { method: 'POST', path: /^\/files\/?$/, type: /^multipart\/form-data\s*;/i },
   { method: 'PUT', path: /^\/files\/\d{1,15}\/thumbnail\/?$/, type: /^image\/png\s*(;|$)/i },
+  { method: 'PUT', path: /^\/account\/avatar\/?$/, type: /^image\/(png|jpeg|webp|gif)\s*(;|$)/i },
 ];
 
 function isBinaryUpload(req: Request, type: string): boolean {

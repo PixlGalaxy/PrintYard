@@ -24,11 +24,11 @@ import {
   SlidersHorizontal,
   Thermometer,
   TriangleAlert,
-  UserRound,
   WifiOff,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from '../../../api'
+import Avatar from '../../../components/Avatar'
 import Modal from '../../../components/Modal'
 import { selectCls } from '../../../components/styles'
 import { Badge, Button, Callout, Empty, Loading } from '../../../components/ui'
@@ -254,7 +254,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
 
   const source = current ? (
     <>
-      <UserRound size={11} className="shrink-0" /> {t('printerTab.startedBy', { name: current.username })}
+      <Avatar user={{ id: current.userId, username: current.username }} size={14} /> {t('printerTab.startedBy', { name: current.username })}
       {current.startedAt && <> · {timeAgo(t, current.startedAt)}</>}
     </>
   ) : lastJob ? (
@@ -487,7 +487,11 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{p.fileName}</p>
                 <p className="truncate text-xs text-muted">
-                  {p.username} · {timeAgo(t, p.endedAt ?? p.startedAt ?? p.createdAt)}
+                  <span className="inline-flex items-center gap-1 align-middle">
+                    <Avatar user={{ id: p.userId, username: p.username }} size={14} />
+                    {p.username}
+                  </span>{' '}
+                  · {timeAgo(t, p.endedAt ?? p.startedAt ?? p.createdAt)}
                   {p.grams != null && ` · ${formatNumber(p.grams, { maximumFractionDigits: 1 })} g`}
                 </p>
               </div>

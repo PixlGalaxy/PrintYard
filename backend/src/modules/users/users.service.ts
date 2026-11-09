@@ -1,6 +1,7 @@
 import type { Db } from '../../db/client.js';
 import { conflict, forbidden, notFound } from '../../errors.js';
 import { parseNav3d } from '../account/nav3d.js';
+import { avatarUrlFor } from '../avatars/avatars.service.js';
 import { SKINS, type AdminUser, type Nav3dPrefs, type Language, type Role, type Skin, type Theme, type ThemeMode, type User, type UserLimits } from '../../types.js';
 
 export interface UserRow {
@@ -59,8 +60,7 @@ export function toUser(row: UserRow): User {
     theme: (themeMode ?? 'system') as Theme,
     themeMode,
     skin: asSkin(row.skin),
-    // Avatars arrive in a later phase; the URL shape is reserved.
-    avatarUrl: row.avatar_path ? `/api/users/${row.id}/avatar` : null,
+    avatarUrl: row.avatar_path ? avatarUrlFor(row.id, row.updated_at) : null,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
     canControlPrinter: row.role === 'admin' || row.can_control_printer === 1,

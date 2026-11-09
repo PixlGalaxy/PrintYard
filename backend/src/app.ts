@@ -16,6 +16,7 @@ import {
   securityHeaders,
 } from './middleware/index.js';
 import { accountRoutes } from './modules/account/account.routes.js';
+import { accountAvatarRoutes, adminAvatarRoutes, avatarsRoutes } from './modules/avatars/avatars.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { printingRoutes } from './modules/printing/printing.routes.js';
@@ -58,9 +59,12 @@ export function createApp(ctx: AppContext): Express {
   api.use('/setup', setupRoutes(ctx));
   api.use('/auth', authRoutes(ctx));
   api.use('/account/notifications', requireAuth, accountNotificationRoutes(ctx)); // Phase 4
+  api.use('/account/avatar', requireAuth, accountAvatarRoutes(ctx)); // AVATARS
   api.use('/account', requireAuth, accountRoutes(ctx));
+  api.use('/avatars', requireAuth, avatarsRoutes(ctx)); // AVATARS
   api.use('/admin/notifications', requireAdmin, adminNotificationRoutes(ctx)); // Phase 4
   api.use('/admin/engine', requireAdmin, engineRoutes(ctx)); // B1
+  api.use('/admin/users/:id/avatar', requireAdmin, adminAvatarRoutes(ctx)); // AVATARS
   api.use('/admin', requireAdmin, adminRoutes(ctx));
   api.use('/usage', requireAuth, usageRoutes(ctx));
   api.use('/files', requireAuth, filesRoutes(ctx)); // B1
