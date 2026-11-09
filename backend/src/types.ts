@@ -112,6 +112,8 @@ export interface Printer {
   id: number;
   name: string;
   model: PrinterModel;
+  /** Derived from `model` (driver registry). */
+  kinematics: PrinterKinematics;
   host: string;
   staticIp: boolean;
   mac: string | null;
@@ -129,11 +131,15 @@ export interface Printer {
   defaultBedSurface: BedSurface;
 }
 
+export type PrinterKinematics = 'corexy' | 'cartesian' | 'delta' | 'unknown';
+
 export interface PrinterModelInfo {
   id: PrinterModel;
   name: string;
   vendor: string;
   bed: { x: number; y: number; z: number };
+  /** Motion system (drives the printer icon in the UI). */
+  kinematics: PrinterKinematics;
 }
 
 export interface ProbeResult {

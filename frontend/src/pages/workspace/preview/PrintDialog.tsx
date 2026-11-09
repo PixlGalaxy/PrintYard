@@ -1,4 +1,5 @@
-import { CircleCheck, Clock, Hourglass, PackageCheck, Printer as PrinterIcon, Scale, Send, ShieldAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { CircleCheck, Clock, Hourglass, PackageCheck, Scale, Send, ShieldAlert, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { PrinterLayers } from '../../../components/printerIcons'
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, ApiError } from '../../../api'
 import GcodeFindings from '../../../components/GcodeFindings'
@@ -140,7 +141,7 @@ export default function PrintDialog({
     <Modal
       title={t('prints.dialogTitle')}
       subtitle={target.fileName}
-      icon={<PrinterIcon size={18} />}
+      icon={<PrinterLayers size={18} />}
       onClose={onClose}
       dismissable={!busy}
       footer={
@@ -153,7 +154,7 @@ export default function PrintDialog({
               {t('gcodeScan.printAnyway')}
             </Button>
           ) : (
-            <Button variant="primary" icon={needsApproval ? <Send size={14} /> : <PrinterIcon size={14} />} loading={busy} disabled={blocked || danger !== null} onClick={() => void send()}>
+            <Button variant="primary" icon={needsApproval ? <Send size={14} /> : <PrinterLayers size={14} />} loading={busy} disabled={blocked || danger !== null} onClick={() => void send()}>
               {t(needsApproval ? 'prints.requestApproval' : 'prints.startPrint')}
             </Button>
           )}

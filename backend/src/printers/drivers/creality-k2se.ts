@@ -73,6 +73,7 @@ export class CrealityK2SEDriver extends K2SELiveDriver implements PrinterDriver 
     name: 'Creality K2 SE',
     vendor: 'Creality',
     bed: { x: 220, y: 215, z: 245 },
+    kinematics: 'corexy',
   };
 
   /** Identify whatever answers at `host`. With staticIp=false and a MAC, falls back to a LAN sweep. */

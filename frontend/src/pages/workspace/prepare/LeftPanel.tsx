@@ -1,5 +1,5 @@
-import { BedIcon, NozzleIcon } from '../../../components/printerIcons'
-import { Boxes, CircleAlert, Info, Copy, Ellipsis, Eye, EyeOff, FileUp, LoaderCircle, Pencil, Printer as PrinterIcon, RotateCcw, SlidersHorizontal, SquareArrowRight, Trash2, Upload, X } from 'lucide-react'
+import { BedIcon, NozzleIcon, PrinterModelIcon } from '../../../components/printerIcons'
+import { Boxes, CircleAlert, Info, Copy, Ellipsis, Eye, EyeOff, FileUp, LoaderCircle, Pencil, RotateCcw, SlidersHorizontal, SquareArrowRight, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { api } from '../../../api'
 import { selectCls } from '../../../components/styles'
@@ -76,11 +76,11 @@ function PrinterCard({ bundle }: { bundle: ProfileBundle | null }) {
   const fmtT = (v: number | null | undefined) => (v == null ? '–' : `${Math.round(v)}°`)
 
   return (
-    <Section title={t('workspace.printer.title')} icon={<PrinterIcon size={14} />}>
+    <Section title={t('workspace.printer.title')} icon={<PrinterModelIcon size={14} kinematics={printer?.kinematics} model={printer?.model ?? doc.printerModel} />}>
       <div className="rounded-xl border border-line bg-surface-2/50 p-2.5">
         <div className="flex items-center gap-2.5">
           <span className="relative flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-400/20 to-accent-600/20 text-accent-500">
-            <PrinterIcon size={18} />
+            <PrinterModelIcon size={18} kinematics={printer?.kinematics} model={printer?.model ?? doc.printerModel} />
             <span
               className={`absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-surface ${online ? (STATE_TONE[state] ?? 'bg-emerald-500') : 'bg-zinc-400'}`}
               aria-hidden

@@ -1,4 +1,5 @@
-import { Camera, Pencil, Plus, Printer as PrinterIcon, Trash2 } from 'lucide-react'
+import { Camera, Pencil, Plus, Trash2 } from 'lucide-react'
+import { PrinterLayers, PrinterModelIcon } from '../../components/printerIcons'
 import { useEffect, useState, type FormEvent } from 'react'
 import { adminApi, api } from '../../api'
 import ConfirmModal from '../../components/ConfirmModal'
@@ -37,7 +38,7 @@ export default function PrintersSection() {
         flush
         title={t('printers.title')}
         description={t('printers.desc')}
-        icon={<PrinterIcon size={18} />}
+        icon={<PrinterModelIcon size={18} kinematics={printers?.[0]?.kinematics} model={printers?.[0]?.model} />}
         actions={
           <Button variant="primary" icon={<Plus size={14} />} onClick={() => setDialog({ kind: 'create' })}>
             {t('printers.add')}
@@ -49,7 +50,7 @@ export default function PrintersSection() {
         ) : !printers ? (
           <Loading />
         ) : printers.length === 0 ? (
-          <Empty icon={<PrinterIcon size={20} />}>{t('printers.empty')}</Empty>
+          <Empty icon={<PrinterLayers size={20} />}>{t('printers.empty')}</Empty>
         ) : (
           <div className="overflow-x-auto px-4 sm:px-5">
             <table className="w-full text-left text-sm">
@@ -188,7 +189,7 @@ function PrinterModal({
   return (
     <Modal
       title={printer ? t('printers.editTitle', { name: printer.name }) : t('printers.addTitle')}
-      icon={<PrinterIcon size={18} />}
+      icon={<PrinterModelIcon size={18} kinematics={printer?.kinematics ?? models.find((m) => m.id === draft.model)?.kinematics} model={draft.model} />}
       onClose={onClose}
       dismissable={!saving}
       footer={

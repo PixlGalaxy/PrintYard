@@ -1,10 +1,12 @@
 // One setting row (process or filament): label with tooltip, modified dot, typed control, reset, greyed when a
 // dependency rule turns it off. Values are Creality config strings ("1"/"0", "15%", enum keys).
-import { Check, Info, Minus, Plus, Printer, RotateCcw } from 'lucide-react'
+import { Check, Info, Minus, Plus, RotateCcw } from 'lucide-react'
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { PrinterModelIcon } from '../../../../components/printerIcons'
 import { useI18n } from '../../../../i18n/I18nContext'
 import type { OptionDef } from '../../../../types'
 import { display, unitOf } from '../../../../workspace/settings/values'
+import { useWs } from '../../../../workspace/store'
 
 export interface RowProps {
   def: OptionDef
@@ -39,6 +41,7 @@ const stop = (e: KeyboardEvent<HTMLInputElement>) => {
 
 export default function OptionRow({ def, value, base, changed, disabled, proBadge, onChange, override, baseHint, fromPrinter }: RowProps) {
   const { t } = useI18n()
+  const printerModel = useWs((s) => s.doc.printerModel)
   const off = disabled || (override ? !override.active : false)
   const v = override && !override.active ? (override.inherited ?? '') : (value ?? '')
   const unit = unitOf(def)
@@ -170,7 +173,7 @@ export default function OptionRow({ def, value, base, changed, disabled, proBadg
           )}
           {fromPrinter && (
             <span className="inline-flex shrink-0 items-center rounded bg-emerald-500/12 p-0.5 text-emerald-700 dark:text-emerald-300" title={fromPrinter} aria-label={fromPrinter}>
-              <Printer size={10} aria-hidden />
+              <PrinterModelIcon size={10} model={printerModel} aria-hidden />
             </span>
           )}
           {proBadge && def.mode === 'pro' && <span className="rounded bg-violet-500/15 px-1 text-[9px] font-semibold text-violet-600 dark:text-violet-400">PRO</span>}

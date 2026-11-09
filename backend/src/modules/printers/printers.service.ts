@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Db } from '../../db/client.js';
 import { AppError, notFound } from '../../errors.js';
 import { normalizeMac } from '../../printers/drivers/http.js';
-import { PRINTER_MODELS } from '../../printers/drivers/registry.js';
+import { kinematicsOf, PRINTER_MODELS } from '../../printers/drivers/registry.js';
 import type { ProbeFn } from '../../printers/drivers/registry.js';
 import { invalidProbeHost, resolveProbeHost, type LookupFn } from '../../lib/probe-host.js';
 import { BED_SURFACES, type BedSurface, type Printer, type PrinterModel, type ProbeResult } from '../../types.js';
@@ -136,6 +136,7 @@ function toPrinter(row: PrinterRow): Printer {
     id: row.id,
     name: row.name,
     model: row.model as PrinterModel,
+    kinematics: kinematicsOf(row.model),
     host: row.host,
     staticIp: row.static_ip === 1,
     mac: row.mac,

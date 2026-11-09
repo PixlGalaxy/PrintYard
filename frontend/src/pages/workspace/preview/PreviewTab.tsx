@@ -2,7 +2,8 @@
 // and per-feature toggles, vertical layer range slider, move slider with playback, slicing summary,
 // usage vs limits, Print (with approvals / bed-occupied flow) and Download.
 // The file comes from the `fileId` prop or `?file=<id>` (F1's Slice → Preview hands it over that way).
-import { ArrowRight, Box, Download, FileCode2, FolderOpen, Layers, LoaderCircle, Printer as PrinterIcon, RotateCcw, Scale, Timer, UploadCloud, Wallet } from 'lucide-react'
+import { ArrowRight, Box, Download, FileCode2, FolderOpen, Layers, LoaderCircle, RotateCcw, Scale, Timer, UploadCloud, Wallet } from 'lucide-react'
+import { PrinterLayers, PrinterModelIcon } from '../../../components/printerIcons'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../../api'
@@ -470,7 +471,7 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
 
         <div className="sticky bottom-0 z-10 shrink-0 space-y-2 border-t border-line bg-surface p-4 pb-[calc(1rem+var(--sd-tray-h,0px))] transition-[padding] duration-200">
           <ReadOnlyHint className="flex w-full">
-          <Button variant="primary" size="md" className="w-full" icon={<PrinterIcon size={16} />} disabled={!file || !parsed || readOnly} onClick={() => setPrintOpen(true)}>
+          <Button variant="primary" size="md" className="w-full" icon={<PrinterLayers size={16} />} disabled={!file || !parsed || readOnly} onClick={() => setPrintOpen(true)}>
             {t(usage?.limits.enabled && usage.limits.requiresApproval ? 'prints.requestApproval' : 'preview.print')}
           </Button>
           </ReadOnlyHint>
@@ -551,7 +552,7 @@ function PickGcode({ onOpen }: { onOpen: (id: number) => void }) {
           className="group flex items-center gap-3 rounded-2xl border border-accent-500/30 bg-accent-500/[0.06] p-4 shadow-lg shadow-black/5 transition-colors hover:border-accent-500/60 hover:bg-accent-500/10"
         >
           <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-500 text-white shadow-sm shadow-accent-500/30">
-            <PrinterIcon size={19} />
+            <PrinterModelIcon size={19} kinematics={printer?.kinematics} model={printer?.model} />
             {status?.state === 'printing' && <span className="absolute -top-0.5 -right-0.5 size-2.5 animate-pulse rounded-full border-2 border-surface bg-emerald-500" />}
           </span>
           <span className="min-w-0 flex-1">

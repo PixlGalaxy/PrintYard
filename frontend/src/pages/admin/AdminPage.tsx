@@ -1,4 +1,5 @@
-import { Bell, ClipboardList, Cpu, FlaskConical, FolderOpen, LayoutDashboard, Printer, ScrollText, Settings, ShieldCheck, Users, type LucideIcon } from 'lucide-react'
+import { Bell, ClipboardList, Cpu, FlaskConical, FolderOpen, LayoutDashboard, ScrollText, Settings, ShieldCheck, Users, type LucideIcon } from 'lucide-react'
+import { PrinterLayers } from '../../components/printerIcons'
 import { useSearchParams } from 'react-router'
 import PageHeader from '../../components/PageHeader'
 import { useI18n } from '../../i18n/I18nContext'
@@ -19,7 +20,7 @@ import UsersSection from './UsersSection'
 const SECTIONS = [
   { key: 'dashboard', label: 'admin.section.dashboard', icon: LayoutDashboard },
   { key: 'users', label: 'admin.section.users', icon: Users },
-  { key: 'printers', label: 'admin.section.printers', icon: Printer },
+  { key: 'printers', label: 'admin.section.printers', icon: PrinterLayers },
   { key: 'prints', label: 'admin.section.prints', icon: ClipboardList },
   { key: 'files', label: 'admin.section.files', icon: FolderOpen },
   { key: 'filaments', label: 'admin.section.filaments', icon: FlaskConical },

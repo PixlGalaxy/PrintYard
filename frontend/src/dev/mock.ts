@@ -109,6 +109,7 @@ const K2SE: Printer = {
   id: 1,
   name: 'K2 SE',
   model: 'creality-k2se',
+  kinematics: 'corexy',
   host: '192.168.8.230',
   staticIp: true,
   mac: 'fc:ee:28:13:e2:ed',
@@ -387,7 +388,7 @@ export const mockTransport: Transport = async (method, path, body) => {
         hostNetworkLikely: false,
       }
     }
-    if (p === '/printer-models') return [{ id: 'creality-k2se', name: 'Creality K2 SE', vendor: 'Creality', bed: { x: 220, y: 215, z: 245 } }]
+    if (p === '/printer-models') return [{ id: 'creality-k2se', name: 'Creality K2 SE', vendor: 'Creality', bed: { x: 220, y: 215, z: 245 }, kinematics: 'corexy' }]
 
     // ---------- setup ----------
     if (p.startsWith('/setup/')) {

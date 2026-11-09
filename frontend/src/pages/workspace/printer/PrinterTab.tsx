@@ -21,7 +21,6 @@ import {
   History,
   Hourglass,
   LoaderCircle,
-  Printer as PrinterIcon,
   SlidersHorizontal,
   Thermometer,
   TriangleAlert,
@@ -41,7 +40,7 @@ import { useI18n } from '../../../i18n/I18nContext'
 import { usePrinterStatus, useRealtimeMessage, useRealtimeState } from '../../../realtime'
 import type { CfsSlot, LastJob, LibraryFile, PrintJob, Printer, PrinterState, TempSample } from '../../../types'
 import { useReadOnly } from '../../../readOnly'
-import { BedIcon, LightIcon, NozzleIcon } from '../../../components/printerIcons'
+import { BedIcon, LightIcon, NozzleIcon, PrinterLayers, PrinterModelIcon } from '../../../components/printerIcons'
 import { Segmented } from '../../../components/ui'
 import JogPanel from './JogPanel'
 import LiveView from './LiveView'
@@ -102,7 +101,7 @@ export default function PrinterTab() {
   if (!printers.length)
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <Empty icon={<PrinterIcon size={20} />}>{t('printerTab.none')}</Empty>
+        <Empty icon={<PrinterLayers size={20} />}>{t('printerTab.none')}</Empty>
       </div>
     )
   const printer = printers.find((p) => p.id === printerId) ?? printers[0]
@@ -515,7 +514,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
       <div className="space-y-2.5 border-b border-line bg-surface px-3 pt-3 pb-2.5">
         <div className="flex items-center gap-2.5">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500">
-            <PrinterIcon size={16} />
+            <PrinterModelIcon size={16} kinematics={printer.kinematics} model={printer.model} />
           </span>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-sm font-semibold">

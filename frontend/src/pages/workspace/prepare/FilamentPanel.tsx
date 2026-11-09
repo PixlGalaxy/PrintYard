@@ -1,9 +1,10 @@
 // Filament slots of the scene (Creality's right panel "Filament" box): colour chip 01, 02…, preset per slot,
 // CFS slot mapping, per-slot filament settings (overrides) and "Sync from CFS".
-import { Check, ChevronDown, Copy, FlaskConical, Minus, Palette, PencilLine, Plus, Printer as PrinterIcon, RefreshCw, Settings2, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Copy, FlaskConical, Minus, Palette, PencilLine, Plus, RefreshCw, Settings2, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { api } from '../../../api'
 import ConfirmModal from '../../../components/ConfirmModal'
+import { PrinterModelIcon } from '../../../components/printerIcons'
 import { useAuth } from '../../../context/AuthContext'
 import { useToast } from '../../../context/ToastContext'
 import { useLoader } from '../../../hooks'
@@ -388,6 +389,7 @@ function PresetPicker({
   onPick: (p: PresetSummary, spool?: CfsSlot) => void
 }) {
   const { t } = useI18n()
+  const printerModel = useWs((s) => s.doc.printerModel)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -453,7 +455,7 @@ function PresetPicker({
             className="inline-flex size-4.5 shrink-0 items-center justify-center rounded bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"
             title={printerTip(mappedSpool, current, t)}
           >
-            <PrinterIcon size={10} aria-hidden />
+            <PrinterModelIcon size={10} model={printerModel} aria-hidden />
             <span className="sr-only">{t('workspace.filament.fromPrinter')}</span>
           </span>
         )}
@@ -471,7 +473,7 @@ function PresetPicker({
           {inPrinter.length > 0 && (
             <div role="group" aria-label={t('workspace.filament.inPrinter')}>
               <p className="flex items-center gap-1.5 px-2.5 pt-1 pb-1 text-[10px] font-semibold tracking-wide text-muted uppercase">
-                <PrinterIcon size={11} />
+                <PrinterModelIcon size={11} model={printerModel} />
                 {t('workspace.filament.inPrinter')}
               </p>
               {inPrinter.map(({ spool, preset }) => {

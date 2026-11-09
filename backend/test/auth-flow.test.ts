@@ -32,7 +32,7 @@ describe('setup → login → me → logout', () => {
     assert.equal(typeof status.body.hostNetworkLikely, 'boolean');
 
     const models = await t.request.get('/api/printer-models');
-    assert.deepEqual(models.body, [{ id: 'creality-k2se', name: 'Creality K2 SE', vendor: 'Creality', bed: { x: 220, y: 215, z: 245 } }]);
+    assert.deepEqual(models.body, [{ id: 'creality-k2se', name: 'Creality K2 SE', vendor: 'Creality', bed: { x: 220, y: 215, z: 245 }, kinematics: 'corexy' }]);
 
     assert.equal((await t.request.get('/api/auth/me')).status, 401);
     assert.equal((await t.request.get('/api/printers')).status, 401);

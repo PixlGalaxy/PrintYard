@@ -1,4 +1,5 @@
-import { Activity, Network, Plus, Printer as PrinterIcon } from 'lucide-react'
+import { Activity, Network, Plus } from 'lucide-react'
+import { PrinterLayers, PrinterModelIcon } from '../components/printerIcons'
 import { Link } from 'react-router'
 import { api } from '../api'
 import PageHeader from '../components/PageHeader'
@@ -29,7 +30,7 @@ export default function DashboardPage() {
       ) : printers.length === 0 ? (
         <div className="rounded-2xl border border-line bg-surface shadow-sm">
           <Empty
-            icon={<PrinterIcon size={20} />}
+            icon={<PrinterLayers size={20} />}
             action={
               isAdmin ? (
                 <Link
@@ -62,7 +63,7 @@ function PrinterCard({ printer }: { printer: Printer }) {
     <article className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-sm animate-[pop-in_.2s_ease-out]">
       <div className="flex items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500">
-          <PrinterIcon size={20} />
+          <PrinterModelIcon size={20} kinematics={printer.kinematics} model={printer.model} />
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-semibold">{printer.name}</h2>

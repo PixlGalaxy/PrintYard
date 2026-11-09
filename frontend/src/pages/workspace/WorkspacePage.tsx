@@ -1,21 +1,26 @@
 // Workspace shell (`/?tab=prepare|preview|printer`): full-height editor below the header. Prepare stays mounted
 // (its 3D scene and WebGL context survive tab switches); Preview and Printer mount on first visit.
-import { Box, Layers, LoaderCircle, Printer } from 'lucide-react'
-import { lazy, Suspense, useState, type ReactNode } from 'react'
+import { Box, Layers, LoaderCircle } from 'lucide-react'
+import { forwardRef, lazy, Suspense, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
+import { PrinterModelIcon } from '../../components/printerIcons'
 import { useI18n } from '../../i18n/I18nContext'
 import type { TranslationKey } from '../../i18n/translations'
 import PrepareTab from './prepare/PrepareTab'
 import ProjectBar from './prepare/ProjectBar'
+import { useWs } from '../../workspace/store'
 
 const PreviewTab = lazy(() => import('./preview/PreviewTab'))
 const PrinterTab = lazy(() => import('./printer/PrinterTab'))
 
 type TabId = 'prepare' | 'preview' | 'printer'
+// The Printer tab shows the target printer's glyph (by the workspace's printer model)
+const PrinterTabIcon: typeof Box = forwardRef((props, ref) => <PrinterModelIcon ref={ref} model={useWs((s) => s.doc.printerModel)} {...props} />)
+PrinterTabIcon.displayName = 'PrinterTabIcon'
 const TABS: { id: TabId; label: TranslationKey; icon: typeof Box }[] = [
   { id: 'prepare', label: 'workspace.tab.prepare', icon: Box },
   { id: 'preview', label: 'workspace.tab.preview', icon: Layers },
-  { id: 'printer', label: 'workspace.tab.printer', icon: Printer },
+  { id: 'printer', label: 'workspace.tab.printer', icon: PrinterTabIcon },
 ]
 const isTab = (v: string | null): v is TabId => v === 'prepare' || v === 'preview' || v === 'printer'
 

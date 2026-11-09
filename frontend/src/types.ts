@@ -114,10 +114,14 @@ export interface AdminUser extends User {
   canPrintUploadedGcode: boolean
 }
 
+export type PrinterKinematics = 'corexy' | 'cartesian' | 'delta' | 'unknown'
+
 export interface Printer {
   id: number
   name: string
   model: PrinterModel
+  /** Derived from `model` by the backend */
+  kinematics: PrinterKinematics
   host: string
   staticIp: boolean
   mac: string | null
@@ -135,6 +139,7 @@ export interface PrinterModelInfo {
   name: string
   vendor: string
   bed: { x: number; y: number; z: number }
+  kinematics: PrinterKinematics
 }
 
 export interface ProbeResult {
