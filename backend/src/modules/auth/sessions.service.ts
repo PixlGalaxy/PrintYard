@@ -71,9 +71,11 @@ export class SessionsService {
     if (!row) return null;
 
     const now = Date.now();
-    const { idleMinutes } = this.policy();
+    const { idleMinutes, sessionHours } = this.policy();
     const idleExpired = idleMinutes > 0 && now - row.s_last_seen_at > idleMinutes * 60_000;
-    if (now >= row.s_expires_at || idleExpired || row.is_active !== 1) {
+    // A shorter lifetime set by the admin applies to sessions issued before the change too.
+    const lifetimeExpired = now >= row.s_created_at + sessionHours * 3_600_000;
+    if (now >= row.s_expires_at || lifetimeExpired || idleExpired || row.is_active !== 1) {
       this.revoke(id);
       return null;
     }

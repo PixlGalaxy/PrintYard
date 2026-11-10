@@ -36,6 +36,28 @@ describe('password change cannot be used to brute-force the current password', (
   });
 });
 
+describe('session lifetime setting', () => {
+  let t: TestApp;
+  before(async () => {
+    t = createTestApp();
+    await t.agent.post('/api/setup/complete').send(setupBody());
+  });
+  after(() => t.close());
+
+  it('lowering security.sessionHours also ends existing sessions older than the new lifetime', async () => {
+    assert.equal((await t.agent.get('/api/auth/me')).status, 200);
+    // Session created 3 h ago under the default 168 h lifetime; the admin then shortens it to 2 h.
+    const threeHoursAgo = Date.now() - 3 * 3_600_000;
+    t.ctx.db.prepare('UPDATE sessions SET created_at = ?, last_seen_at = ?').run(threeHoursAgo, Date.now());
+    const fresh = supertest.agent(createApp(t.ctx));
+    assert.equal((await fresh.post('/api/auth/login').send({ username: ADMIN.username, password: ADMIN.password })).status, 200);
+    const patch = await fresh.patch('/api/admin/settings').send({ 'security.sessionHours': 2 });
+    assert.equal(patch.status, 200, JSON.stringify(patch.body));
+    assert.equal((await t.agent.get('/api/auth/me')).status, 401);
+    assert.equal((await fresh.get('/api/auth/me')).status, 200);
+  });
+});
+
 describe('realtime sockets honour IP bans', () => {
   let t: TestApp;
   before(async () => {
