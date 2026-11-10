@@ -1,6 +1,7 @@
 .git
 .github
 status
+.claude
 **/node_modules
 **/dist
 backend/public
