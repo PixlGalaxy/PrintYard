@@ -10,9 +10,8 @@ import type { AuditActor } from '../audit/audit.service.js';
 import type { EngineManager } from '../engine/engine.service.js';
 import { EngineError } from '../engine/engine.types.js';
 import { hashFile, type FilesService } from '../files/files.service.js';
-import { injectThumbnails, parseGcodeSummary, pngSize, type Thumbnail } from '../files/gcode.js';
-import { scanGcodeFile } from '../files/gcode-scan.js';
-import type { ProfilesService } from '../profiles/profiles.service.js';
+import { computeGcodeSummary, injectThumbnails, parseGcodeSummary, pngSize, type Thumbnail } from '../files/gcode.js';
+import { firstValue, type ProfilesService } from '../profiles/profiles.service.js';
 import { buildProjectConfig } from '../projects/scene.js';
 import { ProgressModel, type ProgressSnapshot } from './progress.js';
 import type { ProjectsService } from '../projects/projects.service.js';
@@ -56,6 +55,27 @@ function errorOf(err: unknown): { code: string; message: string } {
 }
 
 const MAX_OUTPUT_NAME = 64;
+
+/** Cross-section of the K2 SE's 1.75 mm filament (mm²). */
+const FILAMENT_AREA_MM2 = Math.PI * 0.875 ** 2;
+const DEFAULT_DENSITY = 1.24;
+
+/**
+ * Grams the limits use for a sliced plate, per filament: the slicer's own figure, unless the extrusion moves need
+ * clearly more. The engine computes `filament used [g]` from `filament_density` ("for statistics only") and its
+ * volume from `filament_diameter`, and both can be changed by slot overrides and custom presets: a density of 0.3
+ * reported a quarter of the real weight, a diameter of 1 a third. The floor is the extruded length (from the moves,
+ * as 1.75 mm filament) × the density of the system preset the filament inherits.
+ */
+export function limitGrams(slicer: number[], movesMm: number[], baseDensity: number[]): number[] {
+  if (slicer.length === 0) return slicer;
+  const n = Math.max(slicer.length, movesMm.length);
+  return Array.from({ length: n }, (_, i) => {
+    const reported = slicer[i] ?? 0;
+    const floor = Math.round((((movesMm[i] ?? 0) * FILAMENT_AREA_MM2 * (baseDensity[i] ?? DEFAULT_DENSITY)) / 1000) * 100) / 100;
+    return floor > reported * 1.02 + 0.01 ? floor : reported;
+  });
+}
 
 /**
  * Library name of a sliced plate: `<project or first object name>_plate<N>.gcode`, sanitized, ≤ 64 characters.
@@ -345,7 +365,9 @@ export class SlicingService {
       // still run through the dangerous-command scanner. A failing scan fails the job; it is never marked trusted.
       model.postprocessing('saving', 'Checking the G-code');
       this.apply(job, model.tick());
-      const scan = await scanGcodeFile(finalTmp);
+      // One pass: the dangerous-command scan plus the filament length from the moves (limitGrams).
+      const moves = await computeGcodeSummary(finalTmp);
+      const scan = moves.scan!;
       if (!scan.ok) {
         await rm(finalTmp, { force: true }).catch(() => undefined);
         logger.warn(`Slice ${job.id}: output failed the G-code scan (${scan.total} finding(s), first: ${scan.findings[0]?.reason ?? '?'})`);
@@ -356,7 +378,12 @@ export class SlicingService {
       }
       // Server-trusted: SliceDock produced this file (overrides are CR/LF-free and range-checked, G-code templates
       // refused, output scanned), so its own summary is used for limits. sha256 is re-checked before printing.
-      const summary = { ...(await parseGcodeSummary(finalTmp)), estimateSource: 'slicer' as const, scan };
+      const parsed = await parseGcodeSummary(finalTmp);
+      const filamentGrams = limitGrams(parsed.filamentGrams, moves.filamentMm, this.baseDensities(job));
+      if (filamentGrams.some((g, i) => g !== parsed.filamentGrams[i])) {
+        logger.warn(`Slice ${job.id}: the slicer reported ${parsed.filamentGrams.join(', ')} g; the moves need ${filamentGrams.join(', ')} g`);
+      }
+      const summary = { ...parsed, filamentGrams, estimateSource: 'slicer' as const, scan };
       const { sha256, size } = await hashFile(finalTmp);
       const file = await this.deps.files.addFile(
         { id: job.userId, username: job.username },
@@ -391,6 +418,23 @@ export class SlicingService {
       release();
       if (process.env.SLICEDOCK_KEEP_JOBS !== '1') await rm(jobDir, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  /** Per filament (slot order = extruder order): the density of the system preset it is, or inherits from. */
+  private baseDensities(job: Job): number[] {
+    const model = job.scene.printerModel;
+    return [...job.scene.filaments]
+      .sort((a, b) => a.slot - b.slot)
+      .map((f) => {
+        try {
+          const r = this.deps.profiles.filament(model, f.presetId, { id: job.userId, role: job.role });
+          const system = r.inherits ? this.deps.profiles.raw(model, 'filament', r.inherits) : r.raw;
+          const d = Number(firstValue(system.filament_density));
+          return Number.isFinite(d) && d > 0 ? d : DEFAULT_DENSITY;
+        } catch {
+          return DEFAULT_DENSITY;
+        }
+      });
   }
 
   /** Cancels everything (shutdown). */
