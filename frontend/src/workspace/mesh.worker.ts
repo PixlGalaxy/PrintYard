@@ -151,6 +151,9 @@ function parseModelXml(xml: string): Map<string, XObject> {
   return objects
 }
 
+const MAX_3MF_VISITS = 1 << 20
+const MAX_3MF_TRIANGLES = 1 << 25
+
 function parse3mf(buf: ArrayBuffer): Float32Array {
   const files = unzipSync(new Uint8Array(buf), { filter: (f) => f.name.toLowerCase().endsWith('.model') })
   const models = new Map<string, Map<string, XObject>>()
@@ -166,11 +169,18 @@ function parse3mf(buf: ArrayBuffer): Float32Array {
   const rootXml = decoder.decode(Object.entries(files).find(([n]) => '/' + n.toLowerCase() === rootPath)![1])
 
   const chunks: Float32Array[] = []
+  // Components can reuse an object many times per level, so a few hundred bytes of XML could otherwise
+  // expand to 10^8 triangles (out of memory). Real plates stay far below both limits.
+  let visits = 0
+  let triangles = 0
   const emit = (path: string, id: string, m: number[], depth: number) => {
     if (depth > 8) return
+    if (++visits > MAX_3MF_VISITS) throw new Error('mesh.invalid_3mf')
     const obj = models.get(path)?.get(id)
     if (!obj) return
     if (obj.verts && obj.tris && obj.tris.length) {
+      triangles += obj.tris.length / 3
+      if (triangles > MAX_3MF_TRIANGLES) throw new Error('mesh.invalid_3mf')
       const v = obj.verts
       const t = obj.tris
       const out = new Float32Array(t.length * 3)
