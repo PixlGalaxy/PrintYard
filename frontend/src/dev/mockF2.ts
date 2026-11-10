@@ -148,7 +148,8 @@ function seed(): F2State {
       pinned: false,
       createdAt: t - fid * 7 * HOUR,
       updatedAt: t - fid * 7 * HOUR,
-      thumbnailUrl: mockThumbnail(fid, shape),
+      // Like the real backend, models have no thumbnail until the client renders one (PUT /files/:id/thumbnail)
+      thumbnailUrl: kind === 'model' ? null : mockThumbnail(fid, shape),
       meta: {},
       ...extra,
     }
@@ -387,7 +388,7 @@ export async function mockUpload(path: string, file: File, opts: TransferOptions
     if (84 + n * 50 === file.size) meta.triangles = n
   }
   const visibility = opts.fields?.visibility === 'shared' ? 'shared' : 'private'
-  const f = mockFiles.add({ ownerId: u.id, name: file.name, kind, blob: file, meta, visibility })
+  const f = mockFiles.add({ ownerId: u.id, name: file.name, kind, blob: file, meta, visibility, ...(kind === 'model' && { thumbnailUrl: null }) })
   mockCore.audit('files.upload', f.name)
   mockCore.save()
   return f
@@ -565,7 +566,7 @@ const jitter = (v: number, target: number, rate: number, noise: number) => v + (
 
 function status(): PrinterStatus {
   const online = !mockCore.state.flags.printerOffline
-  const printing = ['printing', 'paused', 'pausing', 'stopping'].includes(sim.state)
+  const printing = ['printing', 'paused', 'pausing', 'resuming', 'stopping'].includes(sim.state)
   return {
     printerId: 1,
     online,
@@ -735,6 +736,10 @@ function tick() {
     case 'pausing':
       if (--sim.hold <= 0) sim.state = 'paused'
       break
+    // Creality state 8: resume requested (5 → 8 → 1)
+    case 'resuming':
+      if (--sim.hold <= 0) sim.state = 'printing'
+      break
     case 'stopping':
       if (--sim.hold <= 0) {
         sim.state = 'aborted'
@@ -798,7 +803,7 @@ function mockControl(kind: 'control' | 'exclude-object', b: Record<string, unkno
   const u = mockCore.requireUser()
   readOnlyGuard()
   if (mockCore.state.flags.printerOffline) throw new ApiError(409, 'prints.printer_offline', 'Printer offline')
-  const active = ['printing', 'paused', 'pausing', 'stopping'].includes(sim.state)
+  const active = ['printing', 'paused', 'pausing', 'resuming', 'stopping'].includes(sim.state)
   if (kind === 'exclude-object') {
     const job = st.prints.find((x) => x.id === sim.printId)
     if (u.role !== 'admin' && job?.userId !== u.id) throw new ApiError(403, 'prints.not_owner', 'Not the owner')
@@ -1061,7 +1066,7 @@ function printerFileByName(name: unknown): MockPrinterFile {
 }
 
 function printerFileInUse(name: string): boolean {
-  const active = ['printing', 'paused', 'pausing', 'stopping'].includes(sim.state)
+  const active = ['printing', 'paused', 'pausing', 'resuming', 'stopping'].includes(sim.state)
   return (active && sim.fileName === name) || st.prints.some((j) => j.state === 'pending' && j.fileName === name)
 }
 
@@ -1212,6 +1217,18 @@ export function handleF2(method: string, p: string, url: URL, b: Record<string, 
     }
   }
 
+  // Client-rendered thumbnail (models): stored as a data URL, like the backend's PNG
+  const tm = p.match(/^\/files\/(\d+)\/thumbnail$/)
+  if (tm && method === 'PUT') {
+    const f = writable(mockFiles.get(Number(tm[1])))
+    const png = typeof b.png === 'string' ? b.png.replace(/^data:image\/png;base64,/, '') : ''
+    if (!png.startsWith('iVBORw0KGgo')) throw new ApiError(400, 'files.invalid_thumbnail', 'Thumbnail must be a PNG image')
+    if (png.length > Math.ceil((512 * 1024 * 4) / 3) + 8) throw new ApiError(413, 'files.thumbnail_too_large', 'Thumbnails are limited to 512 KB')
+    f.thumbnailUrl = `data:image/png;base64,${png}`
+    save()
+    return f
+  }
+
   // Files → On the printer (the printer's own G-code list)
   const pf = p.match(/^\/printers\/(\d+)\/files(?:\/(import|print))?$/)
   if (pf) return handlePrinterFiles(method, Number(pf[1]), pf[2] ?? null, url, b)
@@ -1252,8 +1269,11 @@ export function handleF2(method: string, p: string, url: URL, b: Record<string, 
     if (pm[2] === 'pause' && sim.state === 'printing') {
       sim.state = 'pausing'
       sim.hold = 2
-    } else if (pm[2] === 'resume' && sim.state === 'paused') sim.state = 'printing'
-    else if (pm[2] === 'cancel' && ['printing', 'paused', 'pausing'].includes(sim.state)) {
+    } else if (pm[2] === 'resume' && sim.state === 'paused') {
+      sim.state = 'resuming'
+      sim.hold = 2
+    }
+    else if (pm[2] === 'cancel' && ['printing', 'paused', 'pausing', 'resuming'].includes(sim.state)) {
       sim.state = 'stopping'
       sim.hold = 2
     } else throw new ApiError(409, 'printers.invalid_state', 'Not possible in the current state')

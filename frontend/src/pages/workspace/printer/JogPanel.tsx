@@ -22,7 +22,7 @@ import { useStoredState } from '../../../hooks'
 import { useI18n } from '../../../i18n/I18nContext'
 import type { PrinterControlCommand, PrinterState, PrinterStatus } from '../../../types'
 
-const ACTIVE: PrinterState[] = ['printing', 'paused', 'pausing', 'stopping']
+const ACTIVE: PrinterState[] = ['printing', 'paused', 'pausing', 'resuming', 'stopping']
 const STEPS = ['0.1', '1', '10', '50'] as const
 const FEEDS = [1500, 3000, 6000, 12000]
 const Z_FEED = 600

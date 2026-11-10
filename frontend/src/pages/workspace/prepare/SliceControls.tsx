@@ -1,5 +1,5 @@
 import { CircleAlert, CircleCheck, ChevronDown, Eye, LoaderCircle, Slice, X } from 'lucide-react'
-import { useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ApiError } from '../../../api'
 import { useI18n } from '../../../i18n/I18nContext'
 import { isTranslationKey, type TranslationKey } from '../../../i18n/translations'
@@ -31,6 +31,28 @@ const STATE_KEYS: Record<SliceJob['state'], TranslationKey> = {
   cancelled: 'slice.state.cancelled',
 }
 
+/**
+ * Bar value that keeps moving between job updates (the engine reports in bands, sometimes seconds apart): it creeps
+ * towards a little past the last reported value, never beyond 99 % and never backwards within a run; each real
+ * update takes over at once (the CSS width transition smooths the jump).
+ */
+function useCreepingProgress(runId: number | null, value: number, active: boolean): number {
+  const [creep, setCreep] = useState<{ run: number | null; base: number; v: number }>({ run: null, base: 0, v: 0 })
+  useEffect(() => {
+    if (!active) return
+    const iv = setInterval(() => {
+      setCreep((c) => {
+        const fresh = c.run !== runId || c.base !== value
+        const from = fresh ? Math.max(value, c.run === runId ? c.v : 0) : c.v
+        const target = Math.min(99, value + 6)
+        return { run: runId, base: value, v: from + Math.max(0, target - from) * 0.05 }
+      })
+    }, 400)
+    return () => clearInterval(iv)
+  }, [runId, value, active])
+  return creep.run === runId && active ? Math.max(value, creep.v) : value
+}
+
 export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileId: number) => void }) {
   const { t, errorMessage } = useI18n()
   const doc = useWs((s) => s.doc)
@@ -60,6 +82,7 @@ export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileI
   // Stage of the plate being sliced right now (B1 `SliceJob.stage`)
   const stage = run && !run.finished ? run.plates.map((p) => run.jobs[p]).find((j) => j && !['done', 'failed', 'cancelled'].includes(j.state))?.stage : undefined
   const engineMissing = runError instanceof ApiError && runError.code === 'engine.not_installed'
+  const shownProgress = useCreepingProgress(run?.id ?? null, run ? runProgress(run) : 0, !!run && !run.finished && !run.error)
 
   return (
     <div className="flex flex-col items-end gap-2">
@@ -93,7 +116,7 @@ export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileI
               {!run.finished && (
                 <>
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <div className="h-full rounded-full bg-accent-500 transition-[width] duration-700 ease-out" style={{ width: `${Math.max(3, runProgress(run))}%` }} />
+                    <div className="h-full rounded-full bg-accent-500 transition-[width] duration-500 ease-linear" style={{ width: `${Math.max(3, shownProgress)}%` }} />
                   </div>
                   {stage && (
                     <p key={stage} className="mt-1.5 truncate text-[11px] text-muted animate-[fade-in_.2s_ease-out]">

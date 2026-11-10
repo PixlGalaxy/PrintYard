@@ -49,6 +49,8 @@ import { useUploads } from './uploads/UploadContext'
 import { PendingUploadCard, PendingUploadRow } from './PendingUploads'
 import { usePendingUploads } from './uploads/pending'
 import PrinterFilesView from './PrinterFilesView'
+import { previewFile } from '../../workspace/previewFile'
+import { useThumbnailBackfill } from '../../workspace/thumbnails'
 
 type Scope = 'private' | 'shared' | 'all'
 /** Library scopes plus "On the printer" (the printer's own G-code files) */
@@ -84,6 +86,8 @@ export default function FilesPage() {
   const dragDepth = useRef(0)
   const effectiveScope: Scope = scope === 'all' && !isAdmin ? 'private' : scope
   const pendingUploads = usePendingUploads(effectiveScope, files)
+  // Models without a thumbnail get one rendered in the background (owner/admin only, ≤ 50 MB)
+  useThumbnailBackfill(onPrinter ? null : files, user)
 
   // Admins can read the real values when /config doesn't carry them
   useEffect(() => {
@@ -91,9 +95,13 @@ export default function FilesPage() {
     adminApi.settings().then((s) => setRetention({ enabled: s['files.retention.enabled'] ?? true, keep: s['files.retention.keep'] ?? 10 }), () => undefined)
   }, [retention, isAdmin])
 
+  // Only the latest list request may land (a slow reply for the previous scope is dropped)
+  const loadSeq = useRef(0)
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
     try {
       const list = await api.files(effectiveScope)
+      if (seq !== loadSeq.current) return
       setFiles((prev) => {
         // Retention may have removed old files after an upload: tell the user
         if (prev && effectiveScope === 'private') {
@@ -105,7 +113,7 @@ export default function FilesPage() {
       })
       setError(null)
     } catch (err) {
-      setError(err)
+      if (seq === loadSeq.current) setError(err)
     }
   }, [effectiveScope, t, toast, user?.id])
 
@@ -114,14 +122,20 @@ export default function FilesPage() {
   if (shownScope !== effectiveScope) {
     setShownScope(effectiveScope)
     setFiles(null)
+    setError(null)
     setSelected(new Set())
   }
   useEffect(() => {
     if (onPrinter) return
     let alive = true
+    const seq = ++loadSeq.current
     api.files(effectiveScope).then(
-      (list) => alive && setFiles(list),
-      (err: unknown) => alive && setError(err),
+      (list) => {
+        if (!alive || seq !== loadSeq.current) return
+        setFiles(list)
+        setError(null)
+      },
+      (err: unknown) => alive && seq === loadSeq.current && setError(err),
     )
     return () => {
       alive = false
@@ -221,7 +235,11 @@ export default function FilesPage() {
     } else if (copies.length) toast('success', t('library.deletedWithPrinter', { n: ok, removed }))
     else toast('success', t('library.deletedToast', { n: ok }))
     setSelected(new Set())
-    const gone = new Set(list.map((f) => f.id))
+    const failedIds = new Set(list.filter((_, i) => results[i].status === 'rejected').map((f) => f.id))
+    const gone = new Set(list.map((f) => f.id).filter((id) => !failedIds.has(id)))
+    // A deleted G-code is no longer the Preview's current file
+    if (user) previewFile.bindUser(user.id)
+    previewFile.forget(gone)
     setFiles((cur) => cur?.filter((f) => !gone.has(f.id)) ?? cur)
   }
 

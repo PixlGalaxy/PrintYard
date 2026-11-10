@@ -9,6 +9,7 @@ import { meshes, type MeshInfo } from './meshes'
 import { bestOrientation } from './orient'
 import { K2SE_BED, plateAt, plateOrigin, type BedSize } from './plates'
 import { newObjectId, workspace } from './store'
+import { modelThumbs } from './thumbnails'
 
 export const MODEL_EXTS = ['stl', '3mf', 'obj']
 export const MAX_PLATES = 36
@@ -177,6 +178,8 @@ export function completeUpload(temp: number, file: LibraryFile) {
     meshes.drop(temp)
     workspace.setUpload(temp, null)
     addMeshObject(file.id, p.name, info)
+    // Models have no embedded picture: render the library thumbnail from the mesh we already have
+    modelThumbs.fromMesh(file, info.geometry)
   })
 }
 
@@ -192,8 +195,11 @@ export function dismissUpload(temp: number, cancelUpload?: (itemId: number) => v
 
 /** Adds a model that is already in the library. */
 export async function addLibraryModel(file: LibraryFile) {
-  const info = await meshes.ensure(file.id, file.name)
+  // A renamed file may have lost its extension; the parser falls back to the name for OBJ
+  const name = file.name.toLowerCase().endsWith(`.${file.ext}`) ? file.name : `${file.name}.${file.ext}`
+  const info = await meshes.ensure(file.id, name)
   addMeshObject(file.id, file.name, info)
+  modelThumbs.fromMesh(file, info.geometry)
 }
 
 // ---------- selection-based edits ----------

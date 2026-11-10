@@ -108,7 +108,7 @@ export default function PrintDialog({
 
   const problems = limitProblems(usage, target.grams, target.seconds)
   const needsApproval = !!usage?.limits.enabled && usage.limits.requiresApproval
-  const busyPrinter = status && ['printing', 'paused', 'pausing', 'stopping'].includes(status.state)
+  const busyPrinter = status && ['printing', 'paused', 'pausing', 'resuming', 'stopping'].includes(status.state)
   const offline = status && !status.online
   const bedOccupied = !needsApproval && (bedServer !== null || status?.bedClear === false)
   const cost = usage?.costPerKg != null && target.grams != null ? (target.grams / 1000) * usage.costPerKg : null

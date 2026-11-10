@@ -83,6 +83,10 @@ export const meshes = {
     inflight.set(fileId, p)
     return p
   },
+  /** Parses bytes in the worker pool WITHOUT caching (background thumbnails); the caller disposes the geometry. */
+  parseDetached(name: string, buffer: ArrayBuffer): Promise<MeshInfo> {
+    return runWorker(name, buffer)
+  },
   /** A temporary id finished uploading: the same mesh is now known under the real id. */
   alias(from: number, to: number) {
     const e = cache.get(from)

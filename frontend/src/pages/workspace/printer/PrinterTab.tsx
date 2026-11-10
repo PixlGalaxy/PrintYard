@@ -48,13 +48,14 @@ import PrinterUploadProgress from '../../../components/PrinterUploadProgress'
 import { PrintStateBadge } from './PrintStateBadge'
 import TempChart, { SeriesKey } from './TempChart'
 
-const ACTIVE: PrinterState[] = ['printing', 'paused', 'pausing', 'stopping']
+const ACTIVE: PrinterState[] = ['printing', 'paused', 'pausing', 'resuming', 'stopping']
 const STATE_TONE: Record<PrinterState, 'sky' | 'emerald' | 'amber' | 'red' | 'zinc' | 'violet'> = {
   offline: 'zinc',
   idle: 'emerald',
   printing: 'sky',
   paused: 'amber',
   pausing: 'amber',
+  resuming: 'amber',
   stopping: 'red',
   complete: 'emerald',
   failed: 'red',
@@ -396,7 +397,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
           )}
         </span>
         <span title={commandReason} className={commandReason ? 'cursor-not-allowed' : ''}>
-          <Button variant="danger" icon={<Ban size={15} />} disabled={!canCommand || busy || !['printing', 'paused', 'pausing'].includes(status.state)} onClick={() => setConfirm('cancel')}>
+          <Button variant="danger" icon={<Ban size={15} />} disabled={!canCommand || busy || !['printing', 'paused', 'pausing', 'resuming'].includes(status.state)} onClick={() => setConfirm('cancel')}>
             {t('printerTab.cancel')}
           </Button>
         </span>
@@ -650,7 +651,7 @@ function ProgressRing({ value, state }: { value: number; state: PrinterState }) 
   const r = 50
   const c = 2 * Math.PI * r
   const pct = Math.max(0, Math.min(100, value))
-  const color = state === 'paused' || state === 'pausing' ? '#f59e0b' : state === 'stopping' || state === 'failed' || state === 'error' ? '#ef4444' : state === 'complete' ? '#10b981' : state === 'aborted' ? '#a1a1aa' : '#0ea5e9'
+  const color = state === 'paused' || state === 'pausing' || state === 'resuming' ? '#f59e0b' : state === 'stopping' || state === 'failed' || state === 'error' ? '#ef4444' : state === 'complete' ? '#10b981' : state === 'aborted' ? '#a1a1aa' : '#0ea5e9'
   return (
     <div className="relative size-16 shrink-0 max-sm:size-12" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label={t('printerTab.progress')}>
       <svg viewBox="0 0 120 120" className="size-full -rotate-90">

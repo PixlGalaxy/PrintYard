@@ -1,24 +1,41 @@
 import { Box, FolderOpen, Library, LoaderCircle, Search } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import { api } from '../../../api'
+import { useEffect, useState } from 'react'
+import { api, ApiError } from '../../../api'
 import Modal from '../../../components/Modal'
 import { Empty, ErrorState, Loading, Segmented } from '../../../components/ui'
-import { useLoader } from '../../../hooks'
+import { useAuth } from '../../../context/AuthContext'
 import { useI18n } from '../../../i18n/I18nContext'
 import type { LibraryFile } from '../../../types'
+import { useThumbnailBackfill, useThumbUrl } from '../../../workspace/thumbnails'
 
 const fmtSize = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
 
 /** Picks a model (to add to the scene) or a project (to open) from the library. */
 export default function LibraryModal({ kind, onPick, onClose }: { kind: 'model' | 'project'; onPick: (f: LibraryFile) => Promise<void>; onClose: () => void }) {
   const { t, formatDate, errorMessage } = useI18n()
+  const { user } = useAuth()
   const [scope, setScope] = useState<'private' | 'shared'>('private')
-  const load = useCallback(() => api.files(scope, kind), [scope, kind])
-  const { data, error, reload } = useLoader(load)
+  // The list for one scope; a reply for a scope that is no longer selected is dropped
+  const [loaded, setLoaded] = useState<{ key: string; data: LibraryFile[] | null; error: unknown } | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const key = `${scope}:${kind}:${reloadKey}`
+  useEffect(() => {
+    let alive = true
+    api.files(scope, kind).then(
+      (data) => alive && setLoaded({ key, data, error: null }),
+      (error: unknown) => alive && setLoaded({ key, data: null, error }),
+    )
+    return () => {
+      alive = false
+    }
+  }, [scope, kind, key])
+  const data = loaded?.key === key ? loaded.data : null
+  const error = loaded?.key === key ? loaded.error : null
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState<number | null>(null)
-  const [pickError, setPickError] = useState<unknown>(null)
+  const [pickError, setPickError] = useState<{ scope: string; error: unknown } | null>(null)
   const list = (data ?? []).filter((f) => f.name.toLowerCase().includes(q.trim().toLowerCase()))
+  useThumbnailBackfill(kind === 'model' ? data : null, user)
 
   return (
     <Modal
@@ -49,9 +66,9 @@ export default function LibraryModal({ kind, onPick, onClose }: { kind: 'model' 
           />
         </label>
       </div>
-      {pickError != null && <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">{errorMessage(pickError)}</p>}
+      {pickError?.scope === scope && <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">{errorMessage(pickError.error)}</p>}
       {error ? (
-        <ErrorState error={error} onRetry={() => void reload()} />
+        <ErrorState error={error} onRetry={() => setReloadKey((k) => k + 1)} />
       ) : !data ? (
         <Loading />
       ) : list.length === 0 ? (
@@ -70,7 +87,9 @@ export default function LibraryModal({ kind, onPick, onClose }: { kind: 'model' 
                     await onPick(f)
                     onClose()
                   } catch (err) {
-                    setPickError(err)
+                    setPickError({ scope, error: err })
+                    // Deleted meanwhile: refresh the list so it disappears
+                    if (err instanceof ApiError && err.status === 404) setReloadKey((k) => k + 1)
                   } finally {
                     setBusy(null)
                   }
@@ -78,7 +97,7 @@ export default function LibraryModal({ kind, onPick, onClose }: { kind: 'model' 
                 className="group flex w-full flex-col overflow-hidden rounded-xl border border-line bg-surface text-left transition-all hover:-translate-y-0.5 hover:border-accent-500/50 hover:shadow-md disabled:opacity-60"
               >
                 <span className="relative flex aspect-square items-center justify-center bg-surface-2">
-                  {f.thumbnailUrl ? <img src={f.thumbnailUrl} alt="" className="size-full object-contain p-2" loading="lazy" /> : <Box size={28} className="text-muted" />}
+                  <PickThumb file={f} />
                   {busy === f.id && (
                     <span className="absolute inset-0 flex items-center justify-center bg-surface/70">
                       <LoaderCircle className="animate-spin text-accent-500" />
@@ -100,5 +119,15 @@ export default function LibraryModal({ kind, onPick, onClose }: { kind: 'model' 
         </ul>
       )}
     </Modal>
+  )
+}
+
+function PickThumb({ file }: { file: LibraryFile }) {
+  const url = useThumbUrl(file)
+  const [broken, setBroken] = useState<string | null>(null)
+  return url && broken !== url ? (
+    <img src={url} alt="" className="size-full object-contain p-2" loading="lazy" draggable={false} onError={() => setBroken(url)} />
+  ) : (
+    <Box size={28} className="text-muted" />
   )
 }

@@ -25,6 +25,7 @@ const STATE_TONE: Partial<Record<PrinterState, string>> = {
   printing: 'bg-accent-500',
   paused: 'bg-amber-500',
   pausing: 'bg-amber-500',
+  resuming: 'bg-amber-500',
   idle: 'bg-emerald-500',
   complete: 'bg-emerald-500',
   error: 'bg-red-500',
@@ -105,10 +106,10 @@ function PrinterCard({ bundle }: { bundle: ProfileBundle | null }) {
               {fmtT(status?.bedTemp)}
               <span className="text-muted/70">/ {fmtT(status?.bedTarget)}</span>
             </span>
-            {status?.progress != null && (state === 'printing' || state === 'paused') && <span className="ml-auto font-medium text-accent-600 dark:text-accent-400">{Math.round(status.progress)} %</span>}
+            {status?.progress != null && (state === 'printing' || state === 'paused' || state === 'pausing' || state === 'resuming') && <span className="ml-auto font-medium text-accent-600 dark:text-accent-400">{Math.round(status.progress)} %</span>}
           </div>
         )}
-        {online && status?.progress != null && (state === 'printing' || state === 'paused') && (
+        {online && status?.progress != null && (state === 'printing' || state === 'paused' || state === 'pausing' || state === 'resuming') && (
           <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-line">
             <div className="h-full rounded-full bg-accent-500 transition-[width] duration-700" style={{ width: `${status.progress}%` }} />
           </div>

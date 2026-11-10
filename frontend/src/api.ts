@@ -318,6 +318,8 @@ export const api = {
   printerCopies: (ids: number[]) => get<{ items: { fileId: number; copies: PrinterCopy[] }[] }>(`/files/printer-copies?ids=${ids.join(',')}`),
   /** Raw file bytes for the viewers (`/files/:id/content`), with download progress */
   fileContent: (id: number, opts: TransferOptions = {}) => blobFetcher(`/files/${id}/content`, opts),
+  /** Replaces a file's thumbnail (owner/admin): base64 PNG without the data: prefix, ≤ 512 KB */
+  setFileThumbnail: (id: number, png: string) => req<LibraryFile>('PUT', `/files/${id}/thumbnail`, { png }),
   /** Saves the file to disk under its original name */
   downloadFile: async (file: Pick<LibraryFile, 'id' | 'name'>) => {
     if (import.meta.env.DEV && import.meta.env.VITE_MOCK === '1') {

@@ -1,12 +1,14 @@
 // Preview tab: G-code viewer (worker parser + instanced three.js renderer), legend with colour modes
 // and per-feature toggles, vertical layer range slider, move slider with playback, slicing summary,
 // usage vs limits, Print (with approvals / bed-occupied flow) and Download.
-// The file comes from the `fileId` prop or `?file=<id>` (F1's Slice → Preview hands it over that way).
-import { ArrowRight, Box, Download, FileCode2, FolderOpen, Layers, LoaderCircle, RotateCcw, Scale, Timer, UploadCloud, Wallet } from 'lucide-react'
+// The file comes from the `fileId` prop or `?file=<id>` (F1's Slice → Preview hands it over that way); it then becomes
+// the user's "current preview file" (workspace/previewFile.ts), which survives tab switches and reloads until the user
+// prints it, opens/slices another one, or closes it.
+import { ArrowRight, Box, Download, FileCode2, FolderOpen, Layers, LoaderCircle, RotateCcw, Scale, Timer, UploadCloud, Wallet, X } from 'lucide-react'
 import { PrinterLayers, PrinterModelIcon } from '../../../components/printerIcons'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { api } from '../../../api'
+import { api, ApiError } from '../../../api'
 import { Badge, Button, Callout, Empty, ErrorState, IconButton } from '../../../components/ui'
 import { useAuth } from '../../../context/AuthContext'
 import { useTheme } from '../../../context/ThemeContext'
@@ -32,11 +34,17 @@ import MoveBar from './MoveBar'
 import PrintDialog, { UsageBlock } from './PrintDialog'
 import { useAccent } from '../../../theme/accent'
 import ViewCube, { type ViewCubeHandle } from '../../../three/ViewCube'
+import { previewFile, usePreviewFile } from '../../../workspace/previewFile'
 
 // The last parsed file survives tab switches (re-parsing 50 MB is not free)
 let cache: { key: string; blob: Blob; parsed: ParsedGcode } | null = null
+/** Deleted files we already told the user about (one toast per id) */
+const goneToasted = new Set<number>()
+const NOT_FOUND = Symbol('preview.not_found')
 
 type Load = { phase: 'idle' } | { phase: 'download' | 'parse'; progress: number } | { phase: 'error'; error: unknown } | { phase: 'ready' }
+/** Everything loaded for one file id: results for another (stale) id are never shown */
+type Loaded = { id: number; load: Load; file: LibraryFile | null; parsed: ParsedGcode | null; blob: Blob | null }
 
 const ALL_FEATURES = (1 << FEATURES.length) - 1
 
@@ -44,19 +52,22 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
   const { t, formatNumber, formatDate } = useI18n()
   const { user } = useAuth()
   const { resolved } = useTheme()
-  const { onError } = useToast()
+  const { onError, toast } = useToast()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
-  const fileId = fileIdProp ?? (Number(params.get('file')) || null)
+  const paramId = fileIdProp ?? (Number(params.get('file')) || null)
+  const storedId = usePreviewFile(user?.id ?? null)
+  // An explicit file (link, slice result, picker) becomes the current preview file
+  useEffect(() => {
+    if (paramId) previewFile.set(paramId)
+  }, [paramId])
+  const fileId = paramId ?? storedId
   const readOnly = useReadOnly()
 
   const host = useRef<HTMLDivElement>(null)
   const renderer = useRef<GcodeRenderer | null>(null)
   const cube = useRef<ViewCubeHandle>(null)
-  const [fileState, setFile] = useState<LibraryFile | null>(null)
-  const [parsedState, setParsed] = useState<ParsedGcode | null>(null)
-  const [blob, setBlob] = useState<Blob | null>(null)
-  const [loadState, setLoad] = useState<Load>({ phase: 'idle' })
+  const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [mode, setMode] = useStoredState<ColorMode>('sd:preview:mode', 'feature')
   const [mask, setMask] = useState(ALL_FEATURES)
   const [showTravel, setShowTravel] = useStoredState('sd:preview:travel', false)
@@ -69,10 +80,12 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
   const [line, setLine] = useState<{ idx: number; text: string } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
-  // Nothing selected → idle, whatever was loaded before
-  const file = fileId ? fileState : null
-  const parsed = fileId ? parsedState : null
-  const load: Load = fileId ? loadState : { phase: 'idle' }
+  // Only what was loaded for THIS id counts (nothing selected → idle; a new id → loading until its own result)
+  const mine = fileId && loaded?.id === fileId ? loaded : null
+  const file = mine?.file ?? null
+  const parsed = mine?.parsed ?? null
+  const blob = mine?.blob ?? null
+  const load: Load = !fileId ? { phase: 'idle' } : (mine?.load ?? { phase: 'download', progress: 0 })
 
   // ---- renderer lifecycle
   useEffect(() => {
@@ -106,39 +119,74 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
   }, [])
 
   // ---- load + parse
+  const uid = user?.id ?? null
+  const isAdmin = user?.role === 'admin'
+
+  /** Closes the current G-code (back to the picker) and drops `?file=` */
+  const closeFile = useCallback(() => {
+    previewFile.set(null)
+    setParams(
+      (p) => {
+        if (!p.has('file')) return p
+        const n = new URLSearchParams(p)
+        n.delete('file')
+        return n
+      },
+      { replace: true },
+    )
+  }, [setParams])
+
+  // A deleted (or no longer visible) file is forgotten quietly: at most one toast per id, never an error overlay
+  const onGone = useRef<(id: number) => void>(() => undefined)
   useEffect(() => {
-    if (!fileId || !user) return
+    onGone.current = (id) => {
+      if (!goneToasted.has(id)) {
+        goneToasted.add(id)
+        toast('info', t('preview.currentGone'))
+      }
+      previewFile.forget([id])
+      if (Number(params.get('file')) === id) closeFile()
+    }
+  }, [closeFile, toast, t, params])
+
+  useEffect(() => {
+    if (!fileId || uid === null) return
+    const id = fileId
     const ctrl = new AbortController()
+    // Every update is tagged with its id and dropped once this effect is gone (out-of-order responses)
+    const put = (patch: Partial<Loaded>) => {
+      if (ctrl.signal.aborted) return
+      setLoaded((cur) => ({ ...(cur?.id === id ? cur : { id, file: null, parsed: null, blob: null, load: { phase: 'download', progress: 0 } }), ...patch, id }))
+    }
     void (async () => {
       try {
-        setLoad({ phase: 'download', progress: 0 })
-        const f = await findLibraryFile(fileId, user.role === 'admin')
+        put({ load: { phase: 'download', progress: 0 } })
+        const f = await findLibraryFile(id, isAdmin)
         if (ctrl.signal.aborted) return
-        if (!f) throw new Error(t('preview.notFound'))
-        setFile(f)
+        if (!f) throw NOT_FOUND
+        put({ file: f })
         const key = `${f.id}:${f.updatedAt}:${f.size}`
         let entry = cache?.key === key ? cache : null
         if (!entry) {
-          const b = await api.fileContent(f.id, { signal: ctrl.signal, onProgress: (l, tot) => setLoad({ phase: 'download', progress: (tot || f.size) ? l / (tot || f.size) : 0 }) })
-          setLoad({ phase: 'parse', progress: 0 })
-          const p = await parseGcode(b, (fr) => setLoad({ phase: 'parse', progress: fr }), ctrl.signal)
+          const b = await api.fileContent(f.id, { signal: ctrl.signal, onProgress: (l, tot) => put({ load: { phase: 'download', progress: (tot || f.size) ? l / (tot || f.size) : 0 } }) })
+          put({ load: { phase: 'parse', progress: 0 } })
+          const p = await parseGcode(b, (fr) => put({ load: { phase: 'parse', progress: fr } }), ctrl.signal)
           entry = { key, blob: b, parsed: p }
           cache = entry
         }
         if (ctrl.signal.aborted) return
-        setBlob(entry.blob)
-        setParsed(entry.parsed)
         setLo(0)
         setHi(Math.max(0, entry.parsed.layers - 1))
         setMove(Number.POSITIVE_INFINITY)
-        setLoad({ phase: 'ready' })
+        put({ blob: entry.blob, parsed: entry.parsed, load: { phase: 'ready' } })
       } catch (err) {
         if (ctrl.signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) return
-        setLoad({ phase: 'error', error: err })
+        if (err === NOT_FOUND || (err instanceof ApiError && err.status === 404)) return onGone.current(id)
+        put({ load: { phase: 'error', error: err } })
       }
     })()
     return () => ctrl.abort()
-  }, [fileId, user, t, reloadKey])
+  }, [fileId, uid, isAdmin, reloadKey])
 
   // ---- push data into the renderer
   useEffect(() => {
@@ -393,7 +441,18 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
       <aside className="flex w-full shrink-0 flex-col border-t border-line bg-surface lg:h-full lg:min-h-0 lg:w-80 lg:border-t-0 lg:border-l xl:w-88">
         {/* body scrolls; the Print/Download footer always stays visible */}
         <div className="space-y-4 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-          {file ? (
+          {fileId && !file ? (
+            <div className="flex items-center gap-3" aria-busy="true">
+              <span className="size-14 shrink-0 animate-pulse rounded-xl bg-surface-2" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <span className="block h-3.5 w-3/4 animate-pulse rounded bg-surface-2" />
+                <span className="block h-3 w-1/2 animate-pulse rounded bg-surface-2" />
+              </div>
+              <IconButton label={t('preview.close')} onClick={closeFile}>
+                <X size={16} />
+              </IconButton>
+            </div>
+          ) : file ? (
             <div className="flex items-center gap-3">
               {file.thumbnailUrl ? (
                 <img src={file.thumbnailUrl} alt="" className="size-14 shrink-0 rounded-xl border border-line object-cover" />
@@ -402,7 +461,7 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
                   <FileCode2 size={22} />
                 </span>
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold" title={file.name}>
                   {file.name}
                 </p>
@@ -411,6 +470,9 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
                 </p>
                 {meta?.slicer && <p className="truncate text-[11px] text-muted">{meta.slicer}</p>}
               </div>
+              <IconButton label={t('preview.close')} onClick={closeFile}>
+                <X size={16} />
+              </IconButton>
             </div>
           ) : (
             <PickGcode onOpen={openFile} />
@@ -502,9 +564,12 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
           onClose={() => setPrintOpen(false)}
           onDone={(job) => {
             api.usage().then(setUsage, () => undefined)
-            if (job.state === 'printing') setParams((p) => {
+            // Printed (or sent for approval): it is no longer the "current" G-code
+            if (job.state !== 'failed' && job.state !== 'rejected') previewFile.forget([file.id])
+            setParams((p) => {
               const n = new URLSearchParams(p)
-              n.set('tab', 'printer')
+              n.delete('file')
+              if (job.state === 'printing') n.set('tab', 'printer')
               return n
             })
           }}
@@ -533,7 +598,7 @@ function PickGcode({ onOpen }: { onOpen: (id: number) => void }) {
   const { data: printers } = useLoader(api.printers)
   const printer = printers?.[0] ?? null
   const status = usePrinterStatus(printer?.id ?? null)
-  const busy = status?.online && (status.state === 'printing' || status.state === 'paused' || status.state === 'pausing')
+  const busy = status?.online && (status.state === 'printing' || status.state === 'paused' || status.state === 'pausing' || status.state === 'resuming')
   const jobName = (status?.job?.fileName ?? status?.fileName ?? '').split('/').pop() ?? ''
   useEffect(() => {
     Promise.all([api.files('private', 'gcode'), api.files('shared', 'gcode')]).then(
@@ -556,7 +621,7 @@ function PickGcode({ onOpen }: { onOpen: (id: number) => void }) {
             {status?.state === 'printing' && <span className="absolute -top-0.5 -right-0.5 size-2.5 animate-pulse rounded-full border-2 border-surface bg-emerald-500" />}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">{t(status?.state === 'printing' ? 'preview.busyPrinting' : 'preview.busyPaused', { printer: printer?.name ?? 'K2 SE' })}</span>
+            <span className="block text-sm font-semibold">{t(status?.state === 'printing' || status?.state === 'resuming' ? 'preview.busyPrinting' : 'preview.busyPaused', { printer: printer?.name ?? 'K2 SE' })}</span>
             <span className="block truncate font-mono text-xs text-muted" title={jobName}>
               {jobName || '—'}
               {status?.progress != null && ` · ${Math.round(status.progress)}%`}

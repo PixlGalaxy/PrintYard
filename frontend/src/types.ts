@@ -573,6 +573,8 @@ export type PrinterState =
   | 'printing'
   | 'paused'
   | 'pausing'
+  /** Creality state 8: resume requested, the printer is getting back to printing */
+  | 'resuming'
   | 'stopping'
   | 'complete'
   | 'failed'
