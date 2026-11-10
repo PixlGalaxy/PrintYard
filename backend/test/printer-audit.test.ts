@@ -1,6 +1,7 @@
 /**
  * Printer control / job tracking audit (simulator on loopback only, never the real printer):
- * - a motion command is re-validated after its fresh-state round trip (bed occupied / print dispatching meanwhile).
+ * - a motion command is re-validated after its fresh-state round trip (bed occupied / print dispatching meanwhile);
+ * - a tracked print replaced by another job on the printer is released promptly.
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -8,6 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
+import WebSocket from 'ws';
 import { CrealityK2SEDriver } from '../src/printers/drivers/creality-k2se.js';
 import type { ControlTelemetry } from '../src/printers/drivers/types.js';
 import { PrinterSimulator, twoObjectGcode } from '../src/printers/sim/simulator.js';
@@ -28,12 +30,13 @@ class SlowTelemetryDriver extends CrealityK2SEDriver {
   }
 }
 
-describe('printer control: state re-checked after the fresh-state round trip (simulator)', () => {
+describe('printer control and job tracking (simulator)', () => {
   let t: TestApp;
   let live: LiveServer;
   let sim: PrinterSimulator;
   let dir: string;
   let printerId: number;
+  let simPort: number;
   let admin: string;
   let bob: string;
   let bobId: number;
@@ -46,6 +49,7 @@ describe('printer control: state re-checked after the fresh-state round trip (si
     dir = mkdtempSync(join(tmpdir(), 'sd-audit-'));
     sim = new PrinterSimulator({ tickMs: 50, simSecondsPerTick: 10, heatPerTick: 100 });
     const port = await sim.start();
+    simPort = port;
     const resolveEndpoint = async (h: string) => (h === 'sim' ? { host: '127.0.0.1', wsPort: port, httpPort: port, moonrakerPort: port } : null);
     t = createTestApp({
       context: {
@@ -122,6 +126,46 @@ describe('printer control: state re-checked after the fresh-state round trip (si
     const created = await started!;
     assert.equal(created.status, 201, JSON.stringify(created.body));
     await waitFor(() => status().state === 'printing', 10_000);
+    assert.equal((await api(live.base, admin, 'POST', `/api/printers/${printerId}/cancel`)).status, 200);
+    await waitFor(() => !['printing', 'paused', 'stopping'].includes(status().state), 10_000);
+  });
+
+  it('a tracked print replaced by another job on the printer is released (its owner cannot control the new job)', async () => {
+    resetRate();
+    await waitFor(() => t.ctx.printing.currentOwner(printerId) === null && status().state !== 'printing', 10_000);
+    t.ctx.printers.markBedCleared(printerId);
+    // As after a SliceDock restart: Bob's print is still "printing" in the DB and tracked again by attach(),
+    // but meanwhile it ended and somebody started another file on the touchscreen.
+    const row = t.ctx.db.prepare('SELECT id, printer_path, started_at FROM prints WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(bobId) as {
+      id: number;
+      printer_path: string;
+      started_at: number;
+    };
+    t.ctx.db.prepare(`UPDATE prints SET state = 'printing', reason = NULL, ended_at = NULL WHERE id = ?`).run(row.id);
+    (t.ctx.printing as unknown as { tracking: Map<number, unknown> }).tracking.set(printerId, {
+      jobId: row.id,
+      userId: bobId,
+      expectName: row.printer_path.split('/').pop(),
+      startedAt: row.started_at,
+      seenActive: true,
+      lastProgress: null,
+      cancelledBy: null,
+    });
+    sim.addStoredFile('touchscreen_job.gcode', Buffer.from(twoObjectGcode(50)), 3000);
+    const entry = (await t.ctx.printerManager.driver(printerId).listFiles())!.find((f) => f.name === 'touchscreen_job.gcode')!;
+    const ws = new WebSocket(`ws://127.0.0.1:${simPort}`);
+    await new Promise((r) => ws.once('open', r));
+    ws.send(JSON.stringify({ method: 'set', params: { opGcodeFile: `printprt:${entry.path}`, enableSelfTest: 0 } }));
+    ws.close();
+    await waitFor(() => status().state === 'printing' && status().fileName === 'touchscreen_job.gcode', 10_000);
+    // terminal-state debounce in tests: 200 ms; give it several rounds
+    await waitFor(() => t.ctx.printing.currentOwner(printerId) === null, 3000).catch(() => null);
+    assert.equal(t.ctx.printing.currentOwner(printerId), null, 'tracking released');
+    const ended = t.ctx.db.prepare('SELECT state, reason FROM prints WHERE id = ?').get(row.id) as { state: string; reason: string };
+    assert.deepEqual({ ...ended }, { state: 'cancelled', reason: 'replaced_on_printer' });
+    const r = await api(live.base, bob, 'POST', `/api/printers/${printerId}/pause`);
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+    assert.equal(r.body.error.code, 'prints.not_owner');
     assert.equal((await api(live.base, admin, 'POST', `/api/printers/${printerId}/cancel`)).status, 200);
     await waitFor(() => !['printing', 'paused', 'stopping'].includes(status().state), 10_000);
   });

@@ -704,7 +704,10 @@ export class PrintingService {
       const end = this.endOf(s, t);
       const ours = t.expectName === null || s.fileName === null || s.fileName === t.expectName;
       if (!end || (isActiveState(s.state) && ours)) return this.clearPendingEnd(t);
-      const moon = this.d.manager.hasDriver(printerId) ? (this.d.manager.driver(printerId).jobState?.() ?? null) : null;
+      // Another file running (replaced on the printer): Klipper reports *that* job as printing, which never
+      // "agrees" with an end; waiting for it kept the old owner in control of the new job for up to 10 min.
+      const replaced = isActiveState(s.state) && !ours;
+      const moon = !replaced && this.d.manager.hasDriver(printerId) ? (this.d.manager.driver(printerId).jobState?.() ?? null) : null;
       if (moon !== null && !MOON_AGREES[end.state].has(moon)) {
         // Klipper still says printing/paused: not over. Re-check later (gives up waiting after 10 min).
         if (Date.now() - t.pendingEnd.since < 10 * 60_000) {
