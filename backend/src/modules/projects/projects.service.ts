@@ -3,7 +3,7 @@ import { AppError, badRequest, notFound } from '../../errors.js';
 import type { LibraryFile, SceneDoc } from '../../types.js';
 import type { AuditActor } from '../audit/audit.service.js';
 import type { FilesService, FileRow, Viewer } from '../files/files.service.js';
-import { hashFile } from '../files/files.service.js';
+import { cleanName, hashFile } from '../files/files.service.js';
 import { loadMesh, MAX_MESH_SOURCE_BYTES, MeshFormatError, readZipEntries, type Mesh } from '../files/mesh.js';
 import { pngSize } from '../files/gcode.js';
 import type { ProfilesService } from '../profiles/profiles.service.js';
@@ -41,6 +41,16 @@ const MAX_SCENE_JSON_BYTES = 1024 * 1024;
 const USER_BUILDS_PER_WINDOW = 20;
 const USER_BUILD_WINDOW_MS = 10 * 60_000;
 const MAX_WAITING_BUILDS = 8;
+
+/**
+ * Library name of a project: cleaned like every other file name (no path separators, control characters or
+ * `<>:"|?*`, which uploads and renames already refuse), with a `.3mf` extension.
+ */
+function projectFileName(raw: string): string {
+  const name = cleanName(raw);
+  if (!name) throw badRequest('files.invalid_name', 'Invalid file name');
+  return /\.3mf$/i.test(name) ? name : `${name}.3mf`;
+}
 
 const busy = () => new AppError(429, 'projects.busy', 'Another project is being built; try again in a moment');
 
@@ -165,11 +175,11 @@ export class ProjectsService {
 
   async create(owner: { id: number; username: string; role: Viewer['role'] }, body: ProjectBody, actor: AuditActor): Promise<LibraryFile> {
     const thumb = this.decodeThumb(body.thumbnailPng);
+    const name = projectFileName(body.name);
     const tmp = await this.files.tempPath('3mf');
     try {
       const built = await this.userBuild(owner.id, () => this.buildNow(owner, body.scene, tmp, { ...(thumb && { thumbnail: thumb }) }));
       const { sha256, size } = await hashFile(tmp);
-      const name = /\.3mf$/i.test(body.name) ? body.name : `${body.name}.3mf`;
       const file = await this.files.addFile(
         owner,
         {
@@ -198,6 +208,7 @@ export class ProjectsService {
     const row = this.files.getWritable(viewer, id);
     if (row.kind !== 'project') throw badRequest('projects.not_a_project', 'This file is not a project');
     const thumb = this.decodeThumb(body.thumbnailPng);
+    const name = projectFileName(body.name);
     const tmp = await this.files.tempPath('3mf');
     try {
       // Meshes are resolved with the owner's rights, so an admin editing keeps the owner's models.
@@ -208,7 +219,6 @@ export class ProjectsService {
       await this.files.replaceContent(row, tmp, size, sha256, { project: { plates: built.plates, objects: built.objects } });
       await writeFile(`${this.files.absolutePath(row)}.scene.json`, JSON.stringify(body.scene));
       this.files.setProjectRefs(id, body.scene.objects.map((o) => o.fileId));
-      const name = /\.3mf$/i.test(body.name) ? body.name : `${body.name}.3mf`;
       if (name !== row.name) this.files.patch(viewer, id, { name }, actor);
       if (thumb) await this.files.writeThumbnail(id, thumb);
       return this.files.get(id);
