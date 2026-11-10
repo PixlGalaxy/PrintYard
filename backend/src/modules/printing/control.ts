@@ -359,11 +359,19 @@ export class PrinterControlService {
       if (now >= m.busyUntil && tel.position) m.expected = tel.position; // idle and confirmed: resync
       ctx.position = m.expected;
     }
-    const gcode = buildControlGcode(c as GcodeControlCommand, ctx);
     if (MOTION_ACTIONS.has(c.action) || c.action === 'motors_off') {
       const wait = m.lastMotionAt + CONTROL_LIMITS.motionGapMs - this.now();
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      // The awaits above (fresh-state round trip, motion gap) can take seconds: a print may have started being
+      // sent, started or ended (bed occupied) meanwhile. Re-validate against the state right before sending.
+      const fresh = this.d.manager.status(printerId);
+      if (!fresh.online) throw new AppError(409, 'prints.printer_offline', 'The printer is offline');
+      if (this.d.dispatchOwner?.(printerId) !== undefined) throw refuse('printers.control_busy', 'A print is being sent to the printer');
+      ctx.state = fresh.state;
+      ctx.bedClear = fresh.bedClear;
+      ctx.nozzleTemp = fresh.nozzleTemp;
     }
+    const gcode = buildControlGcode(c as GcodeControlCommand, ctx);
     await this.d.manager.driver(printerId).sendGcode(gcode);
     const sentAt = this.now();
     this.touch(printerId);
