@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { Transform } from 'node:stream';
+import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import busboy from 'busboy';
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
@@ -78,6 +78,7 @@ function upload(ctx: AppContext) {
     let write: Promise<void> | null = null;
     let received: { tmpPath: string; name: string; sha256: string; size: number } | null = null;
     let tmpPath: string | null = null;
+    let fileStream: Readable | null = null;
     const fail = (err: unknown) => {
       failure ??= err;
     };
@@ -98,6 +99,7 @@ function upload(ctx: AppContext) {
         stream.resume();
         return;
       }
+      fileStream = stream;
       let truncated = false;
       stream.on('limit', () => {
         truncated = true;
@@ -139,7 +141,18 @@ function upload(ctx: AppContext) {
         }
       })();
     });
-    req.on('aborted', () => fail(badRequest('files.aborted', 'Upload aborted')));
+    // A client that disconnects mid-upload never ends the multipart body, so busboy never closes and the temp file
+    // would stay in DATA_ROOT/.tmp forever (outside any quota). Stop the file stream and remove the temp file.
+    req.on('close', () => {
+      if (req.complete) return;
+      fail(badRequest('files.aborted', 'Upload aborted'));
+      req.unpipe(parser);
+      fileStream?.destroy(new Error('Upload aborted'));
+      void (async () => {
+        await write;
+        if (tmpPath) await rm(tmpPath, { force: true, maxRetries: 3 }).catch(() => undefined);
+      })();
+    });
     req.pipe(parser);
   };
 }
