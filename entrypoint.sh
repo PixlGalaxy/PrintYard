@@ -17,6 +17,10 @@ case "$PUID$PGID" in
         exit 1
         ;;
 esac
+# Strip zero padding: "00" is uid 0 too and must not slip past the root checks below.
+# (expr exits 1 when the result is 0, hence the || true.)
+PUID=$(expr "$PUID" + 0 || true)
+PGID=$(expr "$PGID" + 0 || true)
 case "$UMASK" in
     [0-7][0-7][0-7] | [0-7][0-7][0-7][0-7]) ;;
     *)
@@ -26,6 +30,9 @@ case "$UMASK" in
 esac
 
 mkdir -p "$APPDATA_DIR" "$DATA_DIR"
+# /appdata holds the database (password hashes, notification tokens) and secret.key. Files are created with
+# UMASK (002 → world-readable), so other host accounts must not be able to enter the folder at all.
+chmod o-rwx "$APPDATA_DIR" 2>/dev/null || echo "[ENTRYPOINT] WARNING: could not restrict access to $APPDATA_DIR"
 
 if [ "$PUID" != 0 ]; then
     # /appdata only holds what SliceDock wrote, so it is handed over whole.
