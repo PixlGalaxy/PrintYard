@@ -62,10 +62,20 @@ export function PublicOnlyRoute() {
   const { search } = useLocation()
   if (user === undefined) return <FullPageSpinner />
   if (user) {
-    const next = new URLSearchParams(search).get('next')
-    return <Navigate to={next && next.startsWith('/') && !next.startsWith('//') ? next : '/'} replace />
+    return <Navigate to={safeNext(new URLSearchParams(search).get('next'))} replace />
   }
   return <Outlet />
+}
+
+/** `?next=` must stay on this origin: `/\evil.com` passes a "one leading slash" test but resolves to another host. */
+function safeNext(next: string | null): string {
+  if (!next || !next.startsWith('/')) return '/'
+  try {
+    const url = new URL(next, window.location.origin)
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/'
+  } catch {
+    return '/'
+  }
 }
 
 /** Signed-in area with header and footer. */
