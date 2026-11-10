@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import supertest from 'supertest';
 import { createApp } from '../src/app.js';
-import { createTestApp, setupBody, type TestApp } from './helpers.js';
+import { ADMIN, createTestApp, setupBody, type TestApp } from './helpers.js';
+import { loginCookie, startServer, wsConnect } from './live-helpers.js';
 
 describe('password change cannot be used to brute-force the current password', () => {
   let t: TestApp;
@@ -32,5 +33,34 @@ describe('password change cannot be used to brute-force the current password', (
     assert.equal(right.body.error.code, 'auth.rate_limited');
     const audited = t.ctx.db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'account.password_failed'").get() as { n: number };
     assert.ok(audited.n >= 1);
+  });
+});
+
+describe('realtime sockets honour IP bans', () => {
+  let t: TestApp;
+  before(async () => {
+    t = createTestApp();
+    await t.agent.post('/api/setup/complete').send(setupBody());
+  });
+  after(() => t.close());
+
+  it('an open socket from an address that gets banned is closed on the next heartbeat', async () => {
+    const live = await startServer(t.ctx);
+    const cookie = await loginCookie(live.base, ADMIN.username, ADMIN.password);
+    const ws = await wsConnect(live.wsUrl, { Origin: live.base, Cookie: cookie });
+    try {
+      await ws.next('hello');
+      const closed = new Promise<number>((r) => ws.ws.once('close', (code) => r(code)));
+      // The HTTP API refuses this address from now on; the socket must not keep streaming.
+      t.ctx.bans.ban('127.0.0.1', 'test', Date.now() + 60_000);
+      assert.equal((await t.request.get('/api/auth/me')).status, 403);
+      (t.ctx.hub as unknown as { heartbeat(): void }).heartbeat();
+      const timeout = new Promise<string>((r) => setTimeout(() => r('still open'), 1000).unref());
+      assert.equal(await Promise.race([closed, timeout]), 4403);
+    } finally {
+      ws.ws.terminate();
+      t.ctx.bans.purgeExpired(Date.now() + 120_000);
+      await live.close();
+    }
   });
 });

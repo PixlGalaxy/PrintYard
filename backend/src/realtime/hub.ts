@@ -298,6 +298,12 @@ export class RealtimeHub {
         this.clients.delete(c);
         continue;
       }
+      // An address banned after the upgrade (login brute force) loses its live feed too, like the HTTP API.
+      if (safeCheck(() => this.auth.banned?.(c.req) === true)) {
+        c.ws.close(4403, 'address blocked');
+        this.clients.delete(c);
+        continue;
+      }
       // Sessions can be revoked (logout elsewhere, password reset, user disabled): re-check on every ping.
       const session = this.auth.revalidate(c.sessionId, c.req);
       if (!session) {
@@ -330,6 +336,14 @@ export class RealtimeHub {
 function safeFilter(filter: HubFilter, c: HubClientInfo): boolean {
   try {
     return filter(c);
+  } catch {
+    return false;
+  }
+}
+
+function safeCheck(check: () => boolean): boolean {
+  try {
+    return check();
   } catch {
     return false;
   }
