@@ -6,6 +6,9 @@ import { FEATURE_COUNT, type GcodeMeta, type GcodeObject, type ParsedGcode, type
 
 const FIL_AREA = Math.PI * 0.875 * 0.875
 const PROGRESS_EVERY = 4 * 1024 * 1024
+// Upper bound on drawn moves (extrusions + travels). Real files stay far below it (a 200 MB G-code is ~8M moves),
+// but a short G2/G3 line expands to up to 720 pieces, so a hostile file of ~1 MB could otherwise need several GB.
+const MAX_MOVES = 1 << 24
 
 class Grow<T extends Float32Array | Uint8Array | Uint16Array | Uint32Array> {
   arr: T
@@ -156,6 +159,7 @@ async function parse(blob: Blob, post: (m: WorkerResponse) => void): Promise<Par
     const len = Math.sqrt(dx * dx + dy * dy)
     const v = feed / 60
     z = nz
+    if (len > 1e-6 && seg.n / 8 + travel.n / 6 >= MAX_MOVES) throw new Error('This G-code has too many moves to preview')
     if (len > 1e-6 && de > 1e-7) {
       // Extrusion
       if (layers === 0 || (markerMode ? pendingLayer : Math.abs(z - curLayerZ) > 0.009)) newLayer()
