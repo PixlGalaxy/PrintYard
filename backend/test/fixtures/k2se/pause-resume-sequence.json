@@ -1,0 +1,17 @@
+{
+  "_comment": "K2 SE pause -> resume as seen on the real printer (deltas over printing-stream.json[0] + moonraker-query.json). Creality state 6 pausing, 5 paused, 8 restoring, a momentary 0 (idle) frame, then 1. Moonraker briefly reports standby / is_active false (no live job) while resuming.",
+  "steps": [
+    { "t": 0, "creality": { "state": 1 }, "moonraker": { "print_stats": { "state": "printing" }, "virtual_sdcard": { "is_active": true, "file_position": 2342801 } } },
+    { "t": 600, "creality": { "state": 6 }, "moonraker": { "virtual_sdcard": { "file_position": 2342990 } } },
+    { "t": 1200, "creality": { "state": 6 }, "moonraker": { "print_stats": { "state": "paused" }, "virtual_sdcard": { "is_active": false } } },
+    { "t": 1800, "creality": { "state": 5 }, "moonraker": {} },
+    { "t": 9000, "creality": { "state": 5 }, "moonraker": {} },
+    { "t": 10000, "creality": { "state": 8 }, "moonraker": {} },
+    { "t": 10250, "creality": { "state": 0 }, "moonraker": { "print_stats": { "state": "standby" } } },
+    { "t": 10500, "creality": { "state": 0 }, "moonraker": { "toolhead": { "position": null } } },
+    { "t": 10750, "creality": { "state": 8 }, "moonraker": {} },
+    { "t": 11500, "creality": { "state": 8 }, "moonraker": { "print_stats": { "state": "printing" } } },
+    { "t": 12000, "creality": { "state": 1 }, "moonraker": { "virtual_sdcard": { "is_active": true, "file_position": 2343100 }, "toolhead": { "position": [50.7, 32.7, 48.32, 1200.1] } } },
+    { "t": 13000, "creality": { "state": 1 }, "moonraker": { "virtual_sdcard": { "file_position": 2350000 } } }
+  ]
+}

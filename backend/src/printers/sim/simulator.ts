@@ -440,7 +440,8 @@ export class PrinterSimulator {
         this.push({ state: 4 });
         this.setState(6, { to: 5, ticks: 2 });
       } else if (params.pause === 1 && this.state.state === 1) this.setState(6, { to: 5, ticks: 1 });
-      else if (params.pause === 0 && this.state.state === 5) this.setState(1);
+      // Real K2 SE: resume goes through state 8 (restoring) before printing again.
+      else if (params.pause === 0 && this.state.state === 5) this.setState(8, { to: 1, ticks: 1 });
     }
     if ('stop' in params && params.stop === 1 && this.isActive()) {
       this.setState(7, { to: 4, ticks: 1 });
@@ -571,12 +572,12 @@ export class PrinterSimulator {
 
   private isActive(): boolean {
     const s = this.state.state;
-    return s === 1 || s === 5 || s === 6 || s === 7;
+    return s === 1 || s === 5 || s === 6 || s === 7 || s === 8;
   }
 
   private setState(code: number, transition: { to: number; ticks: number } | null = null): void {
     this.transition = transition;
-    const moon: Record<number, string> = { 1: 'printing', 5: 'paused', 6: 'paused', 7: 'printing', 2: 'complete', 4: 'cancelled' };
+    const moon: Record<number, string> = { 1: 'printing', 5: 'paused', 6: 'paused', 7: 'printing', 8: 'printing', 2: 'complete', 4: 'cancelled' };
     this.moonPrintState = moon[code] ?? this.moonPrintState;
     if (code === 2 || code === 4) this.current = null;
     const delta: Raw = { state: code };

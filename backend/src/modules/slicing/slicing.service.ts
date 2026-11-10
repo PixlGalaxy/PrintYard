@@ -295,7 +295,8 @@ export class SlicingService {
     let ticker: NodeJS.Timeout | undefined;
     try {
       if (!engine) throw new AppError(409, 'engine.not_installed', 'No slicing engine is installed');
-      const model = new ProgressModel(0);
+      // Supports make the slicing stages longer; K2 SE presets ship with enable_support 0, so only the override counts.
+      const model = new ProgressModel(0, Date.now(), { supports: job.scene.processOverrides?.enable_support === '1' });
       const sourceBytes = [...new Set(job.scene.objects.filter((o) => o.plate === job.plate).map((o) => o.fileId))].reduce(
         (n, id) => n + (this.deps.files.getRow(id)?.size ?? 0),
         0,

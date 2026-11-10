@@ -7,7 +7,7 @@
  * (12.2 s total): "Start to load files" 1 % at 0.1 s, then **nothing for 10 s** while the 3MF mesh is parsed,
  * "Prepare slicing" 3 %, then every slicing stage (7 → 75 %) within ~1 s, "Generating G-code" 75 % followed by
  * ~0.8 s of silent export, "Slicing finished" 93 %, "All done" 100 %. The raw numbers therefore sit at 1 % for most
- * of the job and then jump; the bands and time-based creep below fill the silent phases.
+ * of the job and then jump; the proportional bands and time-based creep below fill the silent phases.
  */
 
 export type SliceStage =
@@ -64,44 +64,100 @@ export function stageFromMessage(message: string, totalPercent: number): SliceSt
   return totalPercent < 4 ? 'loading' : totalPercent >= 75 ? 'gcode' : 'slicing';
 }
 
-/** Overall bands. Engine percentages 3 → 75 map linearly onto "slicing"; 75 → 100 onto "gcode". */
-export const BANDS = {
-  building: [0, 5],
-  loading: [5, 35],
-  engine: [35, 85],
-  gcode: [85, 93],
-  postprocessing: [94, 99],
-} as const;
+/**
+ * Overall layout. The engine part (build → load → slicing stages → G-code export) shares 0–93 in proportion to each
+ * phase's expected duration (measured on the 7.3.1 AppImage), so the bar moves at roughly constant speed: on a
+ * 2M-triangle job loading gets ~5–74 because it is ~85 % of the wall time, and the burst of stages that follows in
+ * ~1 s fills the rest. Post-processing (thumbnails, scan, save) is 94–99, done is 100.
+ */
+export const ENGINE_END = 93;
+export const POST_BAND = [94, 99] as const;
+
+export type Phase = 'build' | 'load' | 'stages' | 'export';
+const PHASES: Phase[] = ['build', 'load', 'stages', 'export'];
+/** Smallest share (points) a phase gets, so a short phase still visibly moves. */
+const MIN_WIDTH: Record<Phase, number> = { build: 2, load: 6, stages: 5, export: 3 };
+/** Share of the later phases' minimum widths a slow phase may borrow while it overruns its estimate. */
+const BORROW = 0.4;
 
 const ENGINE_START = 3;
 const ENGINE_GCODE = 75;
 
+/** Ease-out shape inside the nominal band: 90 % of it at the expected time, slope never zero. */
+const EASE_K = 1.5;
+const EASE_AT_EXPECTED = 0.9;
+const EASE_NORM = 1 - Math.exp(-EASE_K);
+/** Slope at the expected time, as a fraction of the band per expected duration (continuous into the tail). */
+const EASE_END_SLOPE = (EASE_AT_EXPECTED * EASE_K * Math.exp(-EASE_K)) / EASE_NORM;
+
 export interface ProgressSnapshot {
+  /** 0–100 with one decimal (the bar width moves smoothly; labels round it). */
   progress: number;
   stage: SliceStage;
   message?: string;
 }
 
+export interface ProgressOptions {
+  /** Supports enabled (`enable_support`): the slicing stages take ~1.5× longer. */
+  supports?: boolean;
+}
+
+/** Expected durations (ms) of each phase. */
+export function expectedDurations(triangles: number, sourceBytes: number, supports = false): Record<Phase, number> {
+  return {
+    build: ProgressModel.expectedBuildMs(sourceBytes),
+    load: ProgressModel.expectedLoadMs(triangles),
+    stages: ProgressModel.expectedStagesMs(triangles, supports),
+    export: ProgressModel.expectedExportMs(triangles),
+  };
+}
+
+/** Splits [from, ENGINE_END] over `phases` in proportion to their expected durations (each ≥ its minimum width). */
+export function planBands(phases: Phase[], durations: Record<Phase, number>, from: number): Partial<Record<Phase, [number, number]>> {
+  const span = Math.max(0, ENGINE_END - from);
+  const mins = phases.reduce((n, p) => n + MIN_WIDTH[p], 0);
+  const scale = mins > span ? span / mins : 1;
+  const extra = Math.max(0, span - mins * scale);
+  const total = phases.reduce((n, p) => n + Math.max(1, durations[p]), 0);
+  const out: Partial<Record<Phase, [number, number]>> = {};
+  let at = from;
+  for (const p of phases) {
+    const w = MIN_WIDTH[p] * scale + (extra * Math.max(1, durations[p])) / total;
+    out[p] = [at, Math.min(ENGINE_END, at + w)];
+    at += w;
+  }
+  return out;
+}
+
 /**
- * Time-aware progress for one job. Call `engine()` for each pipe update and `tick()` periodically; while the
- * engine is silent, progress creeps toward the end of the current band (never past it), using an expected duration
- * estimated from the triangle count.
+ * Time-aware progress for one job. Call `engine()` for each pipe update and `tick()` periodically. While the engine
+ * is silent, progress eases out toward the end of the current phase's band (~90 % at the expected duration) and then
+ * keeps creeping slowly into a soft cap (borrowing from later phases, which are re-planned from wherever the bar is
+ * when they start) instead of freezing. Always monotonic.
  */
 export class ProgressModel {
   private value = 0;
   private stage: SliceStage = 'building';
   private message: string | undefined;
-  /** Band the creep may move inside, and when/where it started. */
-  private band: readonly [number, number] = BANDS.building;
-  private bandStartValue = 0;
-  private bandStartAt: number;
+  private phase: Phase | 'post' | null = null;
+  private sourceBytes = 0;
+  private readonly supports: boolean;
+  /** Nominal band end, soft cap, and where/when the current creep started. */
+  private bandEnd = 0;
+  private cap = 0;
+  private startValue = 0;
+  private startAt: number;
   private expectedMs = 1000;
+  private stagesBand: [number, number] | null = null;
+  private exportBand: [number, number] | null = null;
 
   constructor(
     private triangles: number,
     now = Date.now(),
+    opts: ProgressOptions = {},
   ) {
-    this.bandStartAt = now;
+    this.startAt = now;
+    this.supports = opts.supports ?? false;
   }
 
   /** Expected engine load time: ~0.8 s + 4.5 s per million triangles (measured on the 7.3.1 AppImage). */
@@ -109,22 +165,14 @@ export class ProgressModel {
     return 800 + triangles * 0.0045;
   }
 
+  /** Expected slicing stages (3 → 75 %): ~0.15 s + 0.25 s per million triangles, ×1.5 with supports (measured). */
+  static expectedStagesMs(triangles: number, supports = false): number {
+    return (150 + triangles * 0.00025) * (supports ? 1.5 : 1);
+  }
+
   /** Expected G-code export time after "Generating G-code": ~0.4 s + 0.2 s per million triangles. */
   static expectedExportMs(triangles: number): number {
     return 400 + triangles * 0.0002;
-  }
-
-  private enter(band: readonly [number, number], expectedMs: number, now: number, floor?: number): void {
-    this.band = band;
-    this.expectedMs = Math.max(200, expectedMs);
-    this.value = Math.max(this.value, floor ?? band[0]);
-    this.bandStartValue = this.value;
-    this.bandStartAt = now;
-  }
-
-  /** Known once the project is built (drives the expected load/export durations). */
-  setTriangles(n: number): void {
-    this.triangles = Math.max(0, n);
   }
 
   /** Expected 3MF build time from the source model bytes (~0.3 s per MB: mesh parse + XML write; measured). */
@@ -132,49 +180,99 @@ export class ProgressModel {
     return 300 + sourceBytes * 0.0003;
   }
 
+  /** Triangle guess before the build reports the real count (binary STL ≈ 50 bytes per triangle). */
+  private trianglesOrGuess(): number {
+    return this.triangles > 0 ? this.triangles : this.sourceBytes / 50;
+  }
+
+  private durations(): Record<Phase, number> {
+    return expectedDurations(this.trianglesOrGuess(), this.sourceBytes, this.supports);
+  }
+
+  /** Soft cap for phase `p`: the end of the engine range minus most of the later phases' minimum widths. */
+  private static capFor(p: Phase): number {
+    const later = PHASES.slice(PHASES.indexOf(p) + 1);
+    return ENGINE_END - later.reduce((n, q) => n + MIN_WIDTH[q] * (1 - BORROW), 0);
+  }
+
+  /** Starts phase `p`: re-plans `p` and the later phases from the current value. */
+  private startPhase(p: Phase, now: number): [number, number] {
+    const rest = PHASES.slice(PHASES.indexOf(p));
+    const plan = planBands(rest, this.durations(), p === 'build' ? 0 : this.value);
+    const band = plan[p]!;
+    this.phase = p;
+    this.creep(band[1], ProgressModel.capFor(p), this.durations()[p], now);
+    if (p === 'stages') this.stagesBand = band;
+    if (p === 'export') this.exportBand = band;
+    return band;
+  }
+
+  private creep(bandEnd: number, cap: number, expectedMs: number, now: number, floor = 0): void {
+    this.value = Math.max(this.value, Math.min(floor, bandEnd));
+    this.startValue = this.value;
+    this.bandEnd = Math.max(this.value, bandEnd);
+    this.cap = Math.max(this.bandEnd, cap);
+    this.expectedMs = Math.max(200, expectedMs);
+    this.startAt = now;
+  }
+
+  /** Known once the project is built (drives the expected load/stage/export durations). */
+  setTriangles(n: number): void {
+    this.triangles = Math.max(0, n);
+  }
+
   building(now = Date.now(), message = 'Building the project', sourceBytes = 0): void {
     this.stage = 'building';
     this.message = message;
-    this.enter(BANDS.building, ProgressModel.expectedBuildMs(sourceBytes), now);
+    this.sourceBytes = Math.max(0, sourceBytes);
+    this.startPhase('build', now);
   }
 
-  /** The engine process was started. */
+  /** The engine process was started (idempotent: a second call does not restart the loading creep). */
   engineStarted(now = Date.now()): void {
+    if (this.phase === 'load') return;
+    this.tick(now);
     this.stage = 'loading';
     this.message = 'Loading the project';
-    this.enter(BANDS.loading, ProgressModel.expectedLoadMs(this.triangles), now);
+    this.startPhase('load', now);
   }
 
   engine(u: PipeUpdate, now = Date.now()): void {
-    if (u.message) this.message = u.message;
     const t = u.totalPercent;
     if (t < ENGINE_START) {
       // still loading: keep creeping inside the loading band
-      if (this.stage !== 'loading') this.engineStarted(now);
+      if (this.phase !== 'load') this.engineStarted(now);
       if (u.message) this.message = u.message;
       return;
     }
-    if (u.message) this.stage = stageFromMessage(u.message, t);
+    if (u.message) this.message = u.message;
+    this.tick(now); // bank the creep so far before re-anchoring
     if (t < ENGINE_GCODE) {
-      const [a, b] = BANDS.engine;
+      this.stage = stageFromMessage(u.message ?? '', t);
+      if (this.phase !== 'stages') this.startPhase('stages', now);
+      const [a, b] = this.stagesBand!;
       const v = a + ((t - ENGINE_START) / (ENGINE_GCODE - ENGINE_START)) * (b - a);
-      // Creep toward the next ~10 engine points while the stage runs.
-      const next = Math.min(b, v + 8);
-      this.enter([a, next], 1500, now, v);
-      if (!u.message) this.stage = stageFromMessage('', t);
+      const left = ProgressModel.expectedStagesMs(this.trianglesOrGuess(), this.supports) * ((ENGINE_GCODE - t) / (ENGINE_GCODE - ENGINE_START));
+      this.creep(b, ProgressModel.capFor('stages'), left, now, v);
       return;
     }
-    const [a, b] = BANDS.gcode;
-    const v = a + ((Math.min(t, 100) - ENGINE_GCODE) / (100 - ENGINE_GCODE)) * (b - a);
     this.stage = 'gcode';
-    this.enter([a, b], ProgressModel.expectedExportMs(this.triangles), now, v);
+    if (this.phase !== 'export') this.startPhase('export', now);
+    const [a, b] = this.exportBand!;
+    const tt = Math.min(t, 100);
+    const v = a + ((tt - ENGINE_GCODE) / (100 - ENGINE_GCODE)) * (b - a);
+    const left = ProgressModel.expectedExportMs(this.trianglesOrGuess()) * ((100 - tt) / (100 - ENGINE_GCODE));
+    this.creep(b, ENGINE_END, left, now, v);
   }
 
   postprocessing(stage: 'thumbnails' | 'saving', message: string, now = Date.now()): void {
+    this.tick(now);
     this.stage = stage;
     this.message = message;
-    const [a, b] = BANDS.postprocessing;
-    this.enter(stage === 'thumbnails' ? [a, b - 2] : [b - 2, b], 500, now);
+    this.phase = 'post';
+    const [a, b] = POST_BAND;
+    const [s, e] = stage === 'thumbnails' ? [a, b - 2] : [b - 2, b];
+    this.creep(e, e, 500, now, s);
   }
 
   done(): void {
@@ -182,15 +280,27 @@ export class ProgressModel {
     this.value = 100;
   }
 
-  /** Current value with creep applied (monotonic, never beyond the current band's end minus a margin). */
+  /** Raw creep value at `now`. */
+  private creepAt(now: number): number {
+    const x = Math.max(0, now - this.startAt) / this.expectedMs;
+    const s = this.startValue;
+    const band = Math.max(0, this.bandEnd - s);
+    if (x <= 1) return s + band * EASE_AT_EXPECTED * ((1 - Math.exp(-EASE_K * x)) / EASE_NORM);
+    // Past the estimate: continue from 90 % of the band into the soft cap with a slowly decaying speed
+    // (1 − 1/√(1+r·y)) whose initial slope matches the ease-out, so the bar never brakes hard or freezes.
+    const p1 = s + band * EASE_AT_EXPECTED;
+    const room = this.cap - p1;
+    if (room <= 0) return p1;
+    const slope = Math.max(EASE_END_SLOPE * band, 0.5);
+    const r = (2 * slope) / room;
+    return p1 + room * (1 - 1 / Math.sqrt(1 + r * (x - 1)));
+  }
+
+  /** Current value with creep applied (monotonic, never beyond the current soft cap). */
   tick(now = Date.now()): ProgressSnapshot {
-    if (this.stage !== 'done') {
-      const [, end] = this.band;
-      const span = Math.max(0, end - 0.5 - this.bandStartValue);
-      // ~90 % of the band after the expected time, asymptotic afterwards.
-      const f = 1 - Math.exp((-2.3 * Math.max(0, now - this.bandStartAt)) / this.expectedMs);
-      this.value = Math.max(this.value, Math.min(end - 0.5, this.bandStartValue + span * f));
+    if (this.stage !== 'done' && this.phase !== null) {
+      this.value = Math.max(this.value, Math.min(this.cap - 0.05, this.creepAt(now)));
     }
-    return { progress: Math.floor(this.value), stage: this.stage, ...(this.message && { message: this.message }) };
+    return { progress: Math.floor(this.value * 10) / 10, stage: this.stage, ...(this.message && { message: this.message }) };
   }
 }

@@ -59,7 +59,7 @@ const round1 = (n: number | null) => (n === null ? null : Math.round(n * 10) / 1
 
 /**
  * Print `state` codes (Creality Print status card): 0 idle, 1 printing, 2 complete, 3 failed, 4 abort, 5 paused,
- * 6 pausing, 7 stopping, 8 restoring (power-loss recovery resuming → shown as printing).
+ * 6 pausing, 7 stopping, 8 restoring (resuming after a pause or a power-loss recovery → `resuming`).
  */
 export const STATE_CODES: Record<number, PrinterState> = {
   0: 'idle',
@@ -70,7 +70,7 @@ export const STATE_CODES: Record<number, PrinterState> = {
   5: 'paused',
   6: 'pausing',
   7: 'stopping',
-  8: 'printing',
+  8: 'resuming',
 };
 
 /** Error code from `err.errcode`; Creality Print also shows 115 for pending power-loss recovery and 2839 for runout. */
@@ -88,7 +88,7 @@ export function mapState(raw: RawPrinterState): PrinterState {
   const mapped = code !== null ? (STATE_CODES[code] ?? 'idle') : 'idle';
   const err = num((raw.err as Record<string, unknown> | undefined)?.errcode ?? null);
   // An error code while a job is running is reported in errorCode but does not hide the job state.
-  const running = mapped === 'printing' || mapped === 'paused' || mapped === 'pausing' || mapped === 'stopping';
+  const running = isActiveState(mapped);
   if (err !== null && err !== 0 && !running) return 'error';
   return mapped;
 }
@@ -99,7 +99,7 @@ export function isReadyForPrint(status: Pick<PrinterStatus, 'online' | 'state'>)
 }
 
 export function isActiveState(state: PrinterState): boolean {
-  return state === 'printing' || state === 'paused' || state === 'pausing' || state === 'stopping';
+  return state === 'printing' || state === 'paused' || state === 'pausing' || state === 'resuming' || state === 'stopping';
 }
 
 /** `#07a92ac` (pad digit + RRGGBB, 8 chars) → `#7a92ac`; `#RRGGBB` kept; anything else → null. */

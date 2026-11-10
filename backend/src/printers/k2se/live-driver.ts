@@ -6,6 +6,7 @@ import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { AppError } from '../../errors.js';
 import { logger } from '../../logger.js';
 import type { LiveJob, PrinterStatus } from '../../types.js';
+import { JobRetention } from './job-retention.js';
 import { formatHostForUrl, getJson, isRecord, normalizeMac } from '../drivers/http.js';
 import type { ControlTelemetry, CurrentJobFile, EtaHints, PrinterDriver, PrinterEndpoint, PrinterIdentity, UploadResult } from '../drivers/types.js';
 import { assertWritable } from '../read-only.js';
@@ -47,6 +48,8 @@ export interface LiveDriverOptions {
   fileReadyTimeoutMs?: number;
   /** Live job view from Moonraker (websocket subscription, polling fallback). Default true. */
   moonraker?: boolean;
+  /** How long a transitional frame (idle/0 blip while resuming) keeps the last job and state. Default 5 s. */
+  transitionHoldMs?: number;
   connection?: Partial<{ heartbeatMs: number; probeAfterMs: number; staleAfterMs: number; backoffInitialMs: number; backoffMaxMs: number; random: () => number }>;
 }
 
@@ -87,11 +90,16 @@ export class K2SELiveDriver implements PrinterDriver {
   /** Epoch ms of the last Creality data frame (0 = none on this connection). */
   private lastFrameAt = 0;
   private readonly frameWaiters = new Set<() => void>();
+  /** Keeps the job across the K2 SE's transitional pause/resume frames. */
+  private readonly retention: JobRetention;
+  private holdTimer: NodeJS.Timeout | null = null;
+  private holdTimerAt = 0;
 
   constructor(opts: LiveDriverOptions) {
     this.opts = opts;
     this.printerId = opts.printerId;
     this.host = opts.host;
+    this.retention = new JobRetention(opts.transitionHoldMs ?? 5000);
     this.conn = new CrealityConnection({
       label: `printer #${opts.printerId}`,
       ...opts.connection,
@@ -131,6 +139,8 @@ export class K2SELiveDriver implements PrinterDriver {
     this.moon?.stop();
     if (this.throttleTimer) clearTimeout(this.throttleTimer);
     if (this.boxTimer) clearInterval(this.boxTimer);
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.holdTimer = null;
     this.throttleTimer = null;
     this.boxTimer = null;
   }
@@ -143,6 +153,7 @@ export class K2SELiveDriver implements PrinterDriver {
     this.files = null;
     this.moon?.stop();
     this.moonObjects = {};
+    this.retention.reset();
     this.conn.restart();
   }
 
@@ -151,27 +162,24 @@ export class K2SELiveDriver implements PrinterDriver {
   }
 
   getStatus(): PrinterStatus {
-    const s = toPrinterStatus(this.printerId, this.raw, this.online);
-    s.job = isActiveState(s.state) ? this.liveJob(s.fileName) : null;
-    if (s.online) {
-      // The K2 SE reports transient Creality states while pausing/resuming (seen as a momentary idle/abort frame):
-      // while Klipper itself still says printing/paused, keep showing the job instead of a terminal state.
-      const klipper = this.jobState();
-      if ((klipper === 'printing' || klipper === 'paused') && !isActiveState(s.state) && s.state !== 'error' && s.fileName !== null) {
-        s.state = klipper === 'paused' ? 'paused' : 'printing';
-      }
-      // Moonraker is authoritative for homing/position (Klipper toolhead); the Creality WS is the fallback.
-      s.homedAxes = homedAxesOf(this.moonObjects) ?? s.homedAxes;
-      s.position = positionOf(this.moonObjects) ?? s.position;
-      const f = factorsOf(this.moonObjects);
-      s.speedFactor = f.speed ?? s.speedFactor;
-      s.flowFactor = f.flow ?? s.flowFactor;
-      // Nozzle: min(filament/profile high, printer-reported max, K2 SE spec 300). Bed: min(printer, spec 100).
-      const limits = k2seScanLimits();
-      s.maxNozzleTemp = Math.min(s.maxNozzleTemp ?? K2SE_SPEC.maxNozzleTemp, limits.nozzle, K2SE_SPEC.maxNozzleTemp);
-      s.maxBedTemp = Math.min(s.maxBedTemp ?? K2SE_SPEC.maxBedTemp, limits.bed, K2SE_SPEC.maxBedTemp);
-    }
+    const klipper = this.jobState();
+    const s = composeLiveStatus(this.printerId, this.raw, this.online, this.moonObjects, klipper);
+    this.retention.apply(s, klipper);
+    this.scheduleHoldExpiry();
     return s;
+  }
+
+  /** Re-publishes once a transitional hold (JobRetention) expires, so a real end shows up without a new frame. */
+  private scheduleHoldExpiry(): void {
+    const until = this.retention.holdUntil();
+    if (until === null || until === this.holdTimerAt) return;
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.holdTimerAt = until;
+    this.holdTimer = setTimeout(() => {
+      this.holdTimer = null;
+      this.emitStatus(false);
+    }, Math.max(0, until - Date.now()) + 50);
+    this.holdTimer.unref?.();
   }
 
   /**
@@ -261,14 +269,6 @@ export class K2SELiveDriver implements PrinterDriver {
   /** Raw Moonraker `exclude_object` status, available even when no job is active (null when unknown). */
   excludeObjectStatus(): Record<string, unknown> | null {
     return this.moonObjects.exclude_object ?? null;
-  }
-
-  /** Moonraker job, only when it is about the file the Creality WS reports (stale objects are ignored). */
-  private liveJob(fileName: string | null): LiveJob | null {
-    const job = parseJob(this.moonObjects);
-    if (!job) return null;
-    if (fileName && job.fileName !== fileName) return null;
-    return job;
   }
 
   /**
@@ -712,3 +712,46 @@ function safe(fn: () => void): void {
 }
 
 export { offlineStatus };
+
+/** Moonraker job, only when it is about the file the Creality WS reports (stale objects are ignored). */
+function liveJobOf(moonObjects: MoonrakerObjects, fileName: string | null): LiveJob | null {
+  const job = parseJob(moonObjects);
+  if (!job) return null;
+  if (fileName && job.fileName !== fileName) return null;
+  return job;
+}
+
+/**
+ * One status from the merged Creality frames and Moonraker objects (pure; `klipper` = fresh `print_stats.state` or
+ * null). The driver runs the result through `JobRetention` before publishing.
+ */
+export function composeLiveStatus(
+  printerId: number,
+  raw: RawPrinterState,
+  online: boolean,
+  moonObjects: MoonrakerObjects,
+  klipper: string | null,
+): PrinterStatus {
+  const s = toPrinterStatus(printerId, raw, online);
+  if (s.online) {
+    // The K2 SE reports transient Creality states while pausing/resuming (seen as a momentary idle/abort frame):
+    // while Klipper itself still says printing/paused, keep showing the job instead of a terminal state.
+    if ((klipper === 'printing' || klipper === 'paused') && !isActiveState(s.state) && s.state !== 'error' && s.fileName !== null) {
+      s.state = klipper === 'paused' ? 'paused' : 'printing';
+    }
+  }
+  s.job = isActiveState(s.state) ? liveJobOf(moonObjects, s.fileName) : null;
+  if (s.online) {
+    // Moonraker is authoritative for homing/position (Klipper toolhead); the Creality WS is the fallback.
+    s.homedAxes = homedAxesOf(moonObjects) ?? s.homedAxes;
+    s.position = positionOf(moonObjects) ?? s.position;
+    const f = factorsOf(moonObjects);
+    s.speedFactor = f.speed ?? s.speedFactor;
+    s.flowFactor = f.flow ?? s.flowFactor;
+    // Nozzle: min(filament/profile high, printer-reported max, K2 SE spec 300). Bed: min(printer, spec 100).
+    const limits = k2seScanLimits();
+    s.maxNozzleTemp = Math.min(s.maxNozzleTemp ?? K2SE_SPEC.maxNozzleTemp, limits.nozzle, K2SE_SPEC.maxNozzleTemp);
+    s.maxBedTemp = Math.min(s.maxBedTemp ?? K2SE_SPEC.maxBedTemp, limits.bed, K2SE_SPEC.maxBedTemp);
+  }
+  return s;
+}

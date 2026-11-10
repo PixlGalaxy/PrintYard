@@ -204,6 +204,8 @@ export type PrinterState =
   | 'printing'
   | 'paused'
   | 'pausing'
+  /** Creality state 8 (restoring): resuming after a pause; the job stays shown. */
+  | 'resuming'
   | 'stopping'
   | 'complete'
   | 'failed'

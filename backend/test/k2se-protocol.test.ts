@@ -137,7 +137,7 @@ describe('K2 SE protocol: status merge from captured frames', () => {
 describe('K2 SE protocol: state mapping', () => {
   const st = (raw: RawPrinterState) => mapState(raw);
   it('maps every Creality state code', () => {
-    const expected = ['idle', 'printing', 'complete', 'failed', 'aborted', 'paused', 'pausing', 'stopping', 'printing'];
+    const expected = ['idle', 'printing', 'complete', 'failed', 'aborted', 'paused', 'pausing', 'stopping', 'resuming'];
     expected.forEach((s, code) => assert.equal(st({ state: code }), s, `code ${code}`));
     assert.equal(st({}), 'idle');
     assert.equal(st({ state: 99 }), 'idle');
