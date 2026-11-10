@@ -3,7 +3,7 @@
 # is an x86_64 glibc build; Alpine/musl cannot run it.
 
 # ---------- Stage 1: frontend build ----------
-FROM node:24-trixie-slim AS frontend-build
+FROM node:26-trixie-slim AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
@@ -11,7 +11,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---------- Stage 2: backend build ----------
-FROM node:24-trixie-slim AS backend-build
+FROM node:26-trixie-slim AS backend-build
 WORKDIR /app/backend
 # Toolchain for native modules (better-sqlite3, argon2) when no prebuilt binary matches
 RUN apt-get update \
@@ -23,7 +23,7 @@ COPY backend/ ./
 RUN npm run build && npm prune --omit=dev
 
 # ---------- Stage 3: runtime ----------
-FROM node:24-trixie-slim
+FROM node:26-trixie-slim
 
 ARG APP_VERSION=dev
 LABEL org.opencontainers.image.title="SliceDock" \
