@@ -322,6 +322,8 @@ export function mulMat(a: number[], b: number[]): number[] {
 
 interface Obj3mf {
   mesh?: { verts: number[]; tris: number[] };
+  /** load3mf: vertex index → welded index for the current instance (`stamp === gen`). */
+  weldCache?: { stamp: Uint32Array; value: Uint32Array; gen: number };
   components: { path?: string; objectId: string; transform: number[] }[];
 }
 
@@ -410,30 +412,36 @@ export async function load3mf(path: string): Promise<Mesh> {
       const { verts, tris } = obj.mesh;
       triangles += tris.length / 3;
       if (triangles > MAX_MESH_TRIANGLES) throw tooManyTriangles();
-      const local: number[] = [];
-      for (let i = 0; i < verts.length; i += 3) {
-        const x = verts[i]!;
-        const y = verts[i + 1]!;
-        const z = verts[i + 2]!;
-        local.push(
-          weld.index(
+      // Only vertices a triangle uses are transformed and welded, so the work per instance follows its triangles
+      // (bounded by MAX_MESH_TRIANGLES). Welding every listed vertex let a 30 KB file with many unused vertices ×
+      // 10 000 instances weld ~18 M unique points (~1.7 GB). The per-object cache is stamped per instance.
+      const nVerts = Math.floor(verts.length / 3);
+      const cache = (obj.weldCache ??= { stamp: new Uint32Array(nVerts), value: new Uint32Array(nVerts), gen: 0 });
+      const gen = ++cache.gen;
+      let ok = true;
+      for (const t of tris) {
+        if (!Number.isInteger(t) || t < 0 || t >= nVerts) {
+          ok = false;
+          break;
+        }
+        let v: number;
+        if (cache.stamp[t] === gen) v = cache.value[t]!;
+        else {
+          const x = verts[t * 3]!;
+          const y = verts[t * 3 + 1]!;
+          const z = verts[t * 3 + 2]!;
+          v = weld.index(
             Math.fround(m[0]! * x + m[4]! * y + m[8]! * z + m[12]!),
             Math.fround(m[1]! * x + m[5]! * y + m[9]! * z + m[13]!),
             Math.fround(m[2]! * x + m[6]! * y + m[10]! * z + m[14]!),
-          ),
-        );
-      }
-      let ok = true;
-      for (const t of tris) {
-        const v = local[t];
-        if (v === undefined) {
-          ok = false;
-          break;
+          );
+          cache.stamp[t] = gen;
+          cache.value[t] = v;
         }
         idx.push(v);
       }
       if (!ok) idx.length -= idx.length % 3;
-      workSinceYield += verts.length + tris.length;
+      workSinceYield += tris.length;
       if (workSinceYield > 300_000) {
         workSinceYield = 0;
         await yieldToLoop();
