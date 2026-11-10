@@ -11,6 +11,10 @@ on:
   # Run by hand from the Actions tab.
   workflow_dispatch:
 
+# Read-only by default; the docker job asks for packages: write on its own.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -22,6 +26,8 @@ jobs:
     steps:
       - name: 📂 Checkout Repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: 🟢 Set up Node
         uses: actions/setup-node@v7
@@ -55,6 +61,8 @@ jobs:
 
       - name: 📂 Checkout Repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: 🔧 Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -129,10 +137,13 @@ jobs:
             APP_VERSION=${{ env.APP_VERSION }}-${{ env.SHA_SHORT }}
           cache-from: type=gha
 
+      # Values reach the script as env vars, not ${{ }} (APP_VERSION comes from package.json).
       - name: ✅ Summary
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          echo "### SliceDock image" >> $GITHUB_STEP_SUMMARY
-          echo "Version: \`${{ env.APP_VERSION }}-${{ env.SHA_SHORT }}\`" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### SliceDock image" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version: \`$APP_VERSION-$SHA_SHORT\`" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$TAGS" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
