@@ -27,7 +27,10 @@ export function mergeObjects(state: MoonrakerObjects, update: unknown): Moonrake
   if (!isRecord(update)) return state;
   for (const [obj, fields] of Object.entries(update)) {
     if (!isRecord(fields) || obj === '__proto__' || obj === 'constructor') continue;
-    const cur = (state[obj] ??= {});
+    // Own objects only: `state.toString ??= {}` would hand back Object.prototype.toString and the fields below
+    // would be written onto that shared built-in (e.g. `toString.call = 1` breaks the whole process).
+    const prev = Object.hasOwn(state, obj) ? state[obj] : undefined;
+    const cur = isRecord(prev) ? prev : (state[obj] = {});
     for (const [k, v] of Object.entries(fields)) {
       if (k === '__proto__' || k === 'constructor') continue;
       cur[k] = v;
