@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../../context.js';
-import { AppError, notFound } from '../../errors.js';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { AppError, notFound, rateLimited } from '../../errors.js';
 import { logger } from '../../logger.js';
 import { parse } from '../../middleware/index.js';
 import { hashPassword, passwordSchema, verifyPassword } from '../auth/password.js';
@@ -47,10 +48,18 @@ export function accountRoutes(ctx: AppContext): Router {
   router.post('/password', async (req, res) => {
     const s = req.session!;
     const { currentPassword, newPassword } = parse(passwordChangeSchema, req.body);
+    // A stolen session must not become an unlimited oracle for the password: same budget as failed logins.
+    const attempt = ctx.loginGuard.begin(req.clientIp, s.user.username);
+    if (!attempt.allowed) throw rateLimited(attempt.retryAfter);
+    if (attempt.delayMs > 0) await sleep(attempt.delayMs);
     const row = ctx.users.findRowById(s.user.id)!;
     if (!(await verifyPassword(row.password_hash, currentPassword))) {
+      const banned = attempt.failed();
+      ctx.audit.log('account.password_failed', { userId: s.user.id, username: s.user.username, ip: req.clientIp }, s.user.id);
+      if (banned) ctx.audit.log('ip.banned', { ip: req.clientIp }, req.clientIp, { reason: 'password change brute force' });
       throw new AppError(400, 'auth.invalid_current_password', 'Current password is incorrect');
     }
+    attempt.succeeded();
     ctx.users.setPasswordHash(s.user.id, await hashPassword(newPassword));
     const revoked = ctx.sessions.revokeAllForUser(s.user.id, s.id);
     ctx.hub.disconnectUser(s.user.id, s.id);

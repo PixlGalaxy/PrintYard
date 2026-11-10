@@ -20,7 +20,7 @@ interface AuditRow {
 
 /**
  * Actions: auth.login, auth.login_failed, auth.logout, setup.complete, user.create, user.update, user.delete,
- * user.limits, user.password_reset, account.update, account.password, settings.update,
+ * user.limits, user.password_reset, account.update, account.password, account.password_failed, settings.update,
  * printer.create, printer.update, printer.delete, ip.banned, account.avatar, account.avatar_remove, user.avatar_remove.
  */
 /** Audit entries are kept for 90 days. */
