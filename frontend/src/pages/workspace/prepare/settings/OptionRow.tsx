@@ -17,6 +17,8 @@ export interface RowProps {
   disabled?: boolean
   /** show the PRO badge on advanced options (Simple mode search results) */
   proBadge?: boolean
+  /** small level hint (e.g. "Expert") on search results outside the current settings level */
+  levelBadge?: string
   onChange: (v: string | undefined) => void
   /** "Setting Overrides" rows: checkbox that turns the per-filament value on/off */
   override?: { active: boolean; inherited: string | undefined; onToggle: (on: boolean) => void }
@@ -39,7 +41,7 @@ const stop = (e: KeyboardEvent<HTMLInputElement>) => {
   }
 }
 
-export default function OptionRow({ def, value, base, changed, disabled, proBadge, onChange, override, baseHint, fromPrinter }: RowProps) {
+export default function OptionRow({ def, value, base, changed, disabled, proBadge, levelBadge, onChange, override, baseHint, fromPrinter }: RowProps) {
   const { t } = useI18n()
   const printerModel = useWs((s) => s.doc.printerModel)
   const off = disabled || (override ? !override.active : false)
@@ -177,6 +179,7 @@ export default function OptionRow({ def, value, base, changed, disabled, proBadg
             </span>
           )}
           {proBadge && def.mode === 'pro' && <span className="rounded bg-violet-500/15 px-1 text-[9px] font-semibold text-violet-600 dark:text-violet-400">PRO</span>}
+          {levelBadge && <span className="shrink-0 rounded bg-violet-500/15 px-1 text-[9px] font-semibold text-violet-600 uppercase dark:text-violet-400">{levelBadge}</span>}
         </div>
         {changed && base !== undefined && !override && <span className="block truncate text-[10px] text-muted">{hint(display(def, base))}</span>}
         {override && !override.active && override.inherited !== undefined && (

@@ -20,7 +20,6 @@ import { invalidateCustomFilaments, shortPresetName, usePreset } from '../../../
 import { contextFromMachine, filamentDependencies } from '../../../workspace/settings/dependencies'
 import { matches, same } from '../../../workspace/settings/values'
 import { useWs, workspace } from '../../../workspace/store'
-import type { Mode } from './RightPanel'
 import { PAGE_ICONS } from './settings/icons'
 import OptionList from './settings/OptionList'
 import SearchBox from './settings/SearchBox'
@@ -36,6 +35,7 @@ const PAGE_KEYS: Record<string, TranslationKey> = {
   Notes: 'workspace.filSet.page.notes',
 }
 const OVERRIDE_PAGE = 'Setting Overrides'
+type Mode = 'simple' | 'pro'
 /** Bed temperature keys per bed surface (prefix → PlateDef.bedType + label) */
 const BEDS: { prefix: string; bedType: string; label: TranslationKey }[] = [
   { prefix: 'epoxy_resin_plate', bedType: 'Epoxy Resin Plate', label: 'workspace.bed.epoxy' },
