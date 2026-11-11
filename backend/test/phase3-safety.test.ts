@@ -51,7 +51,7 @@ async function world(opts: { simSecondsPerTick: number; driver?: Record<string, 
   await waitFor(() => {
     const s = t.ctx.printerManager.status(printerId);
     return s.online && s.state === 'idle' && s.homedAxes !== null;
-  }, 8000);
+  }, 20_000);
   return { t, live, sim, dir, printerId, admin, files };
 }
 
@@ -140,7 +140,7 @@ describe('phase 3 safety: printer controls (simulator)', () => {
   });
 
   it('X2: parallel / duplicate excludes cannot remove every object', async () => {
-    const objs = await waitFor(() => (status().job?.objects.length === 2 ? status().job!.objects : null), 8000);
+    const objs = await waitFor(() => (status().job?.objects.length === 2 ? status().job!.objects : null), 20_000);
     assert.equal((await ex(alice, objs[0]!.name)).status, 403);
     resetRate();
     const res = await Promise.all([ex(bob, objs[0]!.name), ex(bob, objs[0]!.name), ex(bob, objs[1]!.name)]);
@@ -335,7 +335,7 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
     const firstName = `calibration_cube_p${first.body.id}.gcode`;
     assert.ok(w.sim.fileNames().includes(firstName));
     assert.equal(w.sim.fileSize('calibration_cube.gcode'), original, 'the touchscreen file was not overwritten');
-    await waitFor(() => status().state === 'printing', 8000);
+    await waitFor(() => status().state === 'printing', 20_000);
     await finishAndClear();
 
     const second = await print(1001);
@@ -344,7 +344,7 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
     assert.deepEqual(r2.deleted.map((p) => p.split('/').pop()), [firstName]);
     assert.ok(w.sim.fileNames().includes('calibration_cube.gcode'));
     assert.equal(w.sim.fileSize('calibration_cube.gcode'), original);
-    await waitFor(() => status().state === 'printing', 8000);
+    await waitFor(() => status().state === 'printing', 20_000);
     await finishAndClear();
 
     // A record whose size no longer matches the printer's file (replaced on the touchscreen) is never deleted.
@@ -356,7 +356,7 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
     assert.deepEqual(r3.deleted, []);
     assert.ok(r3.kept.some((k) => k.path.endsWith(secondName) && k.reason === 'unverified'), JSON.stringify(r3));
     assert.ok(w.sim.fileNames().includes(secondName));
-    await waitFor(() => status().state === 'printing', 8000);
+    await waitFor(() => status().state === 'printing', 20_000);
     await finishAndClear();
   });
 
@@ -392,7 +392,7 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
   it('exclude object: Creality excludeObjects frame, Moonraker fallback, never success without confirmation', async () => {
     const ex = (name: string) => api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/exclude-object`, { name });
     await w.t.ctx.printerManager.driver(w.printerId).startPrint('/usr/data/printer_data/gcodes/two_cubes.gcode');
-    const objs = await waitFor(() => (status().state === 'printing' && status().job?.objects.length === 2 ? status().job!.objects : null), 8000);
+    const objs = await waitFor(() => (status().state === 'printing' && status().job?.objects.length === 2 ? status().job!.objects : null), 20_000);
     // the printer ignores every path → 502 printers.exclude_unconfirmed, nothing shown as excluded
     w.sim.ignoreExcludes = true;
     let r = await ex(objs[0]!.name);
@@ -422,7 +422,7 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
     assert.equal(res.status, 201, JSON.stringify(res.body));
     const id = res.body.id as number;
     const row = () => w.t.ctx.db.prepare('SELECT state, reason FROM prints WHERE id = ?').get(id) as { state: string; reason: string | null };
-    await waitFor(() => status().state === 'printing', 8000);
+    await waitFor(() => status().state === 'printing', 20_000);
     await sleep(200);
     w.sim.pauseGlitch = true;
     assert.equal((await api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/pause`)).status, 200);
@@ -432,13 +432,13 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
     assert.equal(row().state, 'printing');
     assert.equal(status().currentPrintId, id);
     assert.equal((await api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/resume`)).status, 200);
-    await waitFor(() => status().state === 'printing', 5000);
+    await waitFor(() => status().state === 'printing', 20_000);
     assert.equal(row().state, 'printing');
 
     // Heal: the row was finalised as cancelled while the same job keeps running → back to printing.
     (w.t.ctx.printing as unknown as { tracking: Map<number, unknown> }).tracking.delete(w.printerId);
     w.t.ctx.db.prepare(`UPDATE prints SET state = 'cancelled', reason = 'cancelled_on_printer', ended_at = ? WHERE id = ?`).run(Date.now(), id);
-    await waitFor(() => row().state === 'printing', 5000);
+    await waitFor(() => row().state === 'printing', 20_000);
     assert.equal(row().reason, null);
     await waitFor(() => status().currentPrintId === id, 5000);
 

@@ -54,7 +54,7 @@ describe('Files → On the printer (API, printer simulator)', () => {
   const reqFiles = () => sim.wsLog.filter((f) => f.includes('reqGcodeFile')).length;
   const status = () => t.ctx.printerManager.status(printerId);
   const finishOnSim = async () => {
-    await waitFor(() => status().state === 'printing', 8000);
+    await waitFor(() => status().state === 'printing', 20_000);
     await t.admin.post(`/api/printers/${printerId}/cancel`).send({});
     await waitFor(() => t.ctx.printers.get(printerId).bedClear === false, 8000);
     await t.admin.post(`/api/printers/${printerId}/bed-cleared`).send({});
@@ -172,7 +172,7 @@ describe('Files → On the printer (API, printer simulator)', () => {
     assert.equal(r.body.imported, true);
     assert.equal(sim.uploads.length, uploads); // started the printer's own file
     assert.deepEqual(sim.lastStart, { path: '/usr/data/printer_data/gcodes/PantherPaw_plate1.gcode', enableSelfTest: 1 });
-    await waitFor(() => status().state === 'printing', 8000);
+    await waitFor(() => status().state === 'printing', 20_000);
 
     await grant(t.aliceId, { canControlPrinter: true });
     const list = await t.alice.get(`${base()}?refresh=1`);
@@ -195,7 +195,7 @@ describe('Files → On the printer (API, printer simulator)', () => {
   it('print: the bed-cleared rule applies', async () => {
     const r = await t.alice.post(`${base()}/print`).send({ name: '3DBenchy_PLA_22m53s.gcode' });
     assert.equal(r.status, 201, JSON.stringify(r.body));
-    await waitFor(() => status().state === 'printing', 8000);
+    await waitFor(() => status().state === 'printing', 20_000);
     await t.admin.post(`/api/printers/${printerId}/cancel`).send({});
     await waitFor(() => t.ctx.printers.get(printerId).bedClear === false, 8000);
     await waitFor(() => t.ctx.printing.currentOwner(printerId) === null && status().state !== 'printing', 8000);

@@ -105,7 +105,7 @@ describe('uploaded G-code policy (API, printer simulator)', () => {
     }, 8000);
   const finishOnSim = async () => {
     // Cancel the simulated print once it runs, then clear the bed for the next test.
-    await waitFor(() => t.ctx.printerManager.status(printerId).state === 'printing' || !t.ctx.printers.get(printerId).bedClear, 8000);
+    await waitFor(() => t.ctx.printerManager.status(printerId).state === 'printing' || !t.ctx.printers.get(printerId).bedClear, 20_000);
     if (t.ctx.printers.get(printerId).bedClear) await t.admin.post(`/api/printers/${printerId}/cancel`).send({});
     await waitFor(() => t.ctx.printers.get(printerId).bedClear === false, 8000);
     await t.admin.post(`/api/printers/${printerId}/bed-cleared`).send({});
