@@ -18,8 +18,18 @@ export interface MeshStats {
   bbox: [number, number, number];
 }
 
+/** Why an archive was refused (lets callers map limits to their own error codes). */
+export type ZipFailure = 'too_many_entries' | 'too_large' | 'corrupt';
+
 /** A file whose content does not match its extension. */
-export class MeshFormatError extends Error {}
+export class MeshFormatError extends Error {
+  constructor(
+    message: string,
+    readonly reason?: ZipFailure,
+  ) {
+    super(message);
+  }
+}
 
 // ---- resource limits (security review #4/#5) ----
 /** Largest mesh source read into memory: an STL/OBJ file, or all `.model` entries of a 3MF after inflating. */
@@ -36,11 +46,12 @@ export const MAX_3MF_INSTANCES = 10_000;
 export const MAX_3MF_DEPTH = 4;
 
 /**
- * Inflates the entries `want` selects from a ZIP file, streaming the archive and counting inflated bytes so a zip
- * bomb aborts early (per entry and in total) instead of filling memory. Entry count is capped too.
+ * Inflates the entries `want` selects from a ZIP file (a path, or an archive already in memory), streaming the
+ * archive and counting inflated bytes so a zip bomb aborts early (per entry and in total) instead of filling memory.
+ * Entry count is capped too. Entry names are only reported to `want` and used as map keys, never as paths.
  */
 export async function readZipEntries(
-  path: string,
+  source: string | Uint8Array,
   want: (name: string) => boolean,
   limits: { maxEntryBytes?: number; maxTotalBytes?: number; maxEntries?: number } = {},
 ): Promise<Map<string, Uint8Array>> {
@@ -54,12 +65,12 @@ export async function readZipEntries(
   const unzip = new Unzip((file) => {
     if (error) return;
     if (++entries > maxEntries) {
-      error = new MeshFormatError(`Archive has more than ${maxEntries} entries`);
+      error = new MeshFormatError(`Archive has more than ${maxEntries} entries`, 'too_many_entries');
       return;
     }
     if (!want(file.name)) return; // never started: skipped
     if (file.originalSize !== undefined && file.originalSize > maxEntry) {
-      error = new MeshFormatError(`${file.name} is too large once unpacked`);
+      error = new MeshFormatError(`${file.name} is too large once unpacked`, 'too_large');
       return;
     }
     const chunks: Uint8Array[] = [];
@@ -67,13 +78,13 @@ export async function readZipEntries(
     file.ondata = (err, data, final) => {
       if (error) return;
       if (err) {
-        error = new MeshFormatError(`Cannot unpack ${file.name}: ${err.message}`);
+        error = new MeshFormatError(`Cannot unpack ${file.name}: ${err.message}`, 'corrupt');
         return;
       }
       n += data.length;
       total += data.length;
       if (n > maxEntry || total > maxTotal) {
-        error = new MeshFormatError(`${file.name} is too large once unpacked`);
+        error = new MeshFormatError(`${file.name} is too large once unpacked`, 'too_large');
         try {
           file.terminate();
         } catch {
@@ -90,16 +101,22 @@ export async function readZipEntries(
   unzip.register(UnzipPassThrough);
   try {
     // Small reads: one deflate chunk inflates to at most ~1000x its size before the counter sees it.
-    for await (const chunk of createReadStream(path, { highWaterMark: 16 * 1024 })) {
-      unzip.push(chunk as Buffer);
+    const chunks: AsyncIterable<Uint8Array> | Iterable<Uint8Array> =
+      typeof source === 'string' ? createReadStream(source, { highWaterMark: 16 * 1024 }) : bufferChunks(source, 16 * 1024);
+    for await (const chunk of chunks) {
+      unzip.push(chunk);
       if (error) break;
     }
     if (!error) unzip.push(new Uint8Array(0), true);
   } catch (err) {
-    error ??= new MeshFormatError(`Not a readable ZIP archive: ${(err as Error).message}`);
+    error ??= new MeshFormatError(`Not a readable ZIP archive: ${(err as Error).message}`, 'corrupt');
   }
   if (error) throw error;
   return out;
+}
+
+function* bufferChunks(buf: Uint8Array, size: number): Generator<Uint8Array> {
+  for (let i = 0; i < buf.length; i += size) yield buf.subarray(i, i + size);
 }
 
 async function assertSourceSize(path: string): Promise<void> {

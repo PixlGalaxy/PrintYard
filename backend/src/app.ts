@@ -30,6 +30,7 @@ import { filesRoutes } from './modules/files/files.routes.js';
 import { profilesRoutes } from './modules/profiles/profiles.routes.js';
 import { filamentPresetsRoutes } from './modules/filament-presets/filament-presets.routes.js';
 import { processProfilesRoutes } from './modules/process-profiles/process-profiles.routes.js';
+import { profileFilesRoutes } from './modules/profile-files/profile-files.routes.js';
 import { projectsRoutes } from './modules/projects/projects.routes.js';
 import { slicingRoutes } from './modules/slicing/slicing.routes.js';
 import { accountNotificationRoutes, adminNotificationRoutes } from './modules/notifications/notifications.routes.js';
@@ -53,6 +54,8 @@ export function createApp(ctx: AppContext): Express {
   api.use(ipBan(ctx));
   // Scenes + base64 thumbnails (B1) may exceed 1 MB; body-parser skips already-parsed bodies.
   api.use(['/slice', '/projects'], express.json({ limit: '4mb' }));
+  // Profile imports carry the file as base64 (5 MB file → ~6.7 MB JSON); the service checks the decoded size.
+  api.use('/profile-files/import', express.json({ limit: '8mb' }));
   api.use(express.json({ limit: '1mb' }));
   api.use(cookieParser());
   api.use(csrf);
@@ -75,6 +78,7 @@ export function createApp(ctx: AppContext): Express {
   api.use('/profiles', requireAuth, profilesRoutes(ctx)); // B1
   api.use('/filament-presets', requireAuth, filamentPresetsRoutes(ctx)); // FILAMENTS
   api.use('/process-profiles', requireAuth, processProfilesRoutes(ctx)); // PROFILES
+  api.use('/profile-files', requireAuth, profileFilesRoutes(ctx)); // PROFILES: Creality Print import/export
   api.use('/slice', requireAuth, slicingRoutes(ctx)); // B1
   api.use('/printers/:id/files', requireAuth, printerFilesRoutes(ctx)); // PRINTER-FILES: Files → On the printer
   api.post('/prints', pendingPrintCap(ctx)); // review 3A #3: cap open approval requests per user

@@ -29,6 +29,7 @@ import { FilesService } from './modules/files/files.service.js';
 import { ProfilesService } from './modules/profiles/profiles.service.js';
 import { FilamentPresetsService } from './modules/filament-presets/filament-presets.service.js';
 import { ProcessProfilesService } from './modules/process-profiles/process-profiles.service.js';
+import { ProfileFilesService } from './modules/profile-files/profile-files.service.js';
 import { ProjectsService } from './modules/projects/projects.service.js';
 import { SlicingService } from './modules/slicing/slicing.service.js';
 import {
@@ -81,6 +82,8 @@ export interface AppContext {
   filamentPresets: FilamentPresetsService;
   /** PROFILES: user process profiles (`custom:<n>` process preset ids). */
   processProfiles: ProcessProfilesService;
+  /** PROFILES: Creality Print preset import/export. */
+  profileFiles: ProfileFilesService;
   /** B1: slicing engine install/update/rollback. */
   engine: EngineManager;
   /** B1: slicing job queue (one at a time). */
@@ -158,6 +161,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     projects: null as unknown as ProjectsService,
     filamentPresets: null as unknown as FilamentPresetsService,
     processProfiles: null as unknown as ProcessProfilesService,
+    profileFiles: null as unknown as ProfileFilesService,
     engine: null as unknown as EngineManager,
     slicing: null as unknown as SlicingService,
     notifications: null as unknown as NotificationService,
@@ -272,6 +276,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
   ctx.profiles.setCustomFilaments(ctx.filamentPresets);
   ctx.processProfiles = new ProcessProfilesService(db, ctx.profiles, ctx.audit);
   ctx.profiles.setCustomProcesses(ctx.processProfiles);
+  ctx.profileFiles = new ProfileFilesService(ctx.profiles, ctx.processProfiles, ctx.filamentPresets, ctx.audit);
   ctx.projects = new ProjectsService(ctx.files, ctx.profiles, () => ctx.engine.appVersion());
   ctx.slicing = new SlicingService({
     appdataRoot: config.appdataRoot,
