@@ -15,6 +15,7 @@ import type { Printer, PrinterModelInfo } from '../../types'
 import { printerInput, validatePrinter, type PrinterDraft } from '../../validation'
 import BedSurfacesPanel from './BedSurfacesPanel'
 import PrinterRetentionPanel from './PrinterRetentionPanel'
+import ProfilesBackupPanel from './ProfilesBackupPanel'
 import { Panel } from './shared'
 
 type Dialog = { kind: 'create' } | { kind: 'edit'; printer: Printer } | { kind: 'delete'; printer: Printer }
@@ -104,6 +105,8 @@ export default function PrintersSection() {
       {printers && <BedSurfacesPanel printers={printers} onSaved={(p) => setData((list) => (list ?? []).map((x) => (x.id === p.id ? p : x)))} />}
 
       <PrinterRetentionPanel />
+
+      <ProfilesBackupPanel />
 
       <Panel title={t('printers.camera')} description={t('printers.cameraDesc')} icon={<Camera size={18} />} actions={<Badge tone="sky">{t('common.comingSoon')}</Badge>}>
         <p className="text-sm text-muted">{t('printers.cameraSoon')}</p>
