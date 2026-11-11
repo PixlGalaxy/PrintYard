@@ -52,7 +52,7 @@ export default function PrintersSection() {
         ) : printers.length === 0 ? (
           <Empty icon={<PrinterLayers size={20} />}>{t('printers.empty')}</Empty>
         ) : (
-          <div className="overflow-x-auto px-4 sm:px-5">
+          <div className="relative overflow-x-auto px-4 sm:px-5">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-line">
@@ -86,10 +86,10 @@ export default function PrintersSection() {
                     <td className={`${tdCls} pr-0 text-right`}>
                       <div className="inline-flex">
                         <IconButton label={t('common.edit')} onClick={() => setDialog({ kind: 'edit', printer: p })}>
-                          <Pencil size={15} />
+                          <Pencil size={16} />
                         </IconButton>
                         <IconButton label={t('common.delete')} tone="danger" onClick={() => setDialog({ kind: 'delete', printer: p })}>
-                          <Trash2 size={15} />
+                          <Trash2 size={16} />
                         </IconButton>
                       </div>
                     </td>

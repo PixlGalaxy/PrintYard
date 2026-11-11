@@ -303,12 +303,12 @@ export default function FilesPage() {
   }, [files])
 
   const tabs: { value: Tab; label: string; icon: ReactNode }[] = [
-    { value: 'private', label: t('library.scope.private'), icon: <Lock size={13} /> },
-    { value: 'shared', label: t('library.scope.shared'), icon: <Globe size={13} /> },
-    ...(isAdmin ? [{ value: 'all' as Tab, label: t('library.scope.all'), icon: <FolderKanban size={13} /> }] : []),
-    { value: 'printer', label: t('library.scope.printer'), icon: <PrinterLayers size={13} /> },
+    { value: 'private', label: t('library.scope.private'), icon: <Lock size={16} /> },
+    { value: 'shared', label: t('library.scope.shared'), icon: <Globe size={16} /> },
+    ...(isAdmin ? [{ value: 'all' as Tab, label: t('library.scope.all'), icon: <FolderKanban size={16} /> }] : []),
+    { value: 'printer', label: t('library.scope.printer'), icon: <PrinterLayers size={16} /> },
   ]
-  const scopeSwitch = <Segmented value={onPrinter ? 'printer' : effectiveScope} onChange={setTab} label={t('library.scope.label')} options={tabs} />
+  const scopeSwitch = <Segmented value={onPrinter ? 'printer' : effectiveScope} onChange={setTab} label={t('library.scope.label')} options={tabs} compactOnPhone />
 
   if (onPrinter) {
     return (
@@ -355,7 +355,7 @@ export default function FilesPage() {
       <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3 shadow-sm lg:flex-row lg:items-center">
         {scopeSwitch}
         <div className="relative min-w-0 flex-1">
-          <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
+          <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
           <input
             type="search"
             value={query}

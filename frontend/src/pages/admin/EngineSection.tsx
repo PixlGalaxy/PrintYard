@@ -108,7 +108,7 @@ export default function EngineSection() {
                 tone="sky"
                 version={engine.installed?.version}
                 sub={engine.installed ? t('engineMgr.installedAt', { when: formatDate(engine.installed.installedAt) }) : t('engineMgr.notInstalled')}
-                badge={engine.installed ? upToDate ? <Badge tone="emerald"><CircleCheck size={11} /> {t('engineMgr.current')}</Badge> : <Badge tone="violet">{t('engineMgr.updateAvailable')}</Badge> : <Badge tone="amber">{t('engineMgr.missing')}</Badge>}
+                badge={engine.installed ? upToDate ? <Badge tone="emerald"><CircleCheck size={12} /> {t('engineMgr.current')}</Badge> : <Badge tone="violet">{t('engineMgr.updateAvailable')}</Badge> : <Badge tone="amber">{t('engineMgr.missing')}</Badge>}
               />
               <VersionCard
                 label={t('engineMgr.latest')}
@@ -131,7 +131,7 @@ export default function EngineSection() {
             {working && (
               <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.07] p-4" role="status" aria-live="polite">
                 <div className="flex items-center gap-2 text-sm font-medium">
-                  <LoaderCircle size={15} className="animate-spin text-violet-500" />
+                  <LoaderCircle size={16} className="animate-spin text-violet-500" />
                   {t(`engineMgr.state.${state as (typeof WORKING)[number]}`)}
                   <span className="ml-auto font-mono text-xs tabular-nums">{Math.round(progress)}%</span>
                 </div>

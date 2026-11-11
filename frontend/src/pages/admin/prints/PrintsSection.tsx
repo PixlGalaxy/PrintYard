@@ -176,7 +176,7 @@ export default function PrintsSection() {
       </Panel>
 
       <Panel title={t('prints.admin.usage')} description={t('prints.admin.usageDesc')} icon={<Users size={18} />} flush>
-        <div className="overflow-x-auto px-4 sm:px-5">
+        <div className="relative overflow-x-auto px-4 sm:px-5">
           <table className="w-full text-sm">
             <thead className="border-b border-line text-left">
               <tr>
@@ -248,7 +248,7 @@ export default function PrintsSection() {
         {history.length === 0 ? (
           <Empty>{t('prints.admin.noHistory')}</Empty>
         ) : (
-          <div className="overflow-x-auto px-4 sm:px-5">
+          <div className="relative overflow-x-auto px-4 sm:px-5">
             <table className="w-full text-sm">
               <thead className="border-b border-line text-left">
                 <tr>

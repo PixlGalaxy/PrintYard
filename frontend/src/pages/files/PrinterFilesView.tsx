@@ -187,13 +187,13 @@ export default function PrinterFilesView({ scopeSwitch }: { scopeSwitch: ReactNo
           </select>
         )}
         <div className="relative min-w-0 flex-1">
-          <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
+          <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('printerFiles.search')} aria-label={t('printerFiles.search')} className={`${inputCls} pl-9!`} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="md"
-            icon={allSelected ? <CheckSquare size={15} className="text-sky-500" /> : <Square size={15} />}
+            icon={allSelected ? <CheckSquare size={16} className="text-sky-500" /> : <Square size={16} />}
             disabled={!visible.length}
             onClick={() => setSelected(allSelected ? new Set() : new Set(visible.map((f) => f.name)))}
           >
@@ -210,7 +210,7 @@ export default function PrinterFilesView({ scopeSwitch }: { scopeSwitch: ReactNo
               ))}
             </select>
           </label>
-          <Button size="md" icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />} disabled={pid == null || refreshing} onClick={() => void load(true)}>
+          <Button size="md" icon={<RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />} disabled={pid == null || refreshing} onClick={() => void load(true)}>
             {t('printerFiles.refresh')}
           </Button>
         </div>

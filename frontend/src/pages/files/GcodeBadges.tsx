@@ -27,14 +27,14 @@ export function GcodeBadges({ file }: { file: LibraryFile }) {
     <span className="inline-flex flex-wrap items-center gap-1">
       <span title={t(trusted ? 'library.gcode.slicedHint' : 'library.gcode.uploadedHint')}>
         <Badge tone={trusted ? 'emerald' : 'zinc'}>
-          {trusted ? <BadgeCheck size={11} /> : <FileUp size={11} />}
+          {trusted ? <BadgeCheck size={12} /> : <FileUp size={12} />}
           {t(trusted ? 'library.gcode.sliced' : 'library.gcode.uploaded')}
         </Badge>
       </span>
       {!trusted && scan && !scan.ok && (
         <span title={t('library.gcode.blockedHint', { n: formatNumber(scan.total) })}>
           <Badge tone="red">
-            <ShieldAlert size={11} />
+            <ShieldAlert size={12} />
             {t('library.gcode.blocked')}
           </Badge>
         </span>

@@ -18,7 +18,7 @@ export default function PageBar({
   changed: (page: string) => boolean
 }) {
   return (
-    <div className="flex gap-0.5 overflow-x-auto rounded-lg [scrollbar-width:none]" role="tablist">
+    <div className="relative flex gap-0.5 overflow-x-auto rounded-lg [scrollbar-width:none]" role="tablist">
       {pages.map((p) => {
         const Icon = PAGE_ICONS[p] ?? Ellipsis
         const on = p === active

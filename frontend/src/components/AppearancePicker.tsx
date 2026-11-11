@@ -27,10 +27,10 @@ export function ModePicker({
         value={value}
         onChange={onChange}
         options={[
-          ...(defaultValue ? [{ value: 'default' as const, label: t('appearance.default'), icon: <RotateCcw size={13} /> }] : []),
-          { value: 'system', label: t('theme.system'), icon: <Laptop size={13} /> },
-          { value: 'light', label: t('theme.light'), icon: <Sun size={13} /> },
-          { value: 'dark', label: t('theme.dark'), icon: <Moon size={13} /> },
+          ...(defaultValue ? [{ value: 'default' as const, label: t('appearance.default'), icon: <RotateCcw size={14} /> }] : []),
+          { value: 'system', label: t('theme.system'), icon: <Laptop size={14} /> },
+          { value: 'light', label: t('theme.light'), icon: <Sun size={14} /> },
+          { value: 'dark', label: t('theme.dark'), icon: <Moon size={14} /> },
         ]}
       />
       {defaultValue && value === 'default' && (

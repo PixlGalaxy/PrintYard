@@ -221,7 +221,7 @@ function ObjectList({ onSettings, onImport, onLibrary }: { onSettings: (objectId
                   <p className="mt-0.5 text-[11px] leading-snug text-muted">{t('workspace.empty.body')}</p>
                   <div className="mt-2.5 flex flex-col gap-1.5">
                     <button type="button" onClick={onImport} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent-600 px-3 text-xs font-medium text-white hover:bg-accent-500">
-                      <Upload size={13} />
+                      <Upload size={14} />
                       {t('workspace.empty.browse')}
                     </button>
                     <button type="button" onClick={onLibrary} className="inline-flex h-8 items-center justify-center rounded-lg border border-line bg-surface px-3 text-xs font-medium hover:bg-surface-2">
@@ -300,7 +300,7 @@ function PendingImportRow({ temp, info }: { temp: number; info: UploadInfo }) {
             title={t('common.retry')}
             className="inline-flex size-6 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-fg"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={14} />
           </button>
         )}
         <button
@@ -310,7 +310,7 @@ function PendingImportRow({ temp, info }: { temp: number; info: UploadInfo }) {
           title={failed ? t('upload.remove') : t('common.cancel')}
           className="inline-flex size-6 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-red-500"
         >
-          <X size={13} />
+          <X size={14} />
         </button>
       </div>
       {!failed && (
@@ -439,7 +439,7 @@ function ObjectRow({
           onClick={() => workspace.toggleHidden(obj.id)}
           className="inline-flex size-6 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-fg"
         >
-          {hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+          {hidden ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
         <button
           type="button"

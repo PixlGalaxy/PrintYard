@@ -1,4 +1,4 @@
-import { Focus, Home, PanelLeftOpen, PanelRightOpen, Upload, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { Focus, Home, Library, PanelLeftOpen, PanelRightOpen, Upload, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../../api'
@@ -32,6 +32,7 @@ import { Tip } from './bits'
 import { floatCls } from './styles'
 import LeftPanel from './LeftPanel'
 import LibraryModal from './LibraryModal'
+import NudgePad from './NudgePad'
 import ObjectInfo from './ObjectInfo'
 import PlateStrip from './PlateStrip'
 import { useProjectActions } from './useProjectActions'
@@ -64,6 +65,7 @@ export default function PrepareTab({ active }: { active: boolean }) {
 
   const doc = useWs((s) => s.doc)
   const selection = useWs((s) => s.selection)
+  const importing = useWs((s) => Object.keys(s.uploads).length > 0)
   const { bundle, error: bundleError, retry } = useBundle(doc.printerModel, language)
   const machine = usePreset(doc.printerModel, 'machine', doc.machinePresetId || undefined)
   const bed = useMemo(() => bedFromMachine(machine?.values), [machine])
@@ -264,7 +266,7 @@ export default function PrepareTab({ active }: { active: boolean }) {
   const camBtn = 'inline-flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg'
 
   return (
-    <div className="relative flex h-full min-h-0" {...dropHandlers}>
+    <div className="relative flex h-full min-h-0 overflow-hidden" {...dropHandlers}>
       <input
         ref={fileInput}
         type="file"
@@ -299,48 +301,48 @@ export default function PrepareTab({ active }: { active: boolean }) {
       <div className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_50%_35%,var(--surface)_0%,var(--bg)_75%)]">
         <ViewportView bed={bed} cube={cube} />
 
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start gap-2 p-3">
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start gap-2 p-3 max-sm:p-2">
           <div className="pointer-events-auto flex flex-col gap-2">
             <button type="button" onClick={() => setDrawer('left')} className={`${floatCls} inline-flex size-9 items-center justify-center text-muted hover:text-fg xl:hidden`} aria-label={t('workspace.panels.left')}>
-              <PanelLeftOpen size={17} />
+              <PanelLeftOpen size={18} />
             </button>
           </div>
-          <div className="pointer-events-auto mx-auto flex min-w-0 flex-col items-center gap-2">
+          <div className="pointer-events-auto mx-auto flex min-w-0 flex-col items-center gap-2 max-sm:order-first max-sm:w-full">
             <Toolbar onImport={() => fileInput.current?.click()} onLibrary={() => setUi({ library: 'model' })} onOriented={onOriented} />
           </div>
-          <div className="pointer-events-auto flex flex-col items-end gap-2">
+          <div className="pointer-events-auto flex flex-col items-end gap-2 max-sm:ml-auto">
             <div className="flex items-start gap-2">
               <button type="button" onClick={() => setDrawer('right')} className={`${floatCls} inline-flex size-9 items-center justify-center text-muted hover:text-fg lg:hidden`} aria-label={t('workspace.panels.right')}>
-                <PanelRightOpen size={17} />
+                <PanelRightOpen size={18} />
               </button>
               <ViewCube ref={cube} camera={() => env.viewport} />
             </div>
             <div className={`${floatCls} flex flex-col gap-0.5 p-1`}>
               <Tip label={t('workspace.view.iso')} hotkey="0" side="left">
                 <button type="button" className={camBtn} aria-label={t('workspace.view.iso')} onClick={() => env.viewport?.setView('iso', true, 'plate')}>
-                  <Home size={15} />
+                  <Home size={16} />
                 </button>
               </Tip>
               <Tip label={t('workspace.view.fit')} hotkey="Z" side="left">
                 <button type="button" className={camBtn} aria-label={t('workspace.view.fit')} onClick={() => env.viewport?.zoomToFit(selection.length ? 'selection' : 'all')}>
-                  <Focus size={15} />
+                  <Focus size={16} />
                 </button>
               </Tip>
               <Tip label={t('workspace.view.zoomIn')} side="left">
                 <button type="button" className={camBtn} aria-label={t('workspace.view.zoomIn')} onClick={() => env.viewport?.zoomBy(0.75)}>
-                  <ZoomIn size={15} />
+                  <ZoomIn size={16} />
                 </button>
               </Tip>
               <Tip label={t('workspace.view.zoomOut')} side="left">
                 <button type="button" className={camBtn} aria-label={t('workspace.view.zoomOut')} onClick={() => env.viewport?.zoomBy(1.33)}>
-                  <ZoomOut size={15} />
+                  <ZoomOut size={16} />
                 </button>
               </Tip>
             </div>
           </div>
         </div>
 
-        <div className="absolute top-[68px] left-3 z-10">
+        <div className="absolute top-[68px] left-3 z-10 max-sm:top-[100px] max-sm:right-2 max-sm:left-2">
           <TransformPanel />
         </div>
 
@@ -354,11 +356,44 @@ export default function PrepareTab({ active }: { active: boolean }) {
           </div>
         )}
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-3">
+        {!doc.objects.length && !importing && !dragging && (
+          <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center p-6 xl:hidden">
+            <div className={`${floatCls} pointer-events-auto w-full max-w-72 p-5 text-center animate-[pop-in_.18s_ease-out]`}>
+              <span className="mx-auto mb-3 flex size-11 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500">
+                <Upload size={20} />
+              </span>
+              <p className="text-sm font-semibold">{t('workspace.start.title')}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{t('workspace.start.body')}</p>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInput.current?.click()}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 text-sm font-semibold text-white shadow-sm shadow-accent-600/30 hover:bg-accent-500 active:scale-[0.98]"
+                >
+                  <Upload size={16} />
+                  {t('workspace.empty.browse')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUi({ library: 'model' })}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-sm font-medium hover:bg-surface-2 active:scale-[0.98]"
+                >
+                  <Library size={16} />
+                  {t('workspace.empty.library')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-2 max-sm:p-2">
           <div className="pointer-events-auto hidden sm:block">
             <ObjectInfo />
           </div>
-          <div className="pointer-events-auto mx-auto min-w-0">
+          <div className="pointer-events-auto self-start sm:hidden">
+            <NudgePad />
+          </div>
+          <div className="pointer-events-auto mx-auto min-w-0 max-sm:max-w-full">
             <PlateStrip />
           </div>
           <div className="pointer-events-auto mb-[var(--sd-tray-h,0px)] transition-[margin] duration-200">

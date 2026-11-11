@@ -61,7 +61,7 @@ export default function Header({ user }: { user: User }) {
           <nav aria-label={t('nav.main')} className="flex items-center gap-0.5 sm:gap-1">
             {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
               <NavLink key={to} to={to} end={to === '/'} className={navLinkClass} title={t(label)}>
-                <Icon size={21} aria-hidden />
+                <Icon size={20} aria-hidden />
                 <span className="hidden sm:inline">{t(label)}</span>
               </NavLink>
             ))}
@@ -72,14 +72,20 @@ export default function Header({ user }: { user: User }) {
                 title={pending ? `${t('nav.admin')} · ${t('nav.pendingApprovals', { n: pending })}` : t('nav.admin')}
               >
                 <span className="relative">
-                  <LayoutDashboard size={21} aria-hidden />
+                  <LayoutDashboard size={20} aria-hidden />
+                  {/* Phones (icon only): counter on the icon's corner. Wider: a pill after the label, never over the icon */}
                   {pending > 0 && (
-                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] leading-none font-bold text-white ring-2 ring-surface">
+                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] leading-none font-bold text-white ring-2 ring-surface sm:hidden">
                       {pending > 9 ? '9+' : pending}
                     </span>
                   )}
                 </span>
                 <span className="hidden sm:inline">{t('nav.admin')}</span>
+                {pending > 0 && (
+                  <span aria-hidden className="hidden h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] leading-none font-bold text-white tabular-nums sm:inline-flex">
+                    {pending > 9 ? '9+' : pending}
+                  </span>
+                )}
                 {pending > 0 && <span className="sr-only">{t('nav.pendingApprovals', { n: pending })}</span>}
               </NavLink>
             )}
@@ -91,7 +97,7 @@ export default function Header({ user }: { user: User }) {
 
       {readOnly && (
         <div role="status" className="flex items-center justify-center gap-2 border-t border-amber-500/30 bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200">
-          <Lock size={13} className="shrink-0" />
+          <Lock size={14} className="shrink-0" />
           {t('readOnly.banner')}
         </div>
       )}

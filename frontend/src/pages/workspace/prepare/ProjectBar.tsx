@@ -61,18 +61,19 @@ export default function ProjectBar() {
           <Keyboard size={16} />
         </button>
       </Tip>
-      <span className="mx-1 h-5 w-px bg-line" />
-      <Tip label={t('workspace.project.new')}>
+      {/* Phones keep undo/redo only: the draft is kept in the browser, project files are a desktop task */}
+      <span className="mx-1 h-5 w-px bg-line max-sm:hidden" />
+      <Tip label={t('workspace.project.new')} className="max-sm:hidden">
         <button type="button" aria-label={t('workspace.project.new')} onClick={() => (doc.objects.length && dirty ? setUi({ newConfirm: true }) : newProject())} className="inline-flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
           <FilePlus size={16} />
         </button>
       </Tip>
-      <Tip label={t('workspace.project.open')} hotkey={`${MOD}+O`}>
+      <Tip label={t('workspace.project.open')} hotkey={`${MOD}+O`} className="max-sm:hidden">
         <button type="button" aria-label={t('workspace.project.open')} onClick={() => setUi({ library: 'project' })} className="inline-flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
           <FolderOpen size={16} />
         </button>
       </Tip>
-      <Tip label={pending ? t('workspace.project.waitUploads') : t('workspace.project.download')}>
+      <Tip label={pending ? t('workspace.project.waitUploads') : t('workspace.project.download')} className="max-sm:hidden">
         <button
           type="button"
           aria-label={t('workspace.project.download')}
@@ -83,7 +84,7 @@ export default function ProjectBar() {
           <Download size={16} />
         </button>
       </Tip>
-      <Tip label={pending ? t('workspace.project.waitUploads') : t('workspace.project.save')} hotkey={`${MOD}+S`}>
+      <Tip label={pending ? t('workspace.project.waitUploads') : t('workspace.project.save')} hotkey={`${MOD}+S`} className="max-sm:hidden">
         <Button size="sm" variant={dirty ? 'primary' : 'secondary'} icon={<Save size={14} />} loading={busy === 'save'} disabled={pending || !doc.objects.length} onClick={() => void save().catch(() => undefined)}>
           <span className="hidden sm:inline">{t('workspace.project.save')}</span>
         </Button>

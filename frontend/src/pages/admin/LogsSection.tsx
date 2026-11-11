@@ -95,7 +95,7 @@ export default function LogsSection() {
           ))}
         </select>
         <div className="relative w-full sm:w-56">
-          <Search size={13} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
+          <Search size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted" />
           <input
             aria-label={t('logs.search')}
             placeholder={t('logs.search')}

@@ -84,7 +84,7 @@ export default function AuditSection() {
         <Empty icon={<ShieldCheck size={20} />}>{t('audit.empty')}</Empty>
       ) : (
         <>
-          <div className="overflow-x-auto px-4 sm:px-5">
+          <div className="relative overflow-x-auto px-4 sm:px-5">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-line">

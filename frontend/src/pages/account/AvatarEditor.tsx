@@ -91,11 +91,11 @@ export default function AvatarEditor({ user, children }: { user: User; children?
       <div className="min-w-0 flex-1 space-y-2.5">
         {children}
         <div className="flex flex-wrap items-center gap-2">
-          <Button icon={<ImageUp size={15} />} onClick={() => input.current?.click()}>
+          <Button icon={<ImageUp size={16} />} onClick={() => input.current?.click()}>
             {t('avatar.upload')}
           </Button>
           {user.avatarUrl && (
-            <Button variant="ghost" icon={<Trash2 size={15} />} onClick={() => void remove()} loading={removing}>
+            <Button variant="ghost" icon={<Trash2 size={16} />} onClick={() => void remove()} loading={removing}>
               {t('avatar.remove')}
             </Button>
           )}

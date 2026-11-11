@@ -22,7 +22,7 @@ export default function SearchBox({ value, onChange, placeholder }: { value: str
       />
       {value && (
         <button type="button" aria-label={t('common.close')} onClick={() => onChange('')} className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted hover:text-fg">
-          <X size={13} />
+          <X size={14} />
         </button>
       )}
     </label>

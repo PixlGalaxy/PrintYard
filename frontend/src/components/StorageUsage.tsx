@@ -32,7 +32,7 @@ export default function StorageUsage({ refreshKey, compact = false }: { refreshK
   return (
     <div className={compact ? 'space-y-1.5' : 'space-y-1.5 rounded-2xl border border-line bg-surface px-4 py-3 shadow-sm'}>
       <div className="flex items-center gap-2 text-sm">
-        <HardDrive size={15} className="text-accent-500" />
+        <HardDrive size={16} className="text-accent-500" />
         <span className="font-medium">{t('storage.title')}</span>
         <span className="ml-auto font-mono text-xs text-muted tabular-nums">{label}</span>
       </div>

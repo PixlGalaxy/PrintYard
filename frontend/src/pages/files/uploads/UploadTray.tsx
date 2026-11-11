@@ -121,11 +121,11 @@ export default function UploadTray() {
         </button>
         {running ? (
           <IconButton label={t('library.upload.cancelAll')} tone="danger" onClick={() => cancel()}>
-            <X size={15} />
+            <X size={16} />
           </IconButton>
         ) : (
           <IconButton label={t('common.close')} onClick={clear}>
-            <X size={15} />
+            <X size={16} />
           </IconButton>
         )}
       </div>

@@ -54,6 +54,7 @@ export function ToolButton({
   children,
   side,
   badge,
+  className,
 }: {
   label: string
   hotkey?: string
@@ -63,9 +64,10 @@ export function ToolButton({
   children: ReactNode
   side?: keyof typeof SIDES
   badge?: ReactNode
+  className?: string
 }) {
   return (
-    <Tip label={label} hotkey={hotkey} side={side}>
+    <Tip label={label} hotkey={hotkey} side={side} className={className}>
       <button
         type="button"
         aria-label={label}

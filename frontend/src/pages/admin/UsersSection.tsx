@@ -51,7 +51,7 @@ export default function UsersSection() {
         ) : users.length === 0 ? (
           <Empty icon={<Users size={20} />}>{t('users.empty')}</Empty>
         ) : (
-          <div className="overflow-x-auto px-4 sm:px-5">
+          <div className="relative overflow-x-auto px-4 sm:px-5">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-line">
@@ -114,13 +114,13 @@ export default function UsersSection() {
                       <td className={`${tdCls} pr-0 text-right`}>
                         <div className="inline-flex items-center">
                           <IconButton label={t('common.edit')} onClick={() => setDialog({ kind: 'edit', user: u })}>
-                            <Pencil size={15} />
+                            <Pencil size={16} />
                           </IconButton>
                           <IconButton label={t('users.editLimits')} onClick={() => setDialog({ kind: 'limits', user: u })}>
-                            <Gauge size={15} />
+                            <Gauge size={16} />
                           </IconButton>
                           <IconButton label={t('users.resetPassword')} tone="warning" onClick={() => setDialog({ kind: 'password', user: u })}>
-                            <KeyRound size={15} />
+                            <KeyRound size={16} />
                           </IconButton>
                           <IconButton
                             label={t('common.delete')}
@@ -129,7 +129,7 @@ export default function UsersSection() {
                             title={self ? t('users.selfNote') : t('common.delete')}
                             onClick={() => setDialog({ kind: 'delete', user: u })}
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={16} />
                           </IconButton>
                         </div>
                       </td>
@@ -212,7 +212,7 @@ function DeleteUserDialog({ user, me, onClose, onDeleted }: { user: AdminUser; m
           name="delete-files"
           checked={files === 'transfer'}
           onChange={() => setFiles('transfer')}
-          icon={<FolderInput size={17} />}
+          icon={<FolderInput size={18} />}
           title={t('users.filesTransfer')}
           description={t('users.filesTransferDesc', { me })}
         />
@@ -220,7 +220,7 @@ function DeleteUserDialog({ user, me, onClose, onDeleted }: { user: AdminUser; m
           name="delete-files"
           checked={files === 'delete'}
           onChange={() => setFiles('delete')}
-          icon={<Trash2 size={17} />}
+          icon={<Trash2 size={18} />}
           title={t('users.filesDelete')}
           description={t('users.filesDeleteDesc')}
         />

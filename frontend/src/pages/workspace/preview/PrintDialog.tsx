@@ -170,9 +170,9 @@ export default function PrintDialog({
     >
       <div className="space-y-4">
         <div className="grid grid-cols-3 gap-2">
-          <Stat icon={<Clock size={15} />} label={t('preview.stat.time')} value={formatDuration(target.seconds)} />
-          <Stat icon={<Scale size={15} />} label={t('preview.stat.filament')} value={target.grams != null ? `${formatNumber(target.grams, { maximumFractionDigits: 1 })} g` : '—'} />
-          <Stat icon={<PackageCheck size={15} />} label={t('preview.stat.cost')} value={cost != null ? money(cost) : '—'} />
+          <Stat icon={<Clock size={16} />} label={t('preview.stat.time')} value={formatDuration(target.seconds)} />
+          <Stat icon={<Scale size={16} />} label={t('preview.stat.filament')} value={target.grams != null ? `${formatNumber(target.grams, { maximumFractionDigits: 1 })} g` : '—'} />
+          <Stat icon={<PackageCheck size={16} />} label={t('preview.stat.cost')} value={cost != null ? money(cost) : '—'} />
         </div>
 
         {busy && target.printerFile && <p className="text-xs text-muted">{t('printerFiles.checking')}</p>}
@@ -298,7 +298,7 @@ export function UsageBlock({ usage, grams, seconds }: { usage: UsageSummary; gra
   return (
     <div className="space-y-3 rounded-xl border border-line p-3.5">
       <p className="flex items-center gap-2 text-sm font-semibold">
-        <ShieldCheck size={15} className="text-sky-500" />
+        <ShieldCheck size={16} className="text-sky-500" />
         {t('prints.yourLimits')}
       </p>
       {l.maxGramsPerMonth != null && (
@@ -320,7 +320,7 @@ export function UsageBlock({ usage, grams, seconds }: { usage: UsageSummary; gra
         {l.maxHoursPerPrint != null && <LimitRow ok={seconds == null || seconds / 3600 <= l.maxHoursPerPrint} label={t('prints.maxHours')} value={`${formatNumber(l.maxHoursPerPrint)} h`} />}
         {l.requiresApproval && (
           <li className="flex items-center gap-1.5 text-muted">
-            <Hourglass size={13} className="text-amber-500" />
+            <Hourglass size={14} className="text-amber-500" />
             {t('prints.needsApproval')}
           </li>
         )}
@@ -332,7 +332,7 @@ export function UsageBlock({ usage, grams, seconds }: { usage: UsageSummary; gra
 function LimitRow({ ok, label, value }: { ok: boolean; label: string; value: string }) {
   return (
     <li className="flex items-center gap-1.5">
-      {ok ? <CircleCheck size={13} className="text-emerald-500" /> : <TriangleAlert size={13} className="text-red-500" />}
+      {ok ? <CircleCheck size={14} className="text-emerald-500" /> : <TriangleAlert size={14} className="text-red-500" />}
       <span className="text-muted">{label}</span>
       <span className="ml-auto font-mono tabular-nums">{value}</span>
     </li>

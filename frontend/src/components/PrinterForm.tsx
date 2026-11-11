@@ -143,7 +143,7 @@ export default function PrinterForm({ value, onChange, models, errors, hostNetwo
           }`}
         >
           <div className="flex items-center gap-2 text-sm font-semibold">
-            {test.result.ok ? <CircleCheck size={17} className="text-emerald-500" /> : <CircleX size={17} className="text-red-500" />}
+            {test.result.ok ? <CircleCheck size={18} className="text-emerald-500" /> : <CircleX size={18} className="text-red-500" />}
             {t(test.result.ok ? 'printer.testOk' : 'printer.testFail')}
           </div>
           {test.result.ok ? (

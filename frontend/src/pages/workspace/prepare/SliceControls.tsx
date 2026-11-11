@@ -85,9 +85,9 @@ export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileI
   const shownProgress = useCreepingProgress(run?.id ?? null, run ? runProgress(run) : 0, !!run && !run.finished && !run.error)
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex flex-col items-end gap-2 max-sm:items-stretch">
       {run && (
-        <div className={`${floatCls} w-80 p-3.5 animate-[pop-in_.18s_ease-out]`} role="status" aria-live="polite">
+        <div className={`${floatCls} w-80 p-3.5 max-sm:w-full animate-[pop-in_.18s_ease-out]`} role="status" aria-live="polite">
           <div className="flex items-center gap-2">
             {run.error || run.plates.some((p) => run.jobs[p]?.state === 'failed') ? (
               <CircleAlert size={16} className="shrink-0 text-red-500" />
@@ -141,7 +141,7 @@ export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileI
                           onClick={() => onOpenPreview(job.result!.fileId)}
                           className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-accent-600 hover:bg-accent-500/10 dark:text-accent-400"
                         >
-                          <Eye size={13} />
+                          <Eye size={14} />
                           {t('slice.preview')}
                         </button>
                       )}
@@ -154,15 +154,15 @@ export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileI
         </div>
       )}
 
-      <div ref={ref} className="relative flex">
+      <div ref={ref} className="relative flex max-sm:w-full">
         <button
           type="button"
           disabled={!!block || busy}
           title={block ? t(block) : undefined}
           onClick={() => start([active])}
-          className="inline-flex h-11 items-center gap-2 rounded-l-2xl bg-accent-600 pr-4 pl-4 text-sm font-semibold text-white shadow-lg shadow-accent-600/30 transition-all hover:bg-accent-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-accent-600/50 disabled:shadow-none"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-l-2xl max-sm:flex-1 bg-accent-600 pr-4 pl-4 text-sm font-semibold text-white shadow-lg shadow-accent-600/30 transition-all hover:bg-accent-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-accent-600/50 disabled:shadow-none"
         >
-          {busy ? <LoaderCircle size={17} className="animate-spin" /> : <Slice size={17} />}
+          {busy ? <LoaderCircle size={18} className="animate-spin" /> : <Slice size={18} />}
           {t('slice.plate', { n: active + 1 })}
         </button>
         <button
@@ -171,25 +171,25 @@ export default function SliceControls({ onOpenPreview }: { onOpenPreview: (fileI
           aria-expanded={open}
           disabled={busy}
           onClick={() => setOpen((o) => !o)}
-          className="inline-flex h-11 w-9 items-center justify-center rounded-r-2xl border-l border-white/20 bg-accent-600 text-white shadow-lg shadow-accent-600/30 hover:bg-accent-500 disabled:bg-accent-600/50 disabled:shadow-none"
+          className="inline-flex h-11 w-10 items-center justify-center rounded-r-2xl border-l border-white/20 bg-accent-600 text-white shadow-lg shadow-accent-600/30 hover:bg-accent-500 disabled:bg-accent-600/50 disabled:shadow-none"
         >
           <ChevronDown size={16} />
         </button>
         {open && (
           <div className={`${menuCls} right-0 bottom-full mb-2 w-60`}>
             <button type="button" className={menuItemCls} disabled={!!block} onClick={() => start([active])}>
-              <Slice size={15} className="text-accent-500" />
+              <Slice size={16} className="text-accent-500" />
               <span className="flex-1">{t('slice.plate', { n: active + 1 })}</span>
             </button>
             <button type="button" className={menuItemCls} disabled={!!allBlock || slicablePlates.length < 1} onClick={() => start(slicablePlates)}>
-              <Slice size={15} className="text-violet-500" />
+              <Slice size={16} className="text-violet-500" />
               <span className="flex-1">{t('slice.all')}</span>
               <span className="text-xs text-muted tabular-nums">{slicablePlates.length}</span>
             </button>
           </div>
         )}
       </div>
-      {block && !run && <p className="max-w-64 text-right text-[11px] text-muted">{t(block)}</p>}
+      {block && !run && <p className="max-w-64 text-right text-[11px] text-muted max-sm:max-w-none max-sm:text-center">{t(block)}</p>}
     </div>
   )
 }

@@ -28,7 +28,8 @@ export default function Legend({
   filamentColors: string[]
 }) {
   const { t, formatNumber } = useI18n()
-  const [open, setOpen] = useState(true)
+  // Starts collapsed on phones, where the expanded list would cover most of the model
+  const [open, setOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 639px)').matches)
   const totalTime = g.featureTime.reduce((a, b) => a + b, 0) || 1
   const present = FEATURES.map((f, i) => ({ f, i })).filter(({ i }) => g.featureCount[i] > 0)
   const tools = Array.from(g.toolMm)
@@ -57,7 +58,7 @@ export default function Legend({
           title={t(open ? 'preview.legendHide' : 'preview.legendShow')}
           className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-sky-500"
         >
-          <ChevronDown size={15} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
+          <ChevronDown size={16} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
         </button>
       </div>
 

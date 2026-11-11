@@ -11,7 +11,7 @@ export default function LanguageSwitcher({ className = '' }: { className?: strin
   return (
     <label className={`relative inline-flex items-center ${className}`}>
       <span className="sr-only">{t('language.label')}</span>
-      <Languages size={15} className="pointer-events-none absolute left-2.5 text-muted" aria-hidden />
+      <Languages size={16} className="pointer-events-none absolute left-2.5 text-muted" aria-hidden />
       <select
         value={language}
         onChange={(e) => {

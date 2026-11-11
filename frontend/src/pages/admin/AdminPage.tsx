@@ -66,7 +66,7 @@ export default function AdminPage() {
                   : 'border-transparent text-muted hover:bg-surface hover:text-fg'
               }`}
             >
-              <Icon size={17} aria-hidden />
+              <Icon size={18} aria-hidden />
               <span className="truncate">{t(label)}</span>
               {key === 'prints' && pending > 0 && (
                 <span className="ml-auto rounded-full bg-amber-500 px-1.5 text-[11px] leading-5 font-semibold text-white">{pending}</span>

@@ -62,7 +62,7 @@ export default function OptionRow({ def, value, base, changed, disabled, proBadg
           on ? 'border-accent-600 bg-accent-600 text-white' : 'border-line bg-surface hover:border-accent-500'
         }`}
       >
-        {on && <Check size={13} strokeWidth={3} />}
+        {on && <Check size={14} strokeWidth={3} />}
       </button>
     )
   } else if (def.type === 'enum' && def.enumValues?.length) {
@@ -154,7 +154,7 @@ export default function OptionRow({ def, value, base, changed, disabled, proBadg
           onClick={() => override.onToggle(!override.active)}
           className={`inline-flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${override.active ? 'border-accent-600 bg-accent-600 text-white' : 'border-line bg-surface hover:border-accent-500'}`}
         >
-          {override.active && <Check size={11} strokeWidth={3} />}
+          {override.active && <Check size={12} strokeWidth={3} />}
         </button>
       )}
       <div className="min-w-0 flex-1">

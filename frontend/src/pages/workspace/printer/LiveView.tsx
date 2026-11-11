@@ -352,9 +352,9 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
         onClick={() => setLegendOpen(!legendOpen)}
         className="flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 font-medium text-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-sky-500"
       >
-        <ListTree size={13} />
+        <ListTree size={14} />
         {t('printerTab.legend')}
-        <ChevronDown size={13} className={`ml-auto transition-transform ${legendOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`ml-auto transition-transform ${legendOpen ? 'rotate-180' : ''}`} />
       </button>
       {legendOpen && (
         <div className="w-48 px-2.5 pb-2">
@@ -385,10 +385,10 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
             <ViewCube ref={cube} camera={() => renderer.current} onHome={() => renderer.current?.setPreset('iso')} />
           </div>
           {g && !finished && (
-            <div className="flex flex-col items-end gap-1 max-sm:flex-row">
-              <ToggleChip on={highlight} onClick={() => setHighlight(!highlight)} icon={<Highlighter size={13} />} label={t('printerTab.live.highlight')} />
-              <ToggleChip on={ghost} onClick={() => setGhost(!ghost)} icon={ghost ? <Eye size={13} /> : <EyeOff size={13} />} label={t('printerTab.live.ghost')} />
-              <ToggleChip on={follow} onClick={() => setFollow(!follow)} icon={<Crosshair size={13} />} label={t('printerTab.live.follow')} />
+            <div className="flex flex-col items-end gap-1">
+              <ToggleChip on={highlight} onClick={() => setHighlight(!highlight)} icon={<Highlighter size={14} />} label={t('printerTab.live.highlight')} />
+              <ToggleChip on={ghost} onClick={() => setGhost(!ghost)} icon={ghost ? <Eye size={14} /> : <EyeOff size={14} />} label={t('printerTab.live.ghost')} />
+              <ToggleChip on={follow} onClick={() => setFollow(!follow)} icon={<Crosshair size={14} />} label={t('printerTab.live.follow')} />
             </div>
           )}
         </div>
@@ -414,7 +414,7 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
                   </span>
                 ) : excludable ? (
                   remaining > 1 ? (
-                    <Button variant="danger" size="xs" icon={<Ban size={13} />} onClick={() => setConfirmObj(sel)}>
+                    <Button variant="danger" size="xs" icon={<Ban size={14} />} onClick={() => setConfirmObj(sel)}>
                       {t('exclude.button', { name: sel.label })}
                     </Button>
                   ) : (
@@ -448,7 +448,7 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
                   }`}
                 >
                   {o.current && !finished && !o.excluded && !pendingEx.has(o.name) && <span className="size-1.5 rounded-full bg-amber-500" aria-label={t('exclude.printingNow')} />}
-                  {pendingEx.has(o.name) && !o.excluded && <LoaderCircle size={11} className="animate-spin" aria-label={t('exclude.pending')} />}
+                  {pendingEx.has(o.name) && !o.excluded && <LoaderCircle size={12} className="animate-spin" aria-label={t('exclude.pending')} />}
                   <span className={o.excluded ? 'line-through' : ''}>{o.label}</span>
                   {o.excluded && <span className="rounded-full bg-surface-2 px-1.5 text-[10px] no-underline">{t('exclude.alreadyExcluded')}</span>}
                   {pendingEx.has(o.name) && !o.excluded && <span className="text-[10px] text-muted">{t('exclude.pending')}</span>}
@@ -542,13 +542,16 @@ function ToggleChip({ on, onClick, icon, label }: { on: boolean; onClick: () => 
     <button
       type="button"
       aria-pressed={on}
+      aria-label={label}
+      title={label}
       onClick={onClick}
-      className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 ${
-        on ? 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'border-line text-muted hover:text-fg'
+      className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium backdrop-blur-md transition-colors max-sm:size-8 max-sm:justify-center max-sm:px-0 focus-visible:outline-2 focus-visible:outline-sky-500 ${
+        on ? 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'border-line bg-surface/80 text-muted hover:text-fg'
       }`}
     >
       {icon}
-      {label}
+      {/* Phones: icon-only chips stacked under each other, so they never slide under the status card */}
+      <span className="max-sm:sr-only">{label}</span>
     </button>
   )
 }

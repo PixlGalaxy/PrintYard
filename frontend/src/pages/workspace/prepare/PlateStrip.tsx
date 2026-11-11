@@ -23,7 +23,7 @@ export default function PlateStrip() {
   return (
     <>
     <div className={`${floatCls} flex max-w-full items-center gap-1 p-1`}>
-      <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:thin]">
+      <div className="relative flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:thin]">
         {doc.plates.map((p, i) => (
           <button
             key={i}
@@ -50,7 +50,7 @@ export default function PlateStrip() {
           onClick={() => arrange('plate')}
           className="inline-flex size-8 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-35"
         >
-          <LayoutGrid size={15} />
+          <LayoutGrid size={16} />
         </button>
       </Tip>
       <Tip label={t('workspace.plate.delete')} side="top">
@@ -61,7 +61,7 @@ export default function PlateStrip() {
           onClick={() => (counts[active] ? setConfirm(active) : removePlate(active))}
           className="inline-flex size-8 items-center justify-center rounded-xl text-muted hover:bg-red-500/10 hover:text-red-500 disabled:opacity-35"
         >
-          <Trash2 size={15} />
+          <Trash2 size={16} />
         </button>
       </Tip>
       <Tip label={t('workspace.tool.addPlate')} side="top">

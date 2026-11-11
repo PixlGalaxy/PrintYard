@@ -48,7 +48,7 @@ export default function FilamentPresetsCard({ admin = false }: { admin?: boolean
       description={admin ? t('filaments.adminDesc') : t('filaments.myDesc')}
       icon={<FlaskConical size={18} />}
       actions={
-        <Button variant="primary" size="xs" icon={<FlaskConical size={13} />} disabled={!bundle} onClick={create}>
+        <Button variant="primary" size="xs" icon={<FlaskConical size={14} />} disabled={!bundle} onClick={create}>
           {t('filaments.createFilament')}
         </Button>
       }
@@ -81,11 +81,11 @@ export default function FilamentPresetsCard({ admin = false }: { admin?: boolean
                   {p.filamentType && <Badge>{p.filamentType}</Badge>}
                   {p.scope === 'shared' ? (
                     <Badge tone="sky">
-                      <Users size={11} /> {t('filaments.shared')}
+                      <Users size={12} /> {t('filaments.shared')}
                     </Badge>
                   ) : (
                     <Badge>
-                      <Lock size={11} /> {t('filaments.private')}
+                      <Lock size={12} /> {t('filaments.private')}
                     </Badge>
                   )}
                   {!p.canEdit && <Badge tone="amber">{t('filaments.readOnly')}</Badge>}

@@ -418,7 +418,7 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
 
         {load.phase === 'idle' && !dragging && (
           <p className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg border border-line bg-surface/85 px-2.5 py-1.5 text-xs text-muted shadow-sm backdrop-blur">
-            <UploadCloud size={13} />
+            <UploadCloud size={14} />
             {t('preview.dropHint')}
           </p>
         )}
@@ -481,10 +481,10 @@ export default function PreviewTab({ fileId: fileIdProp }: { fileId?: number | n
           {parsed && (
             <>
               <div className="grid grid-cols-2 gap-2">
-                <Tile icon={<Timer size={15} />} label={t('preview.stat.time')} value={formatDuration(seconds)} tone="text-sky-500" />
-                <Tile icon={<Layers size={15} />} label={t('preview.stat.layers')} value={formatNumber(parsed.layers)} tone="text-violet-500" />
-                <Tile icon={<Scale size={15} />} label={t('preview.stat.filament')} value={grams != null ? `${formatNumber(grams, { maximumFractionDigits: 1 })} g` : '—'} tone="text-emerald-500" />
-                <Tile icon={<Wallet size={15} />} label={t('preview.stat.cost')} value={cost != null ? money(cost) : '—'} tone="text-amber-500" hint={cost == null ? t('preview.costUnknown') : undefined} />
+                <Tile icon={<Timer size={16} />} label={t('preview.stat.time')} value={formatDuration(seconds)} tone="text-sky-500" />
+                <Tile icon={<Layers size={16} />} label={t('preview.stat.layers')} value={formatNumber(parsed.layers)} tone="text-violet-500" />
+                <Tile icon={<Scale size={16} />} label={t('preview.stat.filament')} value={grams != null ? `${formatNumber(grams, { maximumFractionDigits: 1 })} g` : '—'} tone="text-emerald-500" />
+                <Tile icon={<Wallet size={16} />} label={t('preview.stat.cost')} value={cost != null ? money(cost) : '—'} tone="text-amber-500" hint={cost == null ? t('preview.costUnknown') : undefined} />
               </div>
 
               <div>
@@ -617,7 +617,7 @@ function PickGcode({ onOpen }: { onOpen: (id: number) => void }) {
           className="group flex items-center gap-3 rounded-2xl border border-accent-500/30 bg-accent-500/[0.06] p-4 shadow-lg shadow-black/5 transition-colors hover:border-accent-500/60 hover:bg-accent-500/10"
         >
           <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-500 text-white shadow-sm shadow-accent-500/30">
-            <PrinterModelIcon size={19} kinematics={printer?.kinematics} model={printer?.model} />
+            <PrinterModelIcon size={20} kinematics={printer?.kinematics} model={printer?.model} />
             {status?.state === 'printing' && <span className="absolute -top-0.5 -right-0.5 size-2.5 animate-pulse rounded-full border-2 border-surface bg-emerald-500" />}
           </span>
           <span className="min-w-0 flex-1">

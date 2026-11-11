@@ -93,7 +93,7 @@ export default function TransformPanel() {
   )
 
   return (
-    <div className={`${floatCls} w-[336px] p-3 animate-[pop-in_.15s_ease-out]`}>
+    <div className={`${floatCls} w-[336px] p-3 max-sm:w-auto animate-[pop-in_.15s_ease-out]`}>
       <div className="mb-2.5 flex items-center gap-2">
         <h3 className="min-w-0 flex-1 truncate text-xs font-semibold">{t(`workspace.tool.${tool}`)}</h3>
         <Tip label={t('workspace.transform.resetRotation')}>

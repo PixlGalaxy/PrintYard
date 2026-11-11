@@ -173,7 +173,7 @@ export default function FilamentSettings({ bundle, slot, preset: custom, onClose
         <span className="flex items-center justify-end gap-1">
           {mod && (
             <button type="button" aria-label={t('workspace.process.reset')} title={t('workspace.process.reset')} onClick={() => setValue(key, undefined)} className="inline-flex size-5 items-center justify-center rounded text-accent-500 hover:bg-accent-500/10">
-              <RotateCcw size={11} />
+              <RotateCcw size={12} />
             </button>
           )}
           <input

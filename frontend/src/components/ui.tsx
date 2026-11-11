@@ -299,14 +299,17 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  compactOnPhone = false,
 }: {
   value: T
   options: { value: T; label: string; icon?: ReactNode }[]
   onChange: (value: T) => void
   label: string
+  /** Phones: options with an icon show only the icon unless selected (for 3+ long options). */
+  compactOnPhone?: boolean
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5">
+    <div role="radiogroup" aria-label={label} className={`relative inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-surface-2 p-0.5 [scrollbar-width:none] ${compactOnPhone ? 'max-sm:flex max-sm:w-full' : ''}`}>
       {options.map((o) => {
         const active = o.value === value
         return (
@@ -315,13 +318,14 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
+            title={o.label || undefined}
             onClick={() => onChange(o.value)}
-            className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent-500 ${
+            className={`inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors max-sm:h-8 ${compactOnPhone ? 'max-sm:flex-1' : ''} focus-visible:outline-2 focus-visible:outline-accent-500 ${
               active ? 'bg-surface text-fg shadow-xs' : 'text-muted hover:text-fg'
             }`}
           >
             {o.icon}
-            {o.label}
+            {o.label && <span className={compactOnPhone && o.icon && !active ? 'max-sm:sr-only' : undefined}>{o.label}</span>}
           </button>
         )
       })}

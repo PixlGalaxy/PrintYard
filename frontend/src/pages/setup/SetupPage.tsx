@@ -441,16 +441,16 @@ function Wizard({ status, models }: { status: SetupStatus; models: PrinterModelI
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-line bg-surface-2/50 px-4 py-3 sm:px-6">
-          <Button size="md" variant="ghost" icon={<ArrowLeft size={15} />} disabled={step === 0 || finishing} onClick={() => goTo(step - 1)}>
+          <Button size="md" variant="ghost" icon={<ArrowLeft size={16} />} disabled={step === 0 || finishing} onClick={() => goTo(step - 1)}>
             {t('common.back')}
           </Button>
           {step < STEPS.length - 1 ? (
             <Button type="submit" size="md" variant="primary">
               {t('common.next')}
-              <ArrowRight size={15} />
+              <ArrowRight size={16} />
             </Button>
           ) : (
-            <Button type="submit" size="md" variant="primary" icon={<Rocket size={15} />} loading={finishing}>
+            <Button type="submit" size="md" variant="primary" icon={<Rocket size={16} />} loading={finishing}>
               {finishing ? t('setup.finishing') : t('setup.finish')}
             </Button>
           )}

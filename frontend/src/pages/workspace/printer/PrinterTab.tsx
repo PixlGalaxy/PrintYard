@@ -304,7 +304,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
               : t('printerTab.bedOccupiedSince', { when: timeAgo(t, status.bedOccupiedSince) })
           }
         >
-          <TriangleAlert size={13} className="shrink-0 text-amber-600 dark:text-amber-400" />
+          <TriangleAlert size={14} className="shrink-0 text-amber-600 dark:text-amber-400" />
           <span className="font-semibold text-amber-900 dark:text-amber-100">{t('printerTab.bedOccupied')}</span>
           <span title={readOnly ? t('readOnly.tooltip') : undefined} className={readOnly ? 'cursor-not-allowed' : ''}>
             <button
@@ -321,13 +321,13 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
       )}
       {!status.online && (
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-surface/90 px-2.5 py-1 text-xs shadow-md backdrop-blur-md" title={t('printerTab.offlineDesc', { host: printer.host })}>
-          <WifiOff size={13} className="text-muted" />
+          <WifiOff size={14} className="text-muted" />
           <span className="font-medium">{t('printerTab.offlineTitle')}</span>
         </div>
       )}
       {socket !== 'open' && (
         <Badge tone="amber">
-          <LoaderCircle size={11} className="animate-spin" /> {t('printerTab.reconnecting')}
+          <LoaderCircle size={12} className="animate-spin" /> {t('printerTab.reconnecting')}
         </Badge>
       )}
     </>
@@ -353,31 +353,31 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {prePrint && phaseText ? (
-          <Chip icon={<LoaderCircle size={13} className="animate-spin text-amber-500" />} label={t('printerTab.phase.label')} value={phaseText} />
+          <Chip icon={<LoaderCircle size={14} className="animate-spin text-amber-500" />} label={t('printerTab.phase.label')} value={phaseText} />
         ) : (
-          <Chip icon={<Clock size={13} className="text-sky-500" />} label={t(lastJob ? 'printerTab.totalTime' : 'printerTab.elapsed')} value={formatDuration(lastJob ? lastJob.elapsedSec : status.elapsedSec)} />
+          <Chip icon={<Clock size={14} className="text-sky-500" />} label={t(lastJob ? 'printerTab.totalTime' : 'printerTab.elapsed')} value={formatDuration(lastJob ? lastJob.elapsedSec : status.elapsedSec)} />
         )}
-        <Chip icon={<Hourglass size={13} className="text-sky-500" />} label={t('printerTab.remaining')} value={active ? remainingText : lastJob ? formatDuration(0) : '—'} />
+        <Chip icon={<Hourglass size={14} className="text-sky-500" />} label={t('printerTab.remaining')} value={active ? remainingText : lastJob ? formatDuration(0) : '—'} />
         {lastJob ? (
-          <Chip icon={<CircleCheck size={13} className="text-emerald-500" />} label={t('printerTab.finishedAt')} value={hhmm(lastJob.endedAt)} />
+          <Chip icon={<CircleCheck size={14} className="text-emerald-500" />} label={t('printerTab.finishedAt')} value={hhmm(lastJob.endedAt)} />
         ) : (
-          <Chip icon={<CircleCheck size={13} className="text-emerald-500" />} label={t('printerTab.eta')} value={eta ? `${approx}${hhmm(eta)}` : '—'} />
+          <Chip icon={<CircleCheck size={14} className="text-emerald-500" />} label={t('printerTab.eta')} value={eta ? `${approx}${hhmm(eta)}` : '—'} />
         )}
         <span className="mx-0.5 h-6 w-px bg-line max-sm:hidden" aria-hidden />
         <Chip
-          icon={<NozzleIcon size={13} />}
+          icon={<NozzleIcon size={14} />}
           label={t('printerTab.nozzle')}
           value={tempText(status.nozzleTemp, status.nozzleTarget, formatNumber)}
           title={t('printerTab.strip.nozzleTitle', { value: degrees(status.nozzleTemp, formatNumber), target: status.nozzleTarget ? `${status.nozzleTarget} °C` : t('printerTab.off') })}
         />
         <Chip
-          icon={<BedIcon size={13} />}
+          icon={<BedIcon size={14} />}
           label={t('printerTab.bed')}
           value={tempText(status.bedTemp, status.bedTarget, formatNumber)}
           title={t('printerTab.strip.bedTitle', { value: degrees(status.bedTemp, formatNumber), target: status.bedTarget ? `${status.bedTarget} °C` : t('printerTab.off') })}
         />
         <Chip
-          icon={<Fan size={13} className={status.fanPart ? 'animate-spin text-sky-500 [animation-duration:2s]' : 'text-muted'} />}
+          icon={<Fan size={14} className={status.fanPart ? 'animate-spin text-sky-500 [animation-duration:2s]' : 'text-muted'} />}
           label={t('printerTab.strip.fan')}
           value={status.fanPart != null ? `${status.fanPart}%` : '—'}
         />
@@ -387,17 +387,17 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
         {status.errorCode ? <Badge tone="red">{t('printerTab.errorCode', { code: status.errorCode })}</Badge> : null}
         <span title={commandReason} className={commandReason ? 'cursor-not-allowed' : ''}>
           {status.state === 'paused' ? (
-            <Button variant="primary" icon={<CirclePlay size={15} />} disabled={!canCommand || busy} onClick={() => setConfirm('resume')}>
+            <Button variant="primary" icon={<CirclePlay size={16} />} disabled={!canCommand || busy} onClick={() => setConfirm('resume')}>
               {t('printerTab.resume')}
             </Button>
           ) : (
-            <Button icon={<CirclePause size={15} />} disabled={!canCommand || busy || status.state !== 'printing'} onClick={() => setConfirm('pause')}>
+            <Button icon={<CirclePause size={16} />} disabled={!canCommand || busy || status.state !== 'printing'} onClick={() => setConfirm('pause')}>
               {t('printerTab.pause')}
             </Button>
           )}
         </span>
         <span title={commandReason} className={commandReason ? 'cursor-not-allowed' : ''}>
-          <Button variant="danger" icon={<Ban size={15} />} disabled={!canCommand || busy || !['printing', 'paused', 'pausing', 'resuming'].includes(status.state)} onClick={() => setConfirm('cancel')}>
+          <Button variant="danger" icon={<Ban size={16} />} disabled={!canCommand || busy || !['printing', 'paused', 'pausing', 'resuming'].includes(status.state)} onClick={() => setConfirm('cancel')}>
             {t('printerTab.cancel')}
           </Button>
         </span>
@@ -416,8 +416,8 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
         <Segmented label={t('tempChart.window')} value={win} onChange={setWin} options={WINDOWS.map((m) => ({ value: m, label: `${m} min` }))} />
       </div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <TempTile label={t('printerTab.nozzle')} value={status.nozzleTemp} target={status.nozzleTarget} icon={<NozzleIcon size={15} />} />
-        <TempTile label={t('printerTab.bed')} value={status.bedTemp} target={status.bedTarget} icon={<BedIcon size={15} />} />
+        <TempTile label={t('printerTab.nozzle')} value={status.nozzleTemp} target={status.nozzleTarget} icon={<NozzleIcon size={16} />} />
+        <TempTile label={t('printerTab.bed')} value={status.bedTemp} target={status.bedTarget} icon={<BedIcon size={16} />} />
       </div>
       <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
         <span className="flex items-center gap-1.5">
@@ -448,7 +448,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
   const recent = (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
       <h3 className="flex items-center gap-2 border-b border-line px-4 py-3 font-semibold">
-        <History size={17} className="text-sky-500" /> {t('printerTab.recent')}
+        <History size={18} className="text-sky-500" /> {t('printerTab.recent')}
       </h3>
       {prints.length === 0 ? (
         <Empty>{t('printerTab.noPrints')}</Empty>
@@ -521,7 +521,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
               aria-controls="printer-tabpanel"
               title={t(`printerTab.tabs.${k}`)}
               onClick={() => setTab(k)}
-              className={`inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 ${
+              className={`inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-lg px-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 @max-[27rem]:px-1 @max-[27rem]:text-[11px] ${
                 activeTab === k ? 'bg-surface text-fg shadow-xs' : 'text-muted hover:text-fg'
               }`}
             >

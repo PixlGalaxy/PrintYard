@@ -516,16 +516,16 @@ const ViewCube = forwardRef<ViewCubeHandle, Props>(function ViewCube({ camera, o
       {aligned === 'pole' && (
         <>
           <button type="button" className={`${arrowCls} top-0 left-0`} aria-label={t('viewCube.rollCcw')} title={t('viewCube.rollCcw')} onClick={() => step('ccw')}>
-            <RotateCcw size={13} strokeWidth={2.25} />
+            <RotateCcw size={14} strokeWidth={2.25} />
           </button>
           <button type="button" className={`${arrowCls} top-0 right-0`} aria-label={t('viewCube.rollCw')} title={t('viewCube.rollCw')} onClick={() => step('cw')}>
-            <RotateCw size={13} strokeWidth={2.25} />
+            <RotateCw size={14} strokeWidth={2.25} />
           </button>
         </>
       )}
       {onHome && (
         <button type="button" className={`${cornerCls} bottom-0 left-0`} aria-label={t('viewCube.home')} title={t('viewCube.home')} onClick={onHome}>
-          <House size={13} strokeWidth={2.25} />
+          <House size={14} strokeWidth={2.25} />
         </button>
       )}
       <button

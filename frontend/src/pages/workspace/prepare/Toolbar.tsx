@@ -35,42 +35,43 @@ export default function Toolbar({
   const hasSel = useWs((s) => s.selection.length > 0)
   const hasObjects = useWs((s) => s.doc.objects.length > 0)
 
-  const tools: { id: Tool; icon: typeof Move; label: string; key: string }[] = [
+  // Phones get the core tools only (one row); lay-on-face, duplicate and mirror stay on tablet/desktop
+  const tools: { id: Tool; icon: typeof Move; label: string; key: string; phone?: false }[] = [
     { id: 'select', icon: MousePointer2, label: t('workspace.tool.select'), key: 'Q' },
     { id: 'move', icon: Move, label: t('workspace.tool.move'), key: 'T' },
     { id: 'rotate', icon: Rotate3d, label: t('workspace.tool.rotate'), key: 'R' },
     { id: 'scale', icon: Scaling, label: t('workspace.tool.scale'), key: 'S' },
-    { id: 'layFace', icon: ArrowDownToLine, label: t('workspace.tool.layFace'), key: 'F' },
+    { id: 'layFace', icon: ArrowDownToLine, label: t('workspace.tool.layFace'), key: 'F', phone: false },
   ]
 
   return (
     <div className={`${floatCls} flex max-w-full flex-wrap items-center justify-center gap-0.5 p-1`} role="toolbar" aria-label={t('workspace.toolbar')}>
       <ToolButton label={t('workspace.tool.import')} hotkey={`${MOD}+I`} onClick={onImport}>
-        <FilePlus2 size={17} />
+        <FilePlus2 size={18} />
       </ToolButton>
       <ToolButton label={t('workspace.tool.library')} onClick={onLibrary}>
-        <Library size={17} />
+        <Library size={18} />
       </ToolButton>
       <Divider />
-      {tools.map(({ id, icon: Icon, label, key }) => (
-        <ToolButton key={id} label={label} hotkey={key} active={tool === id} onClick={() => workspace.setTool(tool === id && id !== 'select' ? 'select' : id)}>
-          <Icon size={17} />
+      {tools.map(({ id, icon: Icon, label, key, phone }) => (
+        <ToolButton key={id} label={label} hotkey={key} active={tool === id} className={phone === false ? 'max-sm:hidden' : ''} onClick={() => workspace.setTool(tool === id && id !== 'select' ? 'select' : id)}>
+          <Icon size={18} />
         </ToolButton>
       ))}
       <Divider />
       <ToolButton label={t('workspace.tool.orient')} hotkey="O" disabled={!hasObjects} onClick={() => onOriented(autoOrient())}>
-        <Compass size={17} />
+        <Compass size={18} />
       </ToolButton>
       <ArrangeButton disabled={!hasObjects} />
       <ToolButton label={t('workspace.tool.center')} hotkey="C" disabled={!hasSel} onClick={centerSelected}>
-        <Crosshair size={17} />
+        <Crosshair size={18} />
       </ToolButton>
-      <ToolButton label={t('workspace.tool.duplicate')} hotkey={`${MOD}+D`} disabled={!hasSel} onClick={duplicateSelected}>
-        <Copy size={17} />
+      <ToolButton label={t('workspace.tool.duplicate')} hotkey={`${MOD}+D`} disabled={!hasSel} className="max-sm:hidden" onClick={duplicateSelected}>
+        <Copy size={18} />
       </ToolButton>
       <MirrorButton disabled={!hasSel} />
       <ToolButton label={t('workspace.tool.delete')} hotkey="Del" disabled={!hasSel} onClick={deleteSelected}>
-        <Trash2 size={17} />
+        <Trash2 size={18} />
       </ToolButton>
     </div>
   )
@@ -85,7 +86,7 @@ function ArrangeButton({ disabled }: { disabled: boolean }) {
   return (
     <div ref={ref} className="relative flex items-center">
       <ToolButton label={t('workspace.tool.arrange')} hotkey="A" disabled={disabled} onClick={() => arrange('all')}>
-        <LayoutGrid size={17} />
+        <LayoutGrid size={18} />
       </ToolButton>
       <button
         type="button"
@@ -93,18 +94,18 @@ function ArrangeButton({ disabled }: { disabled: boolean }) {
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className="-ml-1 inline-flex h-8 w-3.5 items-center justify-center rounded-md text-muted hover:text-fg disabled:opacity-35"
+        className="-ml-1 inline-flex h-8 w-3.5 items-center justify-center rounded-md text-muted hover:text-fg disabled:opacity-35 max-sm:hidden"
       >
         <ChevronDown size={12} />
       </button>
       {open && (
         <div className={`${menuCls} top-full left-0 mt-2 w-60`}>
           <button type="button" className={menuItemCls} onClick={() => (arrange('all'), setOpen(false))}>
-            <LayoutGrid size={15} className="text-accent-500" />
+            <LayoutGrid size={16} className="text-accent-500" />
             {t('workspace.arrange.all')}
           </button>
           <button type="button" className={menuItemCls} onClick={() => (arrange('plate'), setOpen(false))}>
-            <LayoutGrid size={15} className="text-muted" />
+            <LayoutGrid size={16} className="text-muted" />
             {t('workspace.arrange.plate')}
           </button>
           <label className="mt-1 flex items-center justify-between gap-3 border-t border-line px-2.5 pt-2.5 pb-1 text-xs text-muted">
@@ -143,9 +144,9 @@ function MirrorButton({ disabled }: { disabled: boolean }) {
     ['z', 'text-accent-500'],
   ] as const
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative max-sm:hidden">
       <ToolButton label={t('workspace.tool.mirror')} disabled={disabled} active={open} onClick={() => setOpen((o) => !o)}>
-        <FlipHorizontal2 size={17} />
+        <FlipHorizontal2 size={18} />
       </ToolButton>
       {open && (
         <div className={`${menuCls} top-full left-1/2 mt-2 -translate-x-1/2`}>

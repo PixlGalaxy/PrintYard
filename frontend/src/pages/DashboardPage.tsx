@@ -82,7 +82,7 @@ function PrinterCard({ printer }: { printer: Printer }) {
         </p>
         {/* Placeholder for live status (Phase 2) */}
         <div className="mt-auto flex items-center gap-2.5 rounded-xl border border-dashed border-line bg-surface-2/60 px-3.5 py-3 text-xs text-muted">
-          <Activity size={15} className="shrink-0 text-sky-500" />
+          <Activity size={16} className="shrink-0 text-sky-500" />
           {t('printer.liveSoon')}
         </div>
       </div>

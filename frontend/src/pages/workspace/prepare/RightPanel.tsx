@@ -163,7 +163,7 @@ function ProcessSection({
             onClick={() => setScopeObject(null)}
             className={`inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md font-medium transition-colors ${scope === 'global' ? 'bg-surface text-fg shadow-xs' : 'text-muted hover:text-fg'}`}
           >
-            <Globe size={13} />
+            <Globe size={14} />
             {t('workspace.process.global')}
           </button>
           <button
@@ -175,7 +175,7 @@ function ProcessSection({
             onClick={() => singleSel && setScopeObject(singleSel.id)}
             className={`inline-flex h-7 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 font-medium transition-colors disabled:opacity-45 ${scope === 'object' ? 'bg-violet-500 text-white shadow-xs' : 'text-muted hover:text-fg'}`}
           >
-            <Box size={13} className="shrink-0" />
+            <Box size={14} className="shrink-0" />
             <span className="truncate">{obj ? obj.name : t('workspace.process.object')}</span>
           </button>
         </div>
@@ -328,11 +328,11 @@ function Stepper({ value, min, max, onChange, label }: { value: number; min: num
   return (
     <div className="flex h-8 items-center rounded-lg border border-line bg-surface" role="group" aria-label={label}>
       <button type="button" aria-label="−" disabled={value <= min} onClick={() => onChange(value - 1)} className="inline-flex h-full w-8 items-center justify-center text-muted hover:text-fg disabled:opacity-30">
-        <Minus size={13} />
+        <Minus size={14} />
       </button>
       <span className="flex-1 text-center font-mono text-xs tabular-nums">{value}</span>
       <button type="button" aria-label="+" disabled={value >= max} onClick={() => onChange(value + 1)} className="inline-flex h-full w-8 items-center justify-center text-muted hover:text-fg disabled:opacity-30">
-        <Plus size={13} />
+        <Plus size={14} />
       </button>
     </div>
   )

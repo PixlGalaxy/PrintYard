@@ -26,7 +26,7 @@ export function PrinterUploadCard({ entry: e }: { entry: PrintUploadEntry }) {
   return (
     <div data-printer-upload={e.printId} className="rounded-xl border border-sky-500/30 bg-sky-500/[0.06] px-3.5 py-3">
       <p className="flex min-w-0 items-center gap-2 text-sm font-medium">
-        {starting ? <LoaderCircle size={15} className="shrink-0 animate-spin text-sky-500" /> : <Send size={15} className="shrink-0 text-sky-500" />}
+        {starting ? <LoaderCircle size={16} className="shrink-0 animate-spin text-sky-500" /> : <Send size={16} className="shrink-0 text-sky-500" />}
         <span className="truncate" title={label}>
           {label}
         </span>

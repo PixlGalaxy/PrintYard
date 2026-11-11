@@ -189,7 +189,7 @@ export default function FilamentPanel({ bundle }: { bundle: ProfileBundle | null
               onClick={() => void syncFromCfs()}
               className="inline-flex h-7 items-center gap-1 rounded-lg px-1.5 text-[11px] font-medium text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-40"
             >
-              <RefreshCw size={13} />
+              <RefreshCw size={14} />
               CFS
             </button>
           </Tip>
@@ -212,7 +212,7 @@ export default function FilamentPanel({ bundle }: { bundle: ProfileBundle | null
               onClick={add}
               className="inline-flex size-7 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg disabled:opacity-40"
             >
-              <Plus size={15} />
+              <Plus size={16} />
             </button>
           </Tip>
         </div>
@@ -459,7 +459,7 @@ function PresetPicker({
             <span className="sr-only">{t('workspace.filament.fromPrinter')}</span>
           </span>
         )}
-        <ChevronDown size={13} className="shrink-0 text-muted" />
+        <ChevronDown size={14} className="shrink-0 text-muted" />
       </button>
       {open && pos && (
         <div
@@ -473,7 +473,7 @@ function PresetPicker({
           {inPrinter.length > 0 && (
             <div role="group" aria-label={t('workspace.filament.inPrinter')}>
               <p className="flex items-center gap-1.5 px-2.5 pt-1 pb-1 text-[10px] font-semibold tracking-wide text-muted uppercase">
-                <PrinterModelIcon size={11} model={printerModel} />
+                <PrinterModelIcon size={12} model={printerModel} />
                 {t('workspace.filament.inPrinter')}
               </p>
               {inPrinter.map(({ spool, preset }) => {
@@ -559,7 +559,7 @@ function PresetPicker({
               onCreate()
             }}
           >
-            <FlaskConical size={13} className="shrink-0" />
+            <FlaskConical size={14} className="shrink-0" />
             <span className="flex-1 text-xs font-medium">{t('filaments.createFilament')}…</span>
           </button>
 

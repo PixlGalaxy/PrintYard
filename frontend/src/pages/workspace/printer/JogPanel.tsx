@@ -161,13 +161,13 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
       aria-label={t(`jog.home.${axes}`)}
       disabled={motionOff || busy !== null}
       onClick={() => void send(`home-${axes}`, { action: 'home', axes })}
-      className={`flex h-8 w-11 flex-col items-center justify-center rounded-lg border text-[10px] leading-none font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-40 ${
+      className={`flex h-9 w-12 flex-col items-center justify-center gap-0.5 rounded-lg border text-[11px] leading-none font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-40 ${
         axes === 'all'
           ? 'border-sky-500/40 bg-sky-500/10 text-sky-700 hover:bg-sky-500/20 dark:text-sky-300'
           : 'border-line bg-surface hover:border-sky-500/50 hover:bg-sky-500/10'
       }`}
     >
-      <House size={13} className={busy === `home-${axes}` ? 'animate-pulse' : ''} />
+      <House size={14} className={busy === `home-${axes}` ? 'animate-pulse' : ''} />
       <span className="mt-0.5">{label}</span>
     </button>
   )
@@ -176,7 +176,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
     <>
       {reason && (
         <p className="flex items-start gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-0.5 text-[11px] leading-snug text-muted">
-          <Lock size={13} className="mt-px shrink-0" />
+          <Lock size={12} className="mt-0.5 shrink-0" />
           {reason}
         </p>
       )}
@@ -294,7 +294,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
               disabled={tuningOff || busy !== null}
               title={t('jog.presetTitle', { nozzle: Math.min(p.nozzle, maxN), bed: Math.min(p.bed, maxB) })}
               onClick={() => void preheat(p.nozzle, p.bed, `preset-${p.id}`)}
-              className="h-7 min-w-0 rounded-lg border border-line bg-surface-2/50 px-1 text-xs font-semibold transition-colors hover:border-orange-500/50 hover:bg-orange-500/10 focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-40"
+              className="h-8 min-w-0 rounded-lg border border-line bg-surface-2/50 px-1 text-xs font-semibold transition-colors hover:border-orange-500/50 hover:bg-orange-500/10 focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-40"
             >
               {busy === `preset-${p.id}` ? '…' : t(`jog.preset.${p.id}`)}
             </button>
@@ -304,7 +304,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
             disabled={tuningOff || busy !== null}
             title={t('jog.preheatOff')}
             onClick={() => void preheat(0, 0, 'preset-off')}
-            className="inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-1 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-rose-500 disabled:pointer-events-none disabled:opacity-40 dark:text-rose-400"
+            className="inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-1 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-rose-500 disabled:pointer-events-none disabled:opacity-40 dark:text-rose-400"
           >
             <Power size={12} />
             <span className="truncate">{t('jog.preset.off')}</span>
@@ -428,7 +428,7 @@ function XYPad({
     },
   })
   return (
-    <svg viewBox="-100 -100 200 200" className="aspect-square w-full max-w-36 min-w-28 flex-1 select-none" role="group" aria-label={label}>
+    <svg viewBox="-100 -100 200 200" className="aspect-square w-full max-w-44 min-w-32 flex-1 select-none" role="group" aria-label={label}>
       <circle r="99" className="fill-surface-2/60 stroke-line" strokeWidth="1" />
       {segs.map((sg) => {
         const off = disabled[sg.axis]
@@ -478,13 +478,13 @@ function Pill({ label, caption, icon, buttons }: { label: string; caption: strin
       aria-label={x.label}
       disabled={x.disabled}
       onClick={x.onClick}
-      className="flex h-7 w-full items-center justify-center rounded-full text-fg transition-colors hover:bg-sky-500/15 hover:text-sky-700 focus-visible:outline-2 focus-visible:outline-sky-500 active:bg-sky-500/25 disabled:pointer-events-none disabled:opacity-35 dark:hover:text-sky-300"
+      className="flex h-8 w-full items-center justify-center rounded-full text-fg transition-colors hover:bg-sky-500/15 hover:text-sky-700 focus-visible:outline-2 focus-visible:outline-sky-500 active:bg-sky-500/25 disabled:pointer-events-none disabled:opacity-35 dark:hover:text-sky-300"
     >
       {x.icon}
     </button>
   )
   return (
-    <div role="group" aria-label={label} className="flex w-10 flex-col items-center gap-0.5 rounded-full border border-line bg-surface-2/60 p-0.5">
+    <div role="group" aria-label={label} className="flex w-11 flex-col items-center gap-0.5 rounded-full border border-line bg-surface-2/60 p-0.5">
       {b(buttons[0], 0)}
       {b(buttons[1], 1)}
       <span className="flex h-5 items-center gap-0.5 font-mono text-[11px] font-semibold text-muted" aria-hidden>

@@ -53,7 +53,7 @@ export default function WorkspacePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-surface px-3 sm:px-4">
+      <div className="flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-line bg-surface px-2 sm:px-4">
         <div role="tablist" aria-label={t('workspace.title')} className="flex h-full items-stretch gap-0.5">
           {TABS.map(({ id, label, icon: Icon }) => {
             const active = id === tab
@@ -66,12 +66,14 @@ export default function WorkspacePage() {
                 aria-selected={active}
                 aria-controls={`ws-${id}`}
                 onClick={() => go(id)}
-                className={`relative inline-flex items-center gap-2 px-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 ${
+                title={t(label)}
+                className={`relative inline-flex items-center gap-2 px-3 text-sm max-sm:gap-1.5 max-sm:px-2 font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-500 ${
                   active ? 'text-fg' : 'text-muted hover:text-fg'
                 }`}
               >
                 <Icon size={16} className={active ? 'text-accent-500' : ''} aria-hidden />
-                {t(label)}
+                {/* Phones: only the active tab keeps its label, so undo/redo always fit (long Spanish labels) */}
+                <span className={active ? undefined : 'max-sm:sr-only'}>{t(label)}</span>
                 {active && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-accent-500" />}
               </button>
             )

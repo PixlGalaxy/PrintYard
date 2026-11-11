@@ -185,7 +185,7 @@ function Devices({ data, endpoint, onChanged }: { data: AccountNotifications; en
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium">{t('notify.devices')}</h3>
-        <Button size="xs" icon={<Send size={13} />} loading={testing} disabled={data.devices.length === 0} onClick={() => void test()}>
+        <Button size="xs" icon={<Send size={14} />} loading={testing} disabled={data.devices.length === 0} onClick={() => void test()}>
           {t('notify.sendTest')}
         </Button>
       </div>
@@ -214,7 +214,7 @@ function Devices({ data, endpoint, onChanged }: { data: AccountNotifications; en
                   </div>
                 </div>
                 <IconButton label={t('notify.removeDevice')} tone="danger" disabled={removing === d.id} onClick={() => void remove(d)}>
-                  <Trash2 size={15} />
+                  <Trash2 size={16} />
                 </IconButton>
               </li>
             )
