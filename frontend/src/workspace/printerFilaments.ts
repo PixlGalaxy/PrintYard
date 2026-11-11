@@ -58,7 +58,8 @@ const fmt = (n: number) => String(Math.round(n * 10000) / 10000)
 
 /**
  * The printer's saved values as filament overrides on top of `values` (the matched preset):
- * nozzle temperatures clamped into [minTemp, maxTemp] and the pressure advance, only for keys the bundle allows.
+ * nozzle temperatures clamped into [minTemp, maxTemp] and the pressure advance, only for keys the bundle allows
+ * and only where they differ from the preset.
  */
 export function printerOverrides(spool: CfsSlot, values: Record<string, string>, allowed: Set<string>): Record<string, string> {
   const out: Record<string, string> = {}
@@ -76,7 +77,8 @@ export function printerOverrides(spool: CfsSlot, values: Record<string, string>,
     out.pressure_advance = fmt(spool.pressureAdvance)
     if (allowed.has('enable_pressure_advance')) out.enable_pressure_advance = '1'
   }
-  return out
+  // Only what really differs from the preset (a value equal to the preset's is not an override)
+  return Object.fromEntries(Object.entries(out).filter(([k, v]) => firstNum(values[k]) !== firstNum(v)))
 }
 
 /** Keys `printerOverrides` may write (cleared when the slot stops following the printer). */
