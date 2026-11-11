@@ -1,4 +1,4 @@
-name: Build and Push Docker Image for SliceDock
+name: Build and Push Docker Image for PrintYard
 
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: 🚀 Display Startup Message
-        run: echo "🚀 Hello from Galaxy! | Building the SliceDock container (frontend + backend + slicer runtime)..."
+        run: echo "🚀 Hello from Galaxy! | Building the PrintYard container (frontend + backend + slicer runtime)..."
 
       - name: 📂 Checkout Repository
         uses: actions/checkout@v7
@@ -70,7 +70,7 @@ jobs:
       - name: 🔍 Prepare Repository Owner and Version
         run: |
           echo "REPOSITORY_OWNER=$(echo $GITHUB_REPOSITORY_OWNER | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-          echo "IMAGE_NAME=slicedock" >> $GITHUB_ENV
+          echo "IMAGE_NAME=printyard" >> $GITHUB_ENV
           echo "APP_VERSION=$(node -p "require('./backend/package.json').version")" >> $GITHUB_ENV
           echo "SHA_SHORT=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
@@ -96,7 +96,7 @@ jobs:
           platforms: linux/amd64
           load: true
           pull: true
-          tags: slicedock:ci
+          tags: printyard:ci
           build-args: |
             APP_VERSION=${{ env.APP_VERSION }}-${{ env.SHA_SHORT }}
           cache-from: type=gha
@@ -105,7 +105,7 @@ jobs:
       # The image must boot, run its migrations and answer /api/health.
       - name: 🩺 Smoke Test the Image
         run: |
-          docker run -d --name sd-smoke --memory 2g slicedock:ci
+          docker run -d --name sd-smoke --memory 2g printyard:ci
           for i in $(seq 1 30); do
             if docker exec sd-smoke wget -qO- http://127.0.0.1:3000/api/health; then
               echo; echo "Healthy after $((i * 2)) s"; docker rm -f sd-smoke >/dev/null; exit 0
@@ -142,7 +142,7 @@ jobs:
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          echo "### SliceDock image" >> "$GITHUB_STEP_SUMMARY"
+          echo "### PrintYard image" >> "$GITHUB_STEP_SUMMARY"
           echo "Version: \`$APP_VERSION-$SHA_SHORT\`" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "$TAGS" >> "$GITHUB_STEP_SUMMARY"

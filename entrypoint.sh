@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# SliceDock entrypoint: fixes ownership of /appdata, checks /data, then runs
+# PrintYard entrypoint: fixes ownership of /appdata, checks /data, then runs
 # the backend as PUID:PGID (default 99:100 = nobody:users, Unraid-friendly).
 # PUID=0 runs as root.
 
@@ -35,7 +35,7 @@ mkdir -p "$APPDATA_DIR" "$DATA_DIR"
 chmod o-rwx "$APPDATA_DIR" 2>/dev/null || echo "[ENTRYPOINT] WARNING: could not restrict access to $APPDATA_DIR"
 
 if [ "$PUID" != 0 ]; then
-    # /appdata only holds what SliceDock wrote, so it is handed over whole.
+    # /appdata only holds what PrintYard wrote, so it is handed over whole.
     find "$APPDATA_DIR" \( ! -user "$PUID" -o ! -group "$PGID" \) -exec chown -h "$PUID:$PGID" {} +
 
     # /data is user content: only take an empty folder, otherwise just warn.
@@ -51,9 +51,9 @@ fi
 umask "$UMASK"
 
 if [ "$PUID" = 0 ]; then
-    echo "[ENTRYPOINT] starting SliceDock as root (umask $UMASK)"
+    echo "[ENTRYPOINT] starting PrintYard as root (umask $UMASK)"
     exec "$@"
 fi
 
-echo "[ENTRYPOINT] starting SliceDock as $PUID:$PGID (umask $UMASK)"
+echo "[ENTRYPOINT] starting PrintYard as $PUID:$PGID (umask $UMASK)"
 exec gosu "$PUID:$PGID" "$@"

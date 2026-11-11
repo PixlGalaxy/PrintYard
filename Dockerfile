@@ -1,4 +1,4 @@
-# SliceDock — single container: Node backend serves the API and the built frontend.
+# PrintYard — single container: Node backend serves the API and the built frontend.
 # Base is Debian trixie (glibc >= 2.39) because the Creality Print engine (Phase 3)
 # is an x86_64 glibc build; Alpine/musl cannot run it.
 
@@ -28,9 +28,9 @@ RUN npm run build && npm prune --omit=dev
 FROM node:26-trixie-slim
 
 ARG APP_VERSION=dev
-LABEL org.opencontainers.image.title="SliceDock" \
+LABEL org.opencontainers.image.title="PrintYard" \
       org.opencontainers.image.description="Self-hosted web panel and slicer for Creality printers" \
-      org.opencontainers.image.source="https://github.com/PixlGalaxy/SliceDock" \
+      org.opencontainers.image.source="https://github.com/PixlGalaxy/PrintYard" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
 ENV NODE_ENV=production \
