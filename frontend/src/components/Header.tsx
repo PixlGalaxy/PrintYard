@@ -49,7 +49,7 @@ export default function Header({ user }: { user: User }) {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-md">
       <div className="flex h-16 w-full items-center justify-between gap-2 px-4 sm:h-20 sm:gap-4 sm:px-6">
         <Link to="/" className="flex shrink-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500">
           <Logo size={40} className="sm:hidden" />
