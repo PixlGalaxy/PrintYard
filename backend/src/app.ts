@@ -24,6 +24,7 @@ import { authRoutes } from './modules/auth/auth.routes.js';
 import { printingRoutes } from './modules/printing/printing.routes.js';
 import { setupRoutes } from './modules/setup/setup.routes.js';
 import { publicRoutes } from './modules/system/public.routes.js';
+import { brandRoutes } from './modules/system/brand.routes.js';
 import { usageRoutes } from './modules/usage/usage.routes.js';
 import { engineRoutes } from './modules/engine/engine.routes.js';
 import { filesRoutes } from './modules/files/files.routes.js';
@@ -91,6 +92,9 @@ export function createApp(ctx: AppContext): Express {
   api.use(errorHandler);
 
   app.use('/api', api);
+
+  // Manifest + apple-touch-icon follow the global skin (before the static files)
+  app.use(brandRoutes(ctx));
 
   // Production: the built frontend lives in backend/public; unknown non-API GETs fall back to index.html.
   const indexHtml = join(ctx.config.publicDir, 'index.html');

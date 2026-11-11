@@ -31,7 +31,7 @@ self.addEventListener('push', (event) => {
   const title = typeof data.title === 'string' && data.title ? data.title : 'PrintYard'
   const options = {
     body: typeof data.body === 'string' ? data.body : '',
-    icon: data.icon || '/icons/icon-192.png',
+    icon: data.icon || '/icons/sky/icon-192.png',
     badge: data.badge || '/icons/badge-96.png',
     data: { url: safeUrl(data.url) },
     timestamp: typeof data.ts === 'number' ? data.ts : Date.now(),

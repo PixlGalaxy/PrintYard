@@ -281,7 +281,8 @@ export class NotificationService {
       body: msg.body,
       url: msg.path,
       tag: `${event}:${subject}`,
-      icon: '/icons/icon-192.png',
+      // the global skin's icon set (frontend/scripts/gen-icons.mjs); the badge is a white silhouette for every skin
+      icon: `/icons/${this.o.settings.get('appearance.defaultSkin')}/icon-192.png`,
       badge: '/icons/badge-96.png',
       event,
       ts: at,
