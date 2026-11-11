@@ -7,7 +7,7 @@ import { logger } from '../../logger.js';
 import { parse } from '../../middleware/index.js';
 import { hashPassword, passwordSchema, verifyPassword } from '../auth/password.js';
 import { optionalEmailSchema } from '../setup/setup.routes.js';
-import { SKINS } from '../../types.js';
+import { PREPARE_LEVELS, SKINS } from '../../types.js';
 import { withEffectiveAppearance } from './appearance.js';
 import { nav3dSchema } from './nav3d.js';
 
@@ -22,6 +22,8 @@ const profileSchema = z
     skin: z.enum(SKINS).nullable().optional(),
     /** null = SliceDock defaults */
     nav3d: nav3dSchema.nullable().optional(),
+    /** Prepare tab settings level; null = use the admin default */
+    prepareLevel: z.enum(PREPARE_LEVELS).nullable().optional(),
   })
   .strict();
 

@@ -2,7 +2,7 @@ import type { Db } from '../../db/client.js';
 import { conflict, forbidden, notFound } from '../../errors.js';
 import { parseNav3d } from '../account/nav3d.js';
 import { avatarUrlFor } from '../avatars/avatars.service.js';
-import { SKINS, type AdminUser, type Nav3dPrefs, type Language, type Role, type Skin, type Theme, type ThemeMode, type User, type UserLimits } from '../../types.js';
+import { PREPARE_LEVELS, SKINS, type AdminUser, type PrepareLevel, type Nav3dPrefs, type Language, type Role, type Skin, type Theme, type ThemeMode, type User, type UserLimits } from '../../types.js';
 
 export interface UserRow {
   id: number;
@@ -26,6 +26,8 @@ export interface UserRow {
   can_control_printer?: number;
   /** 0010: 3D navigation preferences (JSON, see Nav3dPrefs); NULL = defaults. */
   nav3d?: string | null;
+  /** 0014: Prepare settings level; NULL = admin default. */
+  prepare_level?: string | null;
 }
 
 interface LimitsRow {
@@ -46,6 +48,7 @@ export const DEFAULT_LIMITS: UserLimits = {
 };
 
 const asMode = (v: unknown): ThemeMode | null => (v === 'system' || v === 'light' || v === 'dark' ? v : null);
+const asLevel = (v: unknown): PrepareLevel | null => (PREPARE_LEVELS.includes(v as PrepareLevel) ? (v as PrepareLevel) : null);
 const asSkin = (v: unknown): Skin | null => (SKINS.includes(v as Skin) ? (v as Skin) : null);
 
 export function toUser(row: UserRow): User {
@@ -65,6 +68,7 @@ export function toUser(row: UserRow): User {
     lastLoginAt: row.last_login_at,
     canControlPrinter: row.role === 'admin' || row.can_control_printer === 1,
     nav3d: parseNav3d(row.nav3d),
+    prepareLevel: asLevel(row.prepare_level),
   };
 }
 
@@ -104,6 +108,8 @@ export interface ProfileUpdateInput {
   skin?: Skin | null | undefined;
   /** null = back to the defaults. */
   nav3d?: Nav3dPrefs | null | undefined;
+  /** null = follow the admin default. */
+  prepareLevel?: PrepareLevel | null | undefined;
 }
 
 function buildUpdate(fields: [column: string, value: unknown][]): { sql: string; values: unknown[] } | null {
@@ -273,6 +279,7 @@ export class UsersService {
       ['theme', patch.themeMode === undefined ? undefined : (patch.themeMode ?? 'system')],
       ['skin', patch.skin],
       ['nav3d', patch.nav3d === undefined ? undefined : patch.nav3d === null ? null : JSON.stringify(patch.nav3d)],
+      ['prepare_level', patch.prepareLevel],
     ]);
     if (!update) return;
     this.db.prepare(`UPDATE users SET ${update.sql} WHERE id = ?`).run(...update.values, id);

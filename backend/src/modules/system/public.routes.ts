@@ -28,6 +28,7 @@ export function publicRoutes(ctx: AppContext): Router {
       languages: LANGUAGES,
       defaultLanguage: ctx.settings.get('app.defaultLanguage'),
       appearance: appearanceDefaults(ctx),
+      workspace: { defaultLevel: ctx.settings.get('workspace.defaultLevel') },
     };
     res.json(body);
   });

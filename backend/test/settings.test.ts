@@ -30,6 +30,7 @@ describe('SettingsService', () => {
       'app.defaultLanguage': 'en',
       'appearance.defaultMode': 'system',
       'appearance.defaultSkin': 'sky',
+      'workspace.defaultLevel': 'basic',
       'admin.email': null,
       'exposure.mode': 'none',
       'exposure.trustedProxies': [],

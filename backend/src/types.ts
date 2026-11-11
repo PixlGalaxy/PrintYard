@@ -34,6 +34,10 @@ export const SKINS = [
 ] as const;
 export type Skin = (typeof SKINS)[number];
 
+/** Prepare tab settings level (keep in sync with frontend/src/types.ts). */
+export const PREPARE_LEVELS = ['basic', 'advanced', 'expert'] as const;
+export type PrepareLevel = (typeof PREPARE_LEVELS)[number];
+
 /** 3D viewport navigation (PREP-UX). Keep in sync with frontend/src/types.ts + frontend/src/three/navigation.ts. */
 export const NAV3D_PRESETS = ['slicedock', 'tinkercad', 'repetier', 'cad', 'blender', 'custom'] as const;
 export type Nav3dPreset = (typeof NAV3D_PRESETS)[number];
@@ -92,6 +96,8 @@ export interface User {
   canControlPrinter: boolean;
   /** 3D navigation preferences; null = SliceDock defaults. */
   nav3d: Nav3dPrefs | null;
+  /** Prepare tab settings level; null = use the admin default (`workspace.defaultLevel`). */
+  prepareLevel: PrepareLevel | null;
 }
 
 export interface UserLimits {
@@ -181,6 +187,8 @@ export interface AppConfig {
   defaultLanguage: Language;
   /** Global appearance defaults (Admin → Settings → Appearance). */
   appearance: { defaultMode: ThemeMode; defaultSkin: Skin };
+  /** Prepare tab defaults (setting `workspace.defaultLevel`). */
+  workspace: { defaultLevel: PrepareLevel };
 }
 
 export interface AuditEntry {

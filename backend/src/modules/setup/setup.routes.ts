@@ -7,7 +7,7 @@ import { memoryStatus } from '../../lib/memory.js';
 import { hostNetworkLikely } from '../../lib/network.js';
 import { logger } from '../../logger.js';
 import { parse } from '../../middleware/index.js';
-import type { SetupStatus, SetupStatusPublic } from '../../types.js';
+import { PREPARE_LEVELS, type SetupStatus, type SetupStatusPublic } from '../../types.js';
 import { startSession } from '../auth/auth.routes.js';
 import { hashPassword, passwordSchema } from '../auth/password.js';
 import { assertPrinterHostAllowed, printerCreateSchema, probeBodySchema, runProbe } from '../printers/printers.service.js';
@@ -44,6 +44,8 @@ const setupCompleteSchema = z.object({
   engine: z
     .object({ selected: z.enum(['creality', 'orca']), autoUpdate: z.boolean() })
     .default({ selected: 'creality', autoUpdate: true }),
+  /** Optional so older clients still complete setup. */
+  workspace: z.object({ defaultLevel: z.enum(PREPARE_LEVELS) }).default({ defaultLevel: 'basic' }),
 });
 
 export function getSetupStatus(ctx: AppContext, lanAllowed: boolean): SetupStatus {
@@ -96,6 +98,7 @@ export function setupRoutes(ctx: AppContext): Router {
         ...(body.exposure.trustedProxies !== undefined && { 'exposure.trustedProxies': body.exposure.trustedProxies }),
         'engine.selected': body.engine.selected,
         'engine.autoUpdate': body.engine.autoUpdate,
+        'workspace.defaultLevel': body.workspace.defaultLevel,
       },
       SETTING_DEFS,
     );

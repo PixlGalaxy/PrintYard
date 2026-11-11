@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isValidCidr } from '../lib/ip.js';
-import { SKINS, type Skin, type ThemeMode } from '../types.js';
+import { PREPARE_LEVELS, SKINS, type PrepareLevel, type Skin, type ThemeMode } from '../types.js';
 import { NOTIFY_SETTING_DEFS } from '../modules/notifications/settings.js';
 import type { Db } from './client.js';
 
@@ -42,6 +42,8 @@ export const SETTING_DEFS = {
   // Appearance defaults: every user who has not picked their own mode/skin follows these.
   'appearance.defaultMode': def(z.enum(['system', 'light', 'dark']), 'system' as ThemeMode),
   'appearance.defaultSkin': def(z.enum(SKINS), 'sky' as Skin),
+  // Prepare tab settings level for users who have not picked their own (Basic / Advanced / Expert).
+  'workspace.defaultLevel': def(z.enum(PREPARE_LEVELS), 'basic' as PrepareLevel),
   'admin.email': def(z.preprocess(emptyToNull, z.email().max(254).nullable()), null as string | null),
   'exposure.mode': def(z.enum(['none', 'cloudflare', 'nginx', 'other']), 'none' as 'none' | 'cloudflare' | 'nginx' | 'other'),
   'exposure.trustedProxies': def(
