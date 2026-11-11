@@ -5,6 +5,7 @@
 import { ApiError, type BinarySender, type Transport } from '../api'
 import { handleF1 } from './mockF1'
 import { handleNotify, resetNotify } from './mockNotify'
+import { handlePrinterPresets } from './mockPrinterPresets'
 import { engineInstalledVersion, handleF2, mockFiles, mockPublish, NOT_HANDLED, resetF2 } from './mockF2'
 import { BED_SURFACES, DEFAULT_BED_SURFACE, NAV3D_PRESETS, PREPARE_LEVELS, type BedSurface, type Nav3dPrefs, type PrepareLevel } from '../types'
 import type {
@@ -101,6 +102,7 @@ const DEFAULT_SETTINGS: Settings = {
   'printers.retention.enabled': true,
   'printers.retention.keep': 10,
   'printers.idleHeaterOffMinutes': 15,
+  'printers.profilesBackup.enabled': true,
   'files.maxUploadMb': 200,
 }
 
@@ -483,6 +485,7 @@ export const mockTransport: Transport = async (method, path, body) => {
       // "Always used" presets (the real server checks the user may use them)
       if ('defaultProcessPreset' in b) u.defaultProcessPreset = (b.defaultProcessPreset as string | null) ?? null
       if ('defaultFilamentPreset' in b) u.defaultFilamentPreset = (b.defaultFilamentPreset as string | null) ?? null
+      if ('showPrinterFilaments' in b) u.showPrinterFilaments = Boolean(b.showPrinterFilaments)
       u.theme = u.themeMode ?? 'system'
       audit('account.update', null, Object.keys(b))
       return { user: selfUser(u) }
@@ -529,6 +532,9 @@ export const mockTransport: Transport = async (method, path, body) => {
     }
     // Phase 2 F2 routes (files, prints, usage, live printer, engine manager): see mockF2.ts
     // Phase 4 notifications: see mockNotify.ts
+    // Printer-side presets (printer filaments, profiles backup): see mockPrinterPresets.ts
+    const presets = handlePrinterPresets(method, p, url)
+    if (presets !== NOT_HANDLED) return presets
     const notify = handleNotify(method, p, b)
     if (notify !== NOT_HANDLED) return notify
     const f2 = handleF2(method, p, url, b)
