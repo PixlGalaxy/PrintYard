@@ -10,6 +10,7 @@ import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import './index.css'
 import { registerServiceWorker } from './pages/account/notifications/pushClient'
+import { syncFavicon } from './theme/favicon'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -26,6 +27,9 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+// Browser-tab icon follows the accent skin
+syncFavicon()
 
 // Web Push service worker: production builds, or dev with ?sw=1 (Phase 4)
 registerServiceWorker()

@@ -15,7 +15,11 @@
   var dark = mode === 'dark' || (mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
   if (dark) root.classList.add('dark')
   var skin = read('sd:skin')
-  root.setAttribute('data-skin', typeof skin === 'string' && /^[a-z]{1,20}$/.test(skin) ? skin : 'sky')
+  if (typeof skin !== 'string' || !/^[a-z]{1,20}$/.test(skin)) skin = 'sky'
+  root.setAttribute('data-skin', skin)
+  // Tab icon in the skin's accent (files from scripts/gen-icons.mjs); the app then keeps it in sync (theme/favicon.ts)
+  var icon = document.getElementById('favicon')
+  if (icon && skin !== 'sky') icon.setAttribute('href', '/icons/' + skin + '/favicon.svg')
   var lang = read('sd:lang')
   if (lang === 'en' || lang === 'es') root.lang = lang
 })()
