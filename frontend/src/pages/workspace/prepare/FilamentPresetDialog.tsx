@@ -1,5 +1,5 @@
 // "Create filament" / "Save as new filament…" / filament details: name, base (system preset), material type,
-// colour, vendor and (admins) private/shared. Values come from the caller (a slot's overrides, a preset to copy).
+// colour, vendor and private/shared (owner or admin). Values come from the caller (a slot's overrides, a preset to copy).
 import { FlaskConical, Lock, Users } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { api } from '../../../api'
@@ -44,7 +44,8 @@ export default function FilamentPresetDialog({
   const { t } = useI18n()
   const { user } = useAuth()
   const { toast, onError } = useToast()
-  const isAdmin = user?.role === 'admin'
+  // Owner (any new preset is the user's own) or admin may share
+  const canShare = !preset || preset.canEdit || user?.role === 'admin'
   const system = bundle.filament.filter((p) => !p.custom)
   const customs = bundle.filament.filter((p) => p.custom)
   const summaryOf = (id: string) => bundle.filament.find((p) => p.id === id)
@@ -88,7 +89,7 @@ export default function FilamentPresetDialog({
           color,
           vendor: vendor.trim() || null,
         })
-        if (isAdmin && scope !== preset.scope) saved = await api.shareFilamentPreset(preset.id, scope)
+        if (canShare && scope !== preset.scope) saved = await api.shareFilamentPreset(preset.id, scope)
       } else {
         saved = await api.createFilamentPreset({
           printerModel: bundle.printerModel,
@@ -179,7 +180,7 @@ export default function FilamentPresetDialog({
         <Field label={t('filaments.vendor')} optional>
           {(p) => <input {...p} className={inputCls} value={vendor} maxLength={64} onChange={(e) => setVendor(e.target.value)} />}
         </Field>
-        {isAdmin && (
+        {canShare && (
           <div className="space-y-1.5">
             <p className="text-sm font-medium">{t('filaments.visibility')}</p>
             <Segmented<FilamentPresetScope>

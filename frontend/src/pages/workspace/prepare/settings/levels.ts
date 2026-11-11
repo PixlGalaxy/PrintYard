@@ -50,6 +50,24 @@ export const ADVANCED_KEYS: ReadonlySet<string> = new Set([
   'wall_sequence',
 ])
 
+/** Process options of the Basic level in the Profiles editor: the settings of Prepare's quick card. */
+export const BASIC_KEYS: ReadonlySet<string> = new Set([
+  'layer_height',
+  'wall_loops',
+  'top_shell_layers',
+  'bottom_shell_layers',
+  'sparse_infill_density',
+  'sparse_infill_pattern',
+  'enable_support',
+  'support_type',
+  'support_on_build_plate_only',
+  'brim_type',
+  'skirt_loops',
+])
+
+/** Filament pages of the Advanced level (Expert adds the rest: advanced, multimaterial, notes). */
+export const FILAMENT_ADVANCED_PAGES: ReadonlySet<string> = new Set(['Filament', 'Cooling', 'Setting Overrides'])
+
 export const LEVEL_LABEL: Record<PrepareLevel, TranslationKey> = {
   basic: 'workspace.level.basic',
   advanced: 'workspace.level.advanced',

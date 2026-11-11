@@ -9,20 +9,21 @@ const bundles = new Map<string, Promise<ProfileBundle>>()
 const presets = new Map<string, Promise<ResolvedPreset>>()
 const resolved = new Map<string, ResolvedPreset>()
 
-// Custom filament presets change at runtime: CRUD calls invalidate() so bundles and custom presets reload.
+// User profiles (custom filaments, process profiles) change at runtime: CRUD calls invalidate() so bundles and custom
+// presets reload.
 let version = 0
 const listeners = new Set<() => void>()
 const subscribe = (l: () => void) => {
   listeners.add(l)
   return () => void listeners.delete(l)
 }
-/** Bumps after custom filament presets changed; bundles and `custom:` presets are fetched again. */
+/** Bumps after user profiles changed; bundles and `custom:` presets are fetched again. */
 export const useProfilesVersion = () => useSyncExternalStore(subscribe, () => version)
 
 export function invalidateCustomFilaments() {
   bundles.clear()
   for (const key of [...presets.keys()]) {
-    if (key.includes('|filament|custom:')) {
+    if (key.includes('|filament|custom:') || key.includes('|process|custom:')) {
       presets.delete(key)
       resolved.delete(key)
     }
@@ -98,17 +99,79 @@ export function usePreset(model: PrinterModel, kind: PresetSummary['kind'], id: 
   return value
 }
 
-/** Fills presets the scene doesn't have yet (new scene, or a preset that no longer exists). Not an undo step. */
-export function applyBundleDefaults(bundle: ProfileBundle) {
-  const pick = (list: PresetSummary[], current: string) =>
-    list.some((p) => p.id === current) ? current : (list.find((p) => p.isDefault) ?? list[0])?.id ?? current
-  const defFilament = bundle.filament.find((p) => p.isDefault) ?? bundle.filament[0]
+/** The user's "always used" presets (Profiles tab): process and slot-1 filament of new projects. */
+export interface PresetDefaults {
+  process?: string | null
+  filament?: string | null
+}
+
+/** A user profile the scene uses that is gone (deleted or no longer shared) and the system preset used instead. */
+export interface MissingPreset {
+  kind: 'process' | 'filament'
+  name: string
+  fallback: string
+}
+
+// Parent + name of every user profile seen in a bundle, so a scene whose profile disappears falls back to its parent.
+const PARENTS_KEY = 'sd:ws:profileParents'
+type Parents = Record<string, { name: string; inherits: string }>
+function readParents(): Parents {
+  try {
+    return (JSON.parse(localStorage.getItem(PARENTS_KEY) ?? '{}') as Parents) ?? {}
+  } catch {
+    return {}
+  }
+}
+function rememberParents(bundle: ProfileBundle): Parents {
+  const parents = readParents()
+  let changed = false
+  for (const p of [...bundle.process, ...bundle.filament]) {
+    if (!p.custom || !p.inherits) continue
+    const key = `${p.kind}|${p.id}`
+    if (parents[key]?.inherits !== p.inherits || parents[key]?.name !== p.name) {
+      parents[key] = { name: p.name, inherits: p.inherits }
+      changed = true
+    }
+  }
+  if (changed) {
+    try {
+      localStorage.setItem(PARENTS_KEY, JSON.stringify(parents))
+    } catch {
+      /* storage blocked: the bundle default is used instead */
+    }
+  }
+  return parents
+}
+
+/**
+ * Fills presets the scene doesn't have yet (new scene: the user's defaults, else the bundle's) and replaces presets
+ * that no longer exist. A user profile that is gone falls back to its system parent and is reported. Not an undo step.
+ */
+export function applyBundleDefaults(bundle: ProfileBundle, defaults: PresetDefaults = {}): MissingPreset[] {
+  const parents = rememberParents(bundle)
+  const missing: MissingPreset[] = []
+  const has = (list: PresetSummary[], id: string | null | undefined): id is string => !!id && list.some((p) => p.id === id)
+  const bundleDefault = (list: PresetSummary[]) => (list.find((p) => p.isDefault && !p.custom) ?? list[0])?.id
+  const replace = (kind: 'process' | 'filament', list: PresetSummary[], current: string, fallback: string | undefined) => {
+    const parent = parents[`${kind}|${current}`]
+    const to = parent && has(list, parent.inherits) ? parent.inherits : fallback
+    if (to && current.startsWith('custom:')) missing.push({ kind, name: parent?.name ?? current, fallback: to })
+    return to ?? current
+  }
+  const defProcess = has(bundle.process, defaults.process) ? defaults.process : bundleDefault(bundle.process)
+  const defFilamentId = has(bundle.filament, defaults.filament) ? defaults.filament : bundleDefault(bundle.filament)
+  const defFilament = bundle.filament.find((p) => p.id === defFilamentId)
   workspace.update(
     (d): SceneDoc => {
-      const machinePresetId = pick(bundle.machine, d.machinePresetId)
-      const processPresetId = pick(bundle.process, d.processPresetId)
+      missing.length = 0
+      const machinePresetId = has(bundle.machine, d.machinePresetId) ? d.machinePresetId : (bundleDefault(bundle.machine) ?? d.machinePresetId)
+      const processPresetId = has(bundle.process, d.processPresetId)
+        ? d.processPresetId
+        : d.processPresetId
+          ? replace('process', bundle.process, d.processPresetId, defProcess)
+          : (defProcess ?? d.processPresetId)
       const filaments = d.filaments.length
-        ? d.filaments.map((f) => (bundle.filament.some((p) => p.id === f.presetId) || !defFilament ? f : { ...f, presetId: defFilament.id }))
+        ? d.filaments.map((f) => (has(bundle.filament, f.presetId) || !defFilament ? f : { ...f, presetId: replace('filament', bundle.filament, f.presetId, defFilament.id) }))
         : defFilament
           ? [{ slot: 1, presetId: defFilament.id, color: defFilament.color ?? '#7DD3FC' }]
           : []
@@ -121,6 +184,18 @@ export function applyBundleDefaults(bundle: ProfileBundle) {
     },
     { history: false, dirty: false },
   )
+  return missing
+}
+
+export type PresetGroup = 'system' | 'mine' | 'shared'
+const GROUP_LABEL = { system: 'profiles.group.system', mine: 'profiles.group.mine', shared: 'profiles.group.shared' } as const
+
+/** Preset list split as Prepare shows it: system presets / my profiles / shared by others (empty groups left out). */
+export function groupPresets(list: PresetSummary[], userId: number | undefined) {
+  const groupOf = (p: PresetSummary): PresetGroup => (!p.custom ? 'system' : p.ownerId === userId ? 'mine' : 'shared')
+  return (['system', 'mine', 'shared'] as const)
+    .map((group) => ({ group, label: GROUP_LABEL[group], presets: list.filter((p) => groupOf(p) === group) }))
+    .filter((g) => g.presets.length > 0)
 }
 
 /** "0.20mm Standard @Creality K2 SE 0.4 nozzle" → "0.20mm Standard" */

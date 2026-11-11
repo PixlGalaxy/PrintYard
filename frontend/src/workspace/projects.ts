@@ -1,8 +1,9 @@
 // Projects: save (POST/PUT /api/projects with a plate thumbnail), open from the library, download as .3mf.
 import { api } from '../api'
-import type { LibraryFile, SceneDoc } from '../types'
+import type { LibraryFile, ProfileBundle, SceneDoc } from '../types'
 import { meshes } from './meshes'
 import { env } from './ops'
+import type { PresetDefaults } from './profiles'
 import { emptyDoc, workspace } from './store'
 
 export class ProjectError extends Error {}
@@ -44,10 +45,17 @@ export async function openProject(id: number, onMeshError?: (name: string, err: 
   env.viewport?.setView('iso', true, 'plate')
 }
 
-export function newProject() {
+/**
+ * Empty scene. Process and slot-1 filament: the user's "always used" profiles (Profiles tab) when set and available,
+ * else the current ones (as before defaults existed).
+ */
+export function newProject(defaults: PresetDefaults = {}, bundle?: ProfileBundle | null) {
   const { doc } = workspace.state
+  const process = defaults.process && bundle?.process.some((p) => p.id === defaults.process) ? defaults.process : doc.processPresetId
+  const fil = defaults.filament ? bundle?.filament.find((p) => p.id === defaults.filament) : undefined
+  const filaments = fil ? [{ slot: 1, presetId: fil.id, color: fil.color ?? doc.filaments[0]?.color ?? '#7DD3FC' }] : doc.filaments.slice(0, 1)
   workspace.load(
-    { ...emptyDoc(), machinePresetId: doc.machinePresetId, processPresetId: doc.processPresetId, filaments: doc.filaments.slice(0, 1), printerModel: doc.printerModel },
+    { ...emptyDoc(), machinePresetId: doc.machinePresetId, processPresetId: process, filaments, printerModel: doc.printerModel },
     { fileId: null, name: '' },
   )
 }

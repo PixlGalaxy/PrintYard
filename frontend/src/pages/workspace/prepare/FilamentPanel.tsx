@@ -13,7 +13,7 @@ import { usePrinterStatus } from '../../../realtime'
 import type { CfsSlot, FilamentPreset, FilamentSlot, PresetSummary, PrinterModel, ProfileBundle, User } from '../../../types'
 import { canEditPreset, copyName, customRowId } from '../../../workspace/filamentPresets'
 import { cfsName, followsSpool, loadedSpools, PRINTER_KEYS, presetForSpool, printerOverrides, spoolFingerprint, spoolLabel, spoolName } from '../../../workspace/printerFilaments'
-import { invalidateCustomFilaments, loadPreset, shortPresetName } from '../../../workspace/profiles'
+import { groupPresets, invalidateCustomFilaments, loadPreset, shortPresetName } from '../../../workspace/profiles'
 import { useWs, workspace } from '../../../workspace/store'
 import { Section, Tip } from './bits'
 import FilamentPresetDialog, { type PresetDraft } from './FilamentPresetDialog'
@@ -170,9 +170,10 @@ export default function FilamentPanel({ bundle }: { bundle: ProfileBundle | null
     toast('success', skipped ? t('workspace.filament.syncedSome', { n: next.length, skipped }) : t('workspace.filament.synced', { n: next.length }))
   }
 
-  // Presets grouped by material type for the dropdown
+  // Dropdown groups: system presets by material type, then my profiles, then profiles shared by others
   const byType = new Map<string, PresetSummary[]>()
-  for (const p of list) byType.set(p.filamentType ?? '—', [...(byType.get(p.filamentType ?? '—') ?? []), p])
+  for (const p of list.filter((x) => !x.custom)) byType.set(p.filamentType ?? '—', [...(byType.get(p.filamentType ?? '—') ?? []), p])
+  for (const g of groupPresets(list, user?.id).filter((x) => x.group !== 'system')) byType.set(t(g.label), g.presets)
   const editingSlot = editing != null ? filaments.find((f) => f.slot === editing) : undefined
 
   return (

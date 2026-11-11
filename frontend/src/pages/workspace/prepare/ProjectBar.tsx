@@ -4,8 +4,10 @@ import ConfirmModal from '../../../components/ConfirmModal'
 import Modal from '../../../components/Modal'
 import { inputCls } from '../../../components/styles'
 import { Button } from '../../../components/ui'
+import { useAuth } from '../../../context/AuthContext'
 import { useToast } from '../../../context/ToastContext'
 import { useI18n } from '../../../i18n/I18nContext'
+import { useBundle } from '../../../workspace/profiles'
 import { hasPendingUploads, newProject, openProject } from '../../../workspace/projects'
 import { useWs, workspace } from '../../../workspace/store'
 import LibraryModal from './LibraryModal'
@@ -15,8 +17,9 @@ import { setUi, usePrepareUi } from './uiState'
 import { Tip } from './bits'
 
 export default function ProjectBar() {
-  const { t, errorMessage } = useI18n()
+  const { t, errorMessage, language } = useI18n()
   const { toast } = useToast()
+  const { user } = useAuth()
   const project = useWs((s) => s.project)
   const dirty = useWs((s) => s.dirty)
   const doc = useWs((s) => s.doc)
@@ -25,6 +28,9 @@ export default function ProjectBar() {
   const canRedo = useWs((s) => s.canRedo)
   const { save, download, busy } = useProjectActions()
   const pending = hasPendingUploads(doc)
+  const { bundle } = useBundle(doc.printerModel, language)
+  // "Always used" profiles from the Profiles tab (falls back to the current presets when none is set)
+  const startNew = () => newProject({ process: user?.defaultProcessPreset, filament: user?.defaultFilamentPreset }, bundle)
 
   return (
     <div className="flex min-w-0 items-center gap-1.5">
@@ -64,7 +70,7 @@ export default function ProjectBar() {
       {/* Phones keep undo/redo only: the draft is kept in the browser, project files are a desktop task */}
       <span className="mx-1 h-5 w-px bg-line max-sm:hidden" />
       <Tip label={t('workspace.project.new')} className="max-sm:hidden">
-        <button type="button" aria-label={t('workspace.project.new')} onClick={() => (doc.objects.length && dirty ? setUi({ newConfirm: true }) : newProject())} className="inline-flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
+        <button type="button" aria-label={t('workspace.project.new')} onClick={() => (doc.objects.length && dirty ? setUi({ newConfirm: true }) : startNew())} className="inline-flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg">
           <FilePlus size={16} />
         </button>
       </Tip>
@@ -99,7 +105,7 @@ export default function ProjectBar() {
         />
       )}
       {ui.newConfirm && (
-        <ConfirmModal title={t('workspace.project.newTitle')} confirmLabel={t('workspace.project.discard')} onConfirm={async () => newProject()} onClose={() => setUi({ newConfirm: false })}>
+        <ConfirmModal title={t('workspace.project.newTitle')} confirmLabel={t('workspace.project.discard')} onConfirm={async () => startNew()} onClose={() => setUi({ newConfirm: false })}>
           {t('workspace.project.newBody')}
         </ConfirmModal>
       )}

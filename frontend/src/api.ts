@@ -32,6 +32,12 @@ import type {
   FilamentPresetCreate,
   FilamentPresetPatch,
   FilamentPresetScope,
+  ProcessProfile,
+  ProcessProfileCreate,
+  ProcessProfilePatch,
+  ProfileExportFile,
+  ProfileExportRequest,
+  ProfileImportReport,
   PrinterModel,
   ProfileBundle,
   ProjectBody,
@@ -372,8 +378,18 @@ export const api = {
   createFilamentPreset: (body: FilamentPresetCreate) => req<FilamentPreset>('POST', '/filament-presets', body),
   updateFilamentPreset: (id: number, patch: FilamentPresetPatch) => req<FilamentPreset>('PATCH', `/filament-presets/${id}`, patch),
   deleteFilamentPreset: (id: number) => req<void>('DELETE', `/filament-presets/${id}`),
-  /** Admins only */
+  /** Owner or admin */
   shareFilamentPreset: (id: number, scope: FilamentPresetScope) => req<FilamentPreset>('POST', `/filament-presets/${id}/share`, { scope }),
+  // User process profiles (PROFILES tab): same rules as custom filaments
+  processProfiles: (scope: 'usable' | 'mine' | 'shared' | 'everyone' = 'usable') => get<ProcessProfile[]>(`/process-profiles${qs({ scope })}`),
+  processProfile: (id: number) => get<ProcessProfile>(`/process-profiles/${id}`),
+  createProcessProfile: (body: ProcessProfileCreate) => req<ProcessProfile>('POST', '/process-profiles', body),
+  updateProcessProfile: (id: number, patch: ProcessProfilePatch) => req<ProcessProfile>('PATCH', `/process-profiles/${id}`, patch),
+  deleteProcessProfile: (id: number) => req<void>('DELETE', `/process-profiles/${id}`),
+  shareProcessProfile: (id: number, scope: FilamentPresetScope) => req<ProcessProfile>('POST', `/process-profiles/${id}/share`, { scope }),
+  /** Creality Print / Orca preset file (.json, .zip, .creality_filament, .creality_printer), sent as base64 */
+  importProfiles: (fileName: string, data: string) => req<ProfileImportReport>('POST', '/profile-files/import', { fileName, data }),
+  exportProfiles: (body: ProfileExportRequest) => req<ProfileExportFile>('POST', '/profile-files/export', body),
   sliceStart: (body: SliceRequest) => req<SliceJob>('POST', '/slice', body),
   sliceJob: (id: string) => get<SliceJob>(`/slice/${encodeURIComponent(id)}`),
   sliceCancel: (id: string) => req<void>('DELETE', `/slice/${encodeURIComponent(id)}`),

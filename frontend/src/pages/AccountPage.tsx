@@ -1,5 +1,6 @@
-import { HardDrive, KeyRound, Palette, UserRound } from 'lucide-react'
+import { BookMarked, ChevronRight, HardDrive, KeyRound, Palette, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import { api } from '../api'
 import { ModePicker, SkinGrid } from '../components/AppearancePicker'
 import Card, { SettingRow } from '../components/Card'
@@ -17,7 +18,6 @@ import type { User } from '../types'
 import { isEmail, passwordProblem } from '../validation'
 import AvatarEditor from './account/AvatarEditor'
 import Nav3dCard from './account/Nav3dCard'
-import FilamentPresetsCard from './account/FilamentPresetsCard'
 import NotificationsCard from './account/notifications/NotificationsCard'
 
 export default function AccountPage() {
@@ -34,8 +34,14 @@ export default function AccountPage() {
       <div id="nav3d" className="scroll-mt-24">
         <Nav3dCard />
       </div>
+      {/* Custom filaments moved to the workspace Profiles tab (with process profiles, sharing, import/export) */}
       <div id="filaments" className="scroll-mt-24">
-        <FilamentPresetsCard />
+        <Card title={t('profiles.accountTitle')} description={t('profiles.accountDesc')} icon={<BookMarked size={18} />}>
+          <Link to="/?tab=profiles" className="inline-flex items-center gap-1 text-sm font-medium text-accent-600 hover:text-accent-700 dark:text-accent-400 dark:hover:text-accent-300">
+            {t('profiles.openTab')}
+            <ChevronRight size={16} />
+          </Link>
+        </Card>
       </div>
       <Card title={t('storage.title')} description={t('storage.desc')} icon={<HardDrive size={18} />}>
         <StorageUsage compact />

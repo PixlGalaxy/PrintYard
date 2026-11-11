@@ -103,6 +103,10 @@ export interface User {
   nav3d?: Nav3dPrefs | null
   /** Prepare tab settings level; null = admin default (`workspace.defaultLevel`) */
   prepareLevel?: PrepareLevel | null
+  /** "Always used" process preset for new projects (system name or `custom:<n>`); null = bundle default */
+  defaultProcessPreset?: string | null
+  /** "Always used" filament preset for slot 1 of new projects; null = bundle default */
+  defaultFilamentPreset?: string | null
 }
 
 export interface UserLimits {
@@ -250,6 +254,9 @@ export interface AccountPatch {
   nav3d?: Nav3dPrefs | null
   /** null = use the admin default */
   prepareLevel?: PrepareLevel | null
+  /** null = bundle default */
+  defaultProcessPreset?: string | null
+  defaultFilamentPreset?: string | null
 }
 
 /** GET /api/account/sessions (id is a public hash, not the token) */
@@ -459,7 +466,7 @@ export interface PresetSummary {
   isDefault?: boolean
   filamentType?: string
   color?: string
-  /** Custom filament preset (`id` = `custom:<n>`), created from the web */
+  /** User profile (`id` = `custom:<n>`): custom filament preset or process profile */
   custom?: boolean
   ownerId?: number
   ownerName?: string
@@ -547,6 +554,66 @@ export interface FilamentPresetPatch {
   color?: string | null
   /** Replaces the whole set of overridden keys */
   values?: Record<string, string>
+}
+
+/** A user process profile (`GET /api/process-profiles`); `values` holds only the keys overridden on `inherits` */
+export interface ProcessProfile {
+  id: number
+  /** `custom:<id>`, the id used in scenes and the profile bundle */
+  presetId: string
+  ownerId: number
+  ownerName: string
+  scope: FilamentPresetScope
+  printerModel: PrinterModel
+  name: string
+  inherits: string
+  values: Record<string, string>
+  createdAt: number
+  updatedAt: number
+  /** The viewer may edit, rename, delete and share it (owner or admin) */
+  canEdit: boolean
+}
+
+export interface ProcessProfileCreate {
+  printerModel?: PrinterModel
+  /** System process preset, or `custom:<n>` to duplicate a profile */
+  basePresetId: string
+  name: string
+  values?: Record<string, string>
+  scope?: FilamentPresetScope
+}
+
+export interface ProcessProfilePatch {
+  name?: string
+  inherits?: string
+  values?: Record<string, string>
+}
+
+export type ProfileFileKind = 'process' | 'filament'
+
+/** `POST /api/profile-files/import` result */
+export interface ProfileImportReport {
+  created: { kind: ProfileFileKind; id: number; presetId: string; name: string; inherits: string; keys: number }[]
+  /** Archive entries (or the file) that produced no profile; `reason`: printer_preset, unsafe_path, not_json, invalid_json, … */
+  skipped: { entry: string; reason: string }[]
+  /** Keys left out of a created profile; `reason`: unsafe, unsupported, invalid_value, or a value check (`range 0..300`) */
+  dropped: { profile: string; key: string; reason: string }[]
+  /** Parent that is not a K2 SE system preset, and the one used instead */
+  remapped: { profile: string; from: string; to: string }[]
+  renamed: { from: string; to: string }[]
+}
+
+export interface ProfileExportRequest {
+  kind: ProfileFileKind
+  ids: number[]
+  format: 'zip' | 'creality_filament'
+}
+
+/** The exported file, base64 */
+export interface ProfileExportFile {
+  fileName: string
+  contentType: string
+  data: string
 }
 
 export type SliceJobState = 'queued' | 'preparing' | 'slicing' | 'postprocessing' | 'done' | 'failed' | 'cancelled'

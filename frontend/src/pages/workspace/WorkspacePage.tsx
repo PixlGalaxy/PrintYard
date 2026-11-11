@@ -1,6 +1,6 @@
-// Workspace shell (`/?tab=prepare|preview|printer`): full-height editor below the header. Prepare stays mounted
-// (its 3D scene and WebGL context survive tab switches); Preview and Printer mount on first visit.
-import { Box, Layers, LoaderCircle } from 'lucide-react'
+// Workspace shell (`/?tab=prepare|preview|printer|profiles`): full-height editor below the header. Prepare stays
+// mounted (its 3D scene and WebGL context survive tab switches); Preview, Printer and Profiles mount on first visit.
+import { BookMarked, Box, Layers, LoaderCircle } from 'lucide-react'
 import { forwardRef, lazy, Suspense, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { PrinterModelIcon } from '../../components/printerIcons'
@@ -12,8 +12,9 @@ import { useWs } from '../../workspace/store'
 
 const PreviewTab = lazy(() => import('./preview/PreviewTab'))
 const PrinterTab = lazy(() => import('./printer/PrinterTab'))
+const ProfilesTab = lazy(() => import('./profiles/ProfilesTab'))
 
-type TabId = 'prepare' | 'preview' | 'printer'
+type TabId = 'prepare' | 'preview' | 'printer' | 'profiles'
 // The Printer tab shows the target printer's glyph (by the workspace's printer model)
 const PrinterTabIcon: typeof Box = forwardRef((props, ref) => <PrinterModelIcon ref={ref} model={useWs((s) => s.doc.printerModel)} {...props} />)
 PrinterTabIcon.displayName = 'PrinterTabIcon'
@@ -21,8 +22,9 @@ const TABS: { id: TabId; label: TranslationKey; icon: typeof Box }[] = [
   { id: 'prepare', label: 'workspace.tab.prepare', icon: Box },
   { id: 'preview', label: 'workspace.tab.preview', icon: Layers },
   { id: 'printer', label: 'workspace.tab.printer', icon: PrinterTabIcon },
+  { id: 'profiles', label: 'workspace.tab.profiles', icon: BookMarked },
 ]
-const isTab = (v: string | null): v is TabId => v === 'prepare' || v === 'preview' || v === 'printer'
+const isTab = (v: string | null): v is TabId => v === 'prepare' || v === 'preview' || v === 'printer' || v === 'profiles'
 
 const spinner = (
   <div className="flex h-full items-center justify-center text-muted">
@@ -85,6 +87,7 @@ export default function WorkspacePage() {
         {panel('prepare', <PrepareTab active={tab === 'prepare'} />)}
         {visited.has('preview') && panel('preview', <Suspense fallback={spinner}>{<PreviewTab />}</Suspense>)}
         {visited.has('printer') && panel('printer', <Suspense fallback={spinner}>{<PrinterTab />}</Suspense>)}
+        {visited.has('profiles') && panel('profiles', <Suspense fallback={spinner}>{<ProfilesTab />}</Suspense>)}
       </div>
     </div>
   )

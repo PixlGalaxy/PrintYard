@@ -2,10 +2,11 @@ import { Box, ChevronRight, Globe, Minus, Plus, RotateCcw, SlidersHorizontal } f
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { selectCls } from '../../../components/styles'
 import { Segmented, Toggle } from '../../../components/ui'
+import { useAuth } from '../../../context/AuthContext'
 import { useI18n } from '../../../i18n/I18nContext'
 import type { TranslationKey } from '../../../i18n/translations'
 import { PREPARE_LEVELS, type OptionDef, type PrepareLevel, type ProfileBundle } from '../../../types'
-import { shortPresetName, usePreset } from '../../../workspace/profiles'
+import { groupPresets, shortPresetName, usePreset } from '../../../workspace/profiles'
 import { contextFromMachine, processDependencies } from '../../../workspace/settings/dependencies'
 import { matches, same } from '../../../workspace/settings/values'
 import { useWs, workspace } from '../../../workspace/store'
@@ -13,20 +14,14 @@ import { Section, Tip } from './bits'
 import FilamentPanel from './FilamentPanel'
 import { ADVANCED_KEYS, LEVEL_LABEL } from './settings/levels'
 import OptionList from './settings/OptionList'
+import { PROCESS_PAGE_KEYS, PROCESS_PAGE_ORDER } from './settings/pages'
 import PageBar from './settings/PageBar'
 import SearchBox from './settings/SearchBox'
 import { usePageSpy } from './settings/usePageSpy'
 import { usePrepareLevel } from './settings/usePrepareLevel'
 
-const PAGE_ORDER = ['Quality', 'Strength', 'Speed', 'Support', 'Multimaterial', 'Others']
-const PAGE_KEYS: Record<string, TranslationKey> = {
-  Quality: 'slice.page.quality',
-  Strength: 'slice.page.strength',
-  Speed: 'slice.page.speed',
-  Support: 'slice.page.support',
-  Multimaterial: 'slice.page.multimaterial',
-  Others: 'slice.page.others',
-}
+const PAGE_ORDER = PROCESS_PAGE_ORDER
+const PAGE_KEYS = PROCESS_PAGE_KEYS
 /** Pages whose options make sense per object (Creality's per-object settings are region/object options) */
 const OBJECT_PAGES = new Set(['Quality', 'Strength', 'Speed', 'Support'])
 const OBJECT_GROUPS = new Set(['Brim', 'Fuzzy Skin'])
@@ -60,6 +55,7 @@ function ProcessSection({
   setScopeObject: (id: string | null) => void
 }) {
   const { t } = useI18n()
+  const { user } = useAuth()
   const doc = useWs((s) => s.doc)
   const selection = useWs((s) => s.selection)
   const [level, setLevel] = usePrepareLevel()
@@ -134,11 +130,17 @@ function ProcessSection({
             aria-label={t('workspace.process.preset')}
             onChange={(e) => workspace.update((d) => ({ ...d, processPresetId: e.target.value }))}
           >
-            {(bundle?.process ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {shortPresetName(p.name)}
-                {p.isDefault ? ` · ${t('workspace.process.default')}` : ''}
-              </option>
+            {/* System presets, then the user's own profiles, then profiles other users shared */}
+            {groupPresets(bundle?.process ?? [], user?.id).map((g) => (
+              <optgroup key={g.group} label={t(g.label)}>
+                {g.presets.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.custom ? p.name : shortPresetName(p.name)}
+                    {p.isDefault ? ` · ${t('workspace.process.default')}` : ''}
+                    {g.group === 'shared' && p.ownerName ? ` · ${p.ownerName}` : ''}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <Tip label={t('workspace.process.resetAll')} side="left">
@@ -236,7 +238,7 @@ function QuickSettings({
 }) {
   const { t } = useI18n()
   const processId = useWs((s) => s.doc.processPresetId)
-  const byHeight = (h: string) => bundle?.process.find((p) => p.name.startsWith(h))
+  const byHeight = (h: string) => bundle?.process.find((p) => !p.custom && p.name.startsWith(h))
   const quality = [
     { id: 'fast', preset: byHeight('0.24'), label: t('slice.quick.fast') },
     { id: 'standard', preset: byHeight('0.20'), label: t('slice.quick.standard') },

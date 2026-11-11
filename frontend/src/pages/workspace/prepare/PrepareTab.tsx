@@ -24,7 +24,7 @@ import {
   selectAllOnPlate,
 } from '../../../workspace/ops'
 import { bedFromMachine } from '../../../workspace/plates'
-import { applyBundleDefaults, useBundle, usePreset } from '../../../workspace/profiles'
+import { applyBundleDefaults, shortPresetName, useBundle, usePreset } from '../../../workspace/profiles'
 import { loadSceneMeshes, openProject } from '../../../workspace/projects'
 import { slicing, useSlicing } from '../../../workspace/slicing'
 import { useWs, workspace } from '../../../workspace/store'
@@ -98,9 +98,16 @@ export default function PrepareTab({ active }: { active: boolean }) {
     loadSceneMeshes(workspace.state.doc, (name, err) => toastRef.current.toast('error', `${name}: ${toastRef.current.errorMessage(err)}`))
   }, [user])
 
+  // Empty or stale presets: the user's "always used" profiles, else the bundle defaults. A user profile that was
+  // deleted or unshared falls back to its system parent, and the user is told.
+  const defProcess = user?.defaultProcessPreset
+  const defFilament = user?.defaultFilamentPreset
   useEffect(() => {
-    if (bundle) applyBundleDefaults(bundle)
-  }, [bundle])
+    if (!bundle) return
+    for (const m of applyBundleDefaults(bundle, { process: defProcess, filament: defFilament })) {
+      toastRef.current.toast('info', t('profiles.missingInScene', { name: m.name, fallback: shortPresetName(m.fallback) }))
+    }
+  }, [bundle, defProcess, defFilament, t])
 
   // Object-scope settings follow the selection
   const scope = scopeObject ? (selection.includes(scopeObject) ? scopeObject : selection.length === 1 ? selection[0] : null) : null
