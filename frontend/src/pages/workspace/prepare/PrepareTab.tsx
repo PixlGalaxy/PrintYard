@@ -1,4 +1,4 @@
-import { Focus, Home, Library, PanelLeftOpen, PanelRightOpen, Upload, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Focus, Home, Library,PanelLeftOpen, PanelRightOpen, Upload, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../../api'
@@ -28,6 +28,7 @@ import { applyBundleDefaults, useBundle, usePreset } from '../../../workspace/pr
 import { loadSceneMeshes, openProject } from '../../../workspace/projects'
 import { slicing, useSlicing } from '../../../workspace/slicing'
 import { useWs, workspace } from '../../../workspace/store'
+import { useStoredState } from '../../../hooks'
 import { Tip } from './bits'
 import { floatCls } from './styles'
 import LeftPanel from './LeftPanel'
@@ -45,6 +46,10 @@ import { setUi, usePrepareUi } from './uiState'
 import ViewCube, { type ViewCubeHandle } from '../../../three/ViewCube'
 import ViewportView from './ViewportView'
 
+/** Vertical tab on a panel edge that folds/unfolds the left panel (only where it is docked: xl and up). */
+const edgeTabCls = (pos: string) =>
+  `absolute top-1/2 hidden h-12 w-5 -translate-y-1/2 items-center justify-center border border-line bg-surface text-muted shadow-sm transition-colors hover:bg-surface-2 hover:text-fg xl:inline-flex ${pos}`
+
 const VIEW_KEYS: Record<string, ViewName> = { '0': 'iso', '1': 'top', '2': 'bottom', '3': 'front', '4': 'back', '5': 'left', '6': 'right' }
 
 export default function PrepareTab({ active }: { active: boolean }) {
@@ -57,6 +62,7 @@ export default function PrepareTab({ active }: { active: boolean }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const cube = useRef<ViewCubeHandle>(null)
   const [drawer, setDrawer] = useState<'left' | 'right' | null>(null)
+  const [leftCollapsed, setLeftCollapsed] = useStoredState<boolean>('sd:ws:leftCollapsed', false)
   const [dragging, setDragging] = useState(false)
   const [scopeObject, setScopeObject] = useState<string | null>(null)
   const dragDepth = useRef(0)
@@ -279,12 +285,21 @@ export default function PrepareTab({ active }: { active: boolean }) {
         }}
       />
 
-      {/* Left panel (drawer below xl) */}
+      {/* Left panel (drawer below xl; collapsible from xl up) */}
       <aside
-        className={`z-30 w-[284px] shrink-0 border-r border-line bg-surface max-xl:absolute max-xl:inset-y-0 max-xl:left-0 max-xl:shadow-2xl max-xl:transition-transform max-xl:duration-200 ${
+        className={`z-30 w-[284px] shrink-0 border-r border-line bg-surface max-xl:absolute max-xl:inset-y-0 max-xl:left-0 max-xl:shadow-2xl max-xl:transition-transform max-xl:duration-200 xl:relative ${
           drawer === 'left' ? 'max-xl:translate-x-0' : 'max-xl:-translate-x-full max-xl:shadow-none'
-        }`}
+        } ${leftCollapsed ? 'xl:hidden' : ''}`}
       >
+        <button
+          type="button"
+          onClick={() => setLeftCollapsed(true)}
+          className={edgeTabCls('-right-5 rounded-r-lg border-l-0')}
+          aria-label={t('workspace.panels.collapse')}
+          title={t('workspace.panels.collapse')}
+        >
+          <ChevronLeft size={16} />
+        </button>
         <LeftPanel
           bundle={bundle}
           onImport={() => fileInput.current?.click()}
@@ -300,6 +315,18 @@ export default function PrepareTab({ active }: { active: boolean }) {
       {/* Viewport */}
       <div className="relative min-w-0 flex-1 overflow-hidden bg-[radial-gradient(ellipse_at_50%_35%,var(--surface)_0%,var(--bg)_75%)]">
         <ViewportView bed={bed} cube={cube} />
+
+        {leftCollapsed && (
+          <button
+            type="button"
+            onClick={() => setLeftCollapsed(false)}
+            className={edgeTabCls('left-0 z-20 rounded-r-lg border-l-0')}
+            aria-label={t('workspace.panels.expand')}
+            title={t('workspace.panels.expand')}
+          >
+            <ChevronRight size={16} />
+          </button>
+        )}
 
         <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start gap-2 p-3 max-sm:p-2">
           <div className="pointer-events-auto flex flex-col gap-2">
@@ -357,7 +384,7 @@ export default function PrepareTab({ active }: { active: boolean }) {
         )}
 
         {!doc.objects.length && !importing && !dragging && (
-          <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center p-6 xl:hidden">
+          <div className={`pointer-events-none absolute inset-0 z-[5] flex items-center justify-center p-6 ${leftCollapsed ? '' : 'xl:hidden'}`}>
             <div className={`${floatCls} pointer-events-auto w-full max-w-72 p-5 text-center animate-[pop-in_.18s_ease-out]`}>
               <span className="mx-auto mb-3 flex size-11 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500">
                 <Upload size={20} />

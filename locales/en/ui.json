@@ -865,6 +865,8 @@
   "workspace.nudge.back": "Move back",
   "workspace.nudge.front": "Move forward",
   "workspace.nudge.left": "Move left",
+  "workspace.panels.collapse": "Hide panel",
+  "workspace.panels.expand": "Show printer and objects",
   "workspace.nudge.right": "Move right",
   "workspace.nudge.step": "Step",
   "workspace.drop.title": "Drop to add to the plate",

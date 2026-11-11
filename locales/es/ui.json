@@ -865,6 +865,8 @@
   "workspace.nudge.back": "Mover hacia atrás",
   "workspace.nudge.front": "Mover hacia delante",
   "workspace.nudge.left": "Mover a la izquierda",
+  "workspace.panels.collapse": "Ocultar panel",
+  "workspace.panels.expand": "Mostrar impresora y objetos",
   "workspace.nudge.right": "Mover a la derecha",
   "workspace.nudge.step": "Paso",
   "workspace.drop.title": "Suelta para añadir a la placa",
