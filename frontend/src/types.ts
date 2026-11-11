@@ -107,6 +107,8 @@ export interface User {
   defaultProcessPreset?: string | null
   /** "Always used" filament preset for slot 1 of new projects; null = bundle default */
   defaultFilamentPreset?: string | null
+  /** Lists the printer's own filaments (Profiles tab, Prepare picker); off by default */
+  showPrinterFilaments?: boolean
 }
 
 export interface UserLimits {
@@ -257,6 +259,7 @@ export interface AccountPatch {
   /** null = bundle default */
   defaultProcessPreset?: string | null
   defaultFilamentPreset?: string | null
+  showPrinterFilaments?: boolean
 }
 
 /** GET /api/account/sessions (id is a public hash, not the token) */
@@ -296,6 +299,8 @@ export interface Settings {
   'printers.retention.keep': number
   /** idle heater safety: heaters on with no print and no control action for this long → off (0 = never) */
   'printers.idleHeaterOffMinutes': number
+  /** Copy of every user's profiles on the printer (Moonraker config root) */
+  'printers.profilesBackup.enabled': boolean
   'files.maxUploadMb': number
 }
 
@@ -592,6 +597,71 @@ export interface ProcessProfilePatch {
 export type ProfileFileKind = 'process' | 'filament'
 
 /** `POST /api/profile-files/import` result */
+// ---- printer-side presets (mirrors backend/src/types.ts) ----
+
+/** One filament of the printer's own material list, mapped onto a SliceDock system preset */
+export interface PrinterMaterial {
+  id: string
+  name: string
+  brand: string
+  type: string
+  color: string | null
+  colors: string[]
+  minTemp: number | null
+  maxTemp: number | null
+  nozzleTemp: number | null
+  bedTemp: number | null
+  inherits: string
+  /** Matching SliceDock system preset; null when none */
+  systemPresetId: string | null
+  /** Settings that differ from that preset (`kept` = part of `values`) */
+  differs: { key: string; printer: string; slicedock: string | null; kept: boolean }[]
+  /** What "Duplicate as my filament" stores (screened like an import) */
+  values: Record<string, string>
+}
+
+export interface PrinterMaterialsView {
+  enabled: boolean
+  printerId: number | null
+  online: boolean
+  fetchedAt: number | null
+  materials: PrinterMaterial[]
+  error?: string
+}
+
+export interface ProfilesBackupStatus {
+  enabled: boolean
+  path: string
+  printers: {
+    printerId: number
+    name: string
+    online: boolean
+    lastBackupAt: number | null
+    lastAttemptAt: number | null
+    lastError: string | null
+    pending: boolean
+    process: number
+    filament: number
+  }[]
+}
+
+export interface ProfilesBackupPreview {
+  printerId: number
+  createdAt: string
+  slicedockVersion: string
+  counts: { process: number; filament: number; create: number; unchanged: number; renamed: number; ownerMapped: number }
+  items: {
+    kind: ProfileFileKind
+    name: string
+    owner: string
+    restoreOwner: string
+    ownerKnown: boolean
+    shared: boolean
+    action: 'create' | 'unchanged'
+    finalName: string
+  }[]
+}
+
 export interface ProfileImportReport {
   created: { kind: ProfileFileKind; id: number; presetId: string; name: string; inherits: string; keys: number }[]
   /** Archive entries (or the file) that produced no profile; `reason`: printer_preset, unsafe_path, not_json, invalid_json, … */

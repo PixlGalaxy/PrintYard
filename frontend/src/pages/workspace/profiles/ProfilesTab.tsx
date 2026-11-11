@@ -3,7 +3,7 @@
 // the Default star ("always used" by new projects), the Shared toggle and actions; import and export use Creality
 // Print's preset files.
 import { Copy, Download, FileUp, FlaskConical, PencilLine, Plus, SlidersHorizontal, Star, Trash2, Users } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { api } from '../../../api'
 import ConfirmModal from '../../../components/ConfirmModal'
 import Modal from '../../../components/Modal'
@@ -19,7 +19,9 @@ import FilamentPresetDialog, { type PresetDraft } from '../prepare/FilamentPrese
 import { IMPORT_ACCEPT, MAX_IMPORT_BYTES, readAsBase64, saveExport } from './files'
 import ImportReportDialog from './ImportReportDialog'
 import ProcessProfileDialog, { type ProcessDialogMode } from './ProcessProfileDialog'
+import PrinterFilaments from './PrinterFilaments'
 import ProfileEditor, { type EditorProfile } from './ProfileEditor'
+import Group from './ProfileGroup'
 import { UNKNOWN_FILAMENT_COLOR } from '../../../workspace/filamentColor'
 
 const MODEL: PrinterModel = 'creality-k2se'
@@ -276,6 +278,7 @@ function ProfilesSection({ kind, bundle }: { kind: ProfileFileKind; bundle: Prof
                   {shared.map(rowView)}
                 </Group>
               )}
+              {kind === 'filament' && <PrinterFilaments bundle={bundle} onDuplicate={setFilamentDraft} />}
               <Group title={t('profiles.group.system')} count={system.length}>
                 {system.map(rowView)}
               </Group>
@@ -344,18 +347,6 @@ function ProfilesSection({ kind, bundle }: { kind: ProfileFileKind; bundle: Prof
           {t(deleting.shared ? 'profiles.deleteSharedBody' : 'profiles.deleteBody', { name: deleting.name })}
         </ConfirmModal>
       )}
-    </div>
-  )
-}
-
-function Group({ title, count, children }: { title: string; count: number; children: ReactNode }) {
-  return (
-    <div role="group" aria-label={title}>
-      <p className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-line/70 bg-surface/95 px-3 pt-2.5 pb-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase backdrop-blur">
-        {title}
-        <span className="rounded-full bg-surface-2 px-1.5 text-[10px] font-semibold tabular-nums">{count}</span>
-      </p>
-      <ul className="divide-y divide-line/60">{children}</ul>
     </div>
   )
 }

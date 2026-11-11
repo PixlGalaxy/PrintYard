@@ -10,7 +10,8 @@ import { useToast } from '../../../context/ToastContext'
 import { useLoader } from '../../../hooks'
 import { useI18n } from '../../../i18n/I18nContext'
 import { usePrinterStatus } from '../../../realtime'
-import type { CfsSlot, FilamentPreset, FilamentSlot, PresetSummary, PrinterModel, ProfileBundle, User } from '../../../types'
+import type { CfsSlot, FilamentPreset, FilamentSlot, PresetSummary, PrinterMaterial, PrinterModel, ProfileBundle, User } from '../../../types'
+import { usePrinterMaterials } from '../../../workspace/printerMaterials'
 import { canEditPreset, copyName, customRowId } from '../../../workspace/filamentPresets'
 import { cfsName, followsSpool, loadedSpools, PRINTER_KEYS, presetForSpool, printerOverrides, spoolFingerprint, spoolLabel, spoolName } from '../../../workspace/printerFilaments'
 import { groupPresets, invalidateCustomFilaments, loadPreset, shortPresetName } from '../../../workspace/profiles'
@@ -82,6 +83,7 @@ export default function FilamentPanel({ bundle }: { bundle: ProfileBundle | null
     const base = s && !s.custom ? s : (list.find((p) => p.isDefault && !p.custom) ?? list.find((p) => !p.custom))
     if (base) setCreateDraft({ basePresetId: base.id, filamentType: base.filamentType ?? null, color: base.color ?? null })
   }
+  const { materials: printerMaterials } = usePrinterMaterials()
   const touched = useRef(false)
   const { data: printers } = useLoader(api.printers)
   const status = usePrinterStatus(printers?.[0]?.id ?? null)
@@ -250,6 +252,12 @@ export default function FilamentPanel({ bundle }: { bundle: ProfileBundle | null
                 label={t('workspace.filament.preset', { n: f.slot })}
                 groups={byType}
                 inPrinter={inPrinter}
+                printerMaterials={printerMaterials.filter((m) => m.systemPresetId && list.some((p) => p.id === m.systemPresetId))}
+                onPickMaterial={(m) => {
+                  if (f.slot === 1) touched.current = true
+                  // the printer's version of the filament: its system preset plus what differs on the printer
+                  setSlot(f.slot, { presetId: m.systemPresetId!, overrides: Object.keys(m.values).length ? m.values : undefined, ...(m.color && !f.cfs ? { color: m.color } : {}) })
+                }}
                 current={f}
                 mappedSpool={f.cfs ? (cfs ?? []).find((c) => c.box === f.cfs!.box && c.slot === f.cfs!.slot && !!c.material) : undefined}
                 user={user}
@@ -370,17 +378,22 @@ function PresetPicker({
   label,
   groups,
   inPrinter,
+  printerMaterials,
   current,
   mappedSpool,
   user,
   onAction,
   onCreate,
   onPick,
+  onPickMaterial,
 }: {
   value: string
   label: string
   groups: Map<string, PresetSummary[]>
   inPrinter: Spool[]
+  /** The printer's own filament list (only when the user turned "Show printer filaments" on) */
+  printerMaterials: PrinterMaterial[]
+  onPickMaterial: (m: PrinterMaterial) => void
   current: FilamentSlot
   /** The printer spool this slot is mapped to (for the "From printer" badge) */
   mappedSpool?: CfsSlot
@@ -502,6 +515,35 @@ function PresetPicker({
               <div className="my-1 h-px bg-line" />
             </div>
           )}
+          {printerMaterials.length > 0 && (
+            <div role="group" aria-label={t('printerFilaments.pickerGroup')}>
+              <p className="flex items-center gap-1.5 px-2.5 pt-1 pb-1 text-[10px] font-semibold tracking-wide text-muted uppercase">
+                <PrinterModelIcon size={12} model={printerModel} />
+                {t('printerFilaments.pickerGroup')}
+              </p>
+              {printerMaterials.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  className={`${menuItemCls} py-1!`}
+                  onClick={() => {
+                    onPickMaterial(m)
+                    setOpen(false)
+                  }}
+                >
+                  <span className="size-2.5 shrink-0 rounded-full ring-1 ring-black/20 dark:ring-white/20" style={{ background: m.color ?? UNKNOWN_FILAMENT_COLOR }} />
+                  <span className="min-w-0 flex-1 truncate text-xs">
+                    {m.name}
+                    <span className="text-muted"> · {[m.brand, m.type].filter(Boolean).join(' ')}</span>
+                  </span>
+                  {m.differs.length > 0 && <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[9px] font-semibold text-amber-700 dark:text-amber-300">{t('printerFilaments.differs')}</span>}
+                </button>
+              ))}
+              <div className="my-1 h-px bg-line" />
+            </div>
+          )}
           {!selected && (
             <button type="button" role="option" aria-selected className={menuItemCls} onClick={() => setOpen(false)}>
               <span className="min-w-0 flex-1 truncate text-xs">{shortPresetName(value)}</span>
@@ -515,7 +557,7 @@ function PresetPicker({
                 const on = p.id === value && !spoolSelected
                 const option = (
                   <button key={p.id} type="button" role="option" aria-selected={on} className={`${menuItemCls} py-1! ${p.custom ? 'min-w-0 flex-1' : ''}`} onClick={() => pick(p)}>
-                    <span className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: p.color ?? 'transparent' }} />
+                    <span className="size-2.5 shrink-0 rounded-full ring-1 ring-black/20 dark:ring-white/20" style={{ background: p.color ?? UNKNOWN_FILAMENT_COLOR }} />
                     <span className="min-w-0 flex-1 truncate text-xs" title={p.custom && p.inherits ? t('filaments.basedOn', { name: shortPresetName(p.inherits) }) : undefined}>
                       {shortPresetName(p.name)}
                     </span>

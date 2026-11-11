@@ -38,6 +38,9 @@ import type {
   ProfileExportFile,
   ProfileExportRequest,
   ProfileImportReport,
+  PrinterMaterialsView,
+  ProfilesBackupPreview,
+  ProfilesBackupStatus,
   PrinterModel,
   ProfileBundle,
   ProjectBody,
@@ -388,6 +391,8 @@ export const api = {
   deleteProcessProfile: (id: number) => req<void>('DELETE', `/process-profiles/${id}`),
   shareProcessProfile: (id: number, scope: FilamentPresetScope) => req<ProcessProfile>('POST', `/process-profiles/${id}/share`, { scope }),
   /** Creality Print / Orca preset file (.json, .zip, .creality_filament, .creality_printer), sent as base64 */
+  /** The printer's own filament list (empty unless the user turned it on) */
+  printerMaterials: (printerId?: number, refresh = false) => get<PrinterMaterialsView>(`/printer-materials${qs({ printerId, refresh: refresh ? '1' : undefined })}`),
   importProfiles: (fileName: string, data: string) => req<ProfileImportReport>('POST', '/profile-files/import', { fileName, data }),
   exportProfiles: (body: ProfileExportRequest) => req<ProfileExportFile>('POST', '/profile-files/export', body),
   sliceStart: (body: SliceRequest) => req<SliceJob>('POST', '/slice', body),
@@ -424,6 +429,10 @@ export const adminApi = {
 
   // Engine manager (Phase 2)
   engine: () => get<EngineInfo>('/admin/engine'),
+  profilesBackup: () => get<ProfilesBackupStatus>('/admin/profiles-backup'),
+  profilesBackupRun: () => req<ProfilesBackupStatus>('POST', '/admin/profiles-backup/run'),
+  profilesBackupPreview: (printerId: number) => get<ProfilesBackupPreview>(`/admin/profiles-backup/preview${qs({ printerId })}`),
+  profilesBackupRestore: (printerId: number) => req<ProfileImportReport>('POST', '/admin/profiles-backup/restore', { printerId }),
   engineCheck: () => req<EngineInfo>('POST', '/admin/engine/check'),
   engineUpdate: () => req<EngineInfo>('POST', '/admin/engine/update'),
   engineRollback: () => req<EngineInfo>('POST', '/admin/engine/rollback'),
