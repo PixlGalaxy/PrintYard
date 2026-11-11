@@ -192,7 +192,7 @@ export class SlicingService {
 
   submit(user: SliceUser, body: SliceSubmit, ip: string | null): SliceJob {
     this.evict();
-    if (!this.deps.engine.current()) throw new AppError(409, 'engine.not_installed', 'No slicing engine is installed yet');
+    this.deps.engine.assertUsable();
     const { scene, plate } = body;
     if (!scene.plates.some((p) => p.index === plate) && !scene.objects.some((o) => o.plate === plate)) {
       throw new AppError(400, 'slice.invalid_plate', `Plate ${plate} does not exist`);
@@ -315,6 +315,7 @@ export class SlicingService {
     let ticker: NodeJS.Timeout | undefined;
     try {
       if (!engine) throw new AppError(409, 'engine.not_installed', 'No slicing engine is installed');
+      if (this.deps.engine.broken()) throw new AppError(409, 'engine.broken', 'The slicing engine files are missing or damaged');
       // Supports make the slicing stages longer; K2 SE presets ship with enable_support 0, so only the override counts.
       const model = new ProgressModel(0, Date.now(), { supports: job.scene.processOverrides?.enable_support === '1' });
       const sourceBytes = [...new Set(job.scene.objects.filter((o) => o.plate === job.plate).map((o) => o.fileId))].reduce(

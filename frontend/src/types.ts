@@ -874,6 +874,8 @@ export interface EngineInfo {
   /** 0..100 */
   progress: number
   error?: string
+  /** The installed engine's files are damaged (binary missing): slicing fails until it is reinstalled */
+  broken?: true
 }
 
 export interface EngineProgress {

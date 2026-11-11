@@ -749,4 +749,6 @@ export interface EngineStatus {
   state: EngineState;
   progress: number;
   error?: string;
+  /** The installed engine's binary is missing (damaged install): slicing fails until it is reinstalled. */
+  broken?: true;
 }

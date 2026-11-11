@@ -250,7 +250,23 @@ export class EngineManager {
       state: this.state,
       progress: this.progress,
       ...(this.error && { error: this.error }),
+      ...(this.broken() && { broken: true as const }),
     };
+  }
+
+  /**
+   * The installed engine's files are damaged: its folder is there but `bin/CrealityPrint` is gone (e.g. a temp-folder
+   * cleanup on a dev host). Slicing refuses with `engine.broken`; Admin → Engine offers a reinstall.
+   */
+  broken(): boolean {
+    const inst = this.persisted.installed;
+    return !this.fake && !!inst && !existsSync(join(inst.path, 'bin', 'CrealityPrint'));
+  }
+
+  /** Throws the reason slicing cannot start (no engine / damaged install). */
+  assertUsable(): void {
+    if (!this.current()) throw new AppError(409, 'engine.not_installed', 'No slicing engine is installed yet');
+    if (this.broken()) throw new AppError(409, 'engine.broken', 'The slicing engine files are missing or damaged; reinstall it in Admin → Engine');
   }
 
   /** The engine to slice with, or null when none is installed. */

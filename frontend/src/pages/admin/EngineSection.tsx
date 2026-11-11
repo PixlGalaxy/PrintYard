@@ -59,7 +59,8 @@ export default function EngineSection() {
   const state = live?.state && live.state !== 'idle' ? live.state : (engine?.state ?? 'idle')
   const working = (WORKING as readonly string[]).includes(state)
   const progress = live && live.state !== 'idle' ? live.progress : (engine?.progress ?? 0)
-  const upToDate = !!engine?.installed && !!engine.latest && engine.installed.version === engine.latest.version
+  const broken = !!engine?.broken
+  const upToDate = !broken && !!engine?.installed && !!engine.latest && engine.installed.version === engine.latest.version
 
   async function check() {
     setChecking(true)
@@ -108,7 +109,7 @@ export default function EngineSection() {
                 tone="sky"
                 version={engine.installed?.version}
                 sub={engine.installed ? t('engineMgr.installedAt', { when: formatDate(engine.installed.installedAt) }) : t('engineMgr.notInstalled')}
-                badge={engine.installed ? upToDate ? <Badge tone="emerald"><CircleCheck size={12} /> {t('engineMgr.current')}</Badge> : <Badge tone="violet">{t('engineMgr.updateAvailable')}</Badge> : <Badge tone="amber">{t('engineMgr.missing')}</Badge>}
+                badge={engine.installed ? broken ? <Badge tone="red">{t('engineMgr.broken')}</Badge> : upToDate ? <Badge tone="emerald"><CircleCheck size={12} /> {t('engineMgr.current')}</Badge> : <Badge tone="violet">{t('engineMgr.updateAvailable')}</Badge> : <Badge tone="amber">{t('engineMgr.missing')}</Badge>}
               />
               <VersionCard
                 label={t('engineMgr.latest')}
@@ -141,6 +142,11 @@ export default function EngineSection() {
                 {live?.message && <p className="mt-1.5 text-xs text-muted">{live.message}</p>}
               </div>
             )}
+            {broken && !working && (
+              <Callout tone="error" title={t('engineMgr.brokenTitle')}>
+                {t('engineMgr.brokenDesc')}
+              </Callout>
+            )}
             {state === 'error' && (
               <Callout tone="error" title={t('engineMgr.failed')}>
                 {engine.error ?? live?.message}
@@ -148,8 +154,8 @@ export default function EngineSection() {
             )}
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="update" icon={<Download size={14} />} disabled={working || !engine.latest || upToDate} onClick={() => void update()}>
-                {engine.latest && !upToDate ? t('engineMgr.updateTo', { v: engine.latest.version }) : t('engineMgr.updateNow')}
+              <Button variant="update" icon={<Download size={14} />} disabled={working || (!broken && (!engine.latest || upToDate))} onClick={() => void update()}>
+                {broken ? t('engineMgr.reinstall') : engine.latest && !upToDate ? t('engineMgr.updateTo', { v: engine.latest.version }) : t('engineMgr.updateNow')}
               </Button>
               <Button icon={<Undo2 size={14} />} disabled={working || !engine.previous} onClick={() => setRollback(true)}>
                 {engine.previous ? t('engineMgr.rollbackTo', { v: engine.previous.version }) : t('engineMgr.rollback')}

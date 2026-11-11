@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { unzipSync } from 'fflate';
 import { boxStl, createB1App, makePng, sceneFor, upload, type B1App } from './b1-helpers.js';
@@ -232,6 +233,35 @@ describe('engine manager', () => {
       assert.equal(en.body.options.find((o: { key: string }) => o.key === 'layer_height').label, 'Layer height');
       const preset = await t.alice.get(`/api/profiles/creality-k2se/preset/process/${encodeURIComponent('0.20mm Standard @Creality K2 SE 0.4 nozzle')}`);
       assert.equal(preset.body.values.layer_height, '0.2');
+    } finally {
+      t.close();
+    }
+  });
+
+  it('an install whose binary vanished is reported broken and slicing answers 409 engine.broken', async () => {
+    const t = await createB1App({ engine: { fake: false } });
+    try {
+      // A Windows temp cleanup deleted squashfs-root/bin of a test install: the folder is still there.
+      const root = join(t.ctx.config.appdataRoot, 'engine', 'versions', '7.3.1.6378', 'squashfs-root');
+      mkdirSync(join(root, 'resources'), { recursive: true });
+      writeFileSync(
+        join(t.ctx.config.appdataRoot, 'engine', 'state.json'),
+        JSON.stringify({ installed: { version: '7.3.1.6378', path: root, installedAt: 1 }, previous: null, latest: null, lastCheckAt: null }),
+      );
+      // Re-read the state as a restart would.
+      const engine = t.ctx.engine as unknown as { persisted: unknown; readState(): unknown };
+      engine.persisted = engine.readState();
+      const status = await t.admin.get('/api/admin/engine');
+      assert.equal(status.body.installed.version, '7.3.1.6378');
+      assert.equal(status.body.broken, true);
+      const model = (await upload(t.alice, boxStl(), 'c.stl')).body.id;
+      const res = await t.alice.post('/api/slice').send({ scene: sceneFor([model]), plate: 0 });
+      assert.equal(res.status, 409);
+      assert.equal(res.body.error.code, 'engine.broken');
+      // Binary back (reinstalled): no longer broken.
+      mkdirSync(join(root, 'bin'), { recursive: true });
+      writeFileSync(join(root, 'bin', 'CrealityPrint'), '');
+      assert.equal((await t.admin.get('/api/admin/engine')).body.broken, undefined);
     } finally {
       t.close();
     }
