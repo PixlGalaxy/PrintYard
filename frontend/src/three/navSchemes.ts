@@ -19,7 +19,7 @@ export const NAV3D_SCHEMES: Record<Exclude<Nav3dPreset, 'custom'>, Mapping> = {
   // Tinkercad: right-drag orbit, Shift/Ctrl+right-drag or middle-drag pan, wheel zoom (towards the cursor)
   tinkercad: { orbit: [b('right')], pan: [b('right', 'shift'), b('right', 'ctrl'), b('middle')], zoom: [], zoomToCursor: true },
   // Repetier-Host: left-drag rotates, Shift+left or middle moves the view, wheel zoom (towards the centre).
-  // Right-drag moves the object in Repetier; here it pans (objects move with the gizmo).
+  // Objects move with Ctrl+left-drag on them in every scheme (Viewport), or with the move gizmo.
   repetier: { orbit: [b('left')], pan: [b('left', 'shift'), b('middle'), b('right')], zoom: [], zoomToCursor: false },
   // AutoCAD / Fusion 360: middle pan, Shift+middle orbit, wheel zoom to cursor
   cad: { orbit: [b('middle', 'shift')], pan: [b('middle')], zoom: [], zoomToCursor: true },

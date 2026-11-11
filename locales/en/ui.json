@@ -997,6 +997,7 @@
   "slice.failedTitle": "Slicing could not start",
   "slice.engineMissing": "No slicing engine is installed yet. An admin can install it in Admin → Engine.",
   "slice.block.presets": "Loading printer presets…",
+  "workspace.shortcuts.ctrlDrag": "Drag an object to move it (any tool)",
   "slice.block.empty": "Add a model to this plate to slice it.",
   "slice.block.uploading": "Waiting for uploads to finish…",
   "slice.block.loading": "Loading models…",

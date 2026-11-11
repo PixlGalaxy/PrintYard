@@ -18,6 +18,7 @@ import {
   MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
+  Plane,
   Quaternion,
   Ray,
   Raycaster,
@@ -143,6 +144,8 @@ export class Viewport implements CubeCamera {
   private dragStart: Map<string, Matrix4> | null = null
   private proxyStart = new Matrix4()
   private pointerDown: { x: number; y: number; onGizmo: boolean; button: number } | null = null
+  /** Ctrl/⌘ + left press on an object (Repetier-Host style): becomes a drag on the bed plane once it moves. */
+  private ctrlPress: { id: string; x: number; y: number; pointerId: number; plane: Plane; from: Vector3; dragging: boolean; shift: boolean } | null = null
   private hoverFacet: Mesh | null = null
   private ro: ResizeObserver
   private disposed = false
@@ -208,6 +211,12 @@ export class Viewport implements CubeCamera {
     this.scene.add(gizmo.getHelper())
 
     const el = this.renderer.domElement
+    // Capture phase: runs before the navigation / OrbitControls / gizmo listeners so a Ctrl-drag on an object
+    // moves the object instead of the camera.
+    el.addEventListener('pointerdown', this.onCtrlDown, { capture: true })
+    el.addEventListener('pointermove', this.onCtrlMove, { capture: true })
+    el.addEventListener('pointerup', this.onCtrlUp, { capture: true })
+    el.addEventListener('pointercancel', this.onCtrlUp, { capture: true })
     el.addEventListener('pointerdown', this.onPointerDown)
     el.addEventListener('pointerup', this.onPointerUp)
     el.addEventListener('pointermove', this.onPointerMove)
@@ -562,6 +571,84 @@ export class Viewport implements CubeCamera {
   private pickFacet() {
     const groups = [...this.nodes.values()].map((n) => n.facets).filter((g): g is Group => !!g)
     return this.raycaster.intersectObjects(groups, true)[0] ?? null
+  }
+
+  // ---------- Ctrl + drag moves objects (any tool) ----------
+
+  private onCtrlDown = (e: PointerEvent) => {
+    if (e.button !== 0 || !(e.ctrlKey || e.metaKey) || e.pointerType === 'touch' || this.input?.tool === 'layFace') return
+    this.setRay(e)
+    const hit = this.pickObjectHit()
+    if (!hit) return // empty space: the usual Ctrl-drag navigation
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    const from = this.raycaster.ray.at(hit.dist, new Vector3())
+    this.ctrlPress = { id: hit.id, x: e.clientX, y: e.clientY, pointerId: e.pointerId, plane: new Plane(new Vector3(0, 0, 1), -from.z), from, dragging: false, shift: e.shiftKey }
+    this.renderer.domElement.setPointerCapture(e.pointerId)
+  }
+
+  private onCtrlMove = (e: PointerEvent) => {
+    const p = this.ctrlPress
+    if (!p || e.pointerId !== p.pointerId) {
+      if (!this.pointerDown && !this.gizmo.dragging && (e.ctrlKey || e.metaKey) && e.pointerType !== 'touch' && this.input?.tool !== 'layFace') {
+        // Hint: Ctrl over an object = it can be dragged
+        this.setRay(e)
+        const over = [...this.nodes.values()].some((n) => n.mesh && n.group.visible && this.raycaster.ray.intersectsBox(n.box))
+        if (over) {
+          this.renderer.domElement.style.cursor = 'move'
+          e.stopImmediatePropagation()
+        }
+      }
+      return
+    }
+    e.stopImmediatePropagation()
+    if (!p.dragging) {
+      if (Math.hypot(e.clientX - p.x, e.clientY - p.y) <= 4) return
+      p.dragging = true
+      const sel = this.input?.selection ?? []
+      const ids = sel.includes(p.id) ? sel : [p.id]
+      if (!sel.includes(p.id)) this.cb.onPick(p.id, { shift: false, ctrl: false })
+      this.gizmo.detach()
+      this.dragStart = new Map(ids.map((id) => this.nodes.get(id)).filter((n): n is Node => !!n?.info).map((n) => [n.id, n.group.matrix.clone()]))
+      this.renderer.domElement.style.cursor = 'move'
+    }
+    this.setRay(e)
+    const to = this.raycaster.ray.intersectPlane(p.plane, new Vector3())
+    if (!to || !this.dragStart) return
+    const delta = new Matrix4().makeTranslation(to.x - p.from.x, to.y - p.from.y, 0)
+    for (const [id, start] of this.dragStart) {
+      const n = this.nodes.get(id)
+      if (!n?.info) continue
+      n.group.matrix.copy(delta).multiply(start)
+      n.group.matrixWorldNeedsUpdate = true
+      const world = n.group.matrix.clone().multiply(new Matrix4().makeTranslation(-n.info.center.x, -n.info.center.y, -n.info.center.z))
+      hullBox(n.info.hull, world, n.box)
+    }
+    this.updateSelectionBoxes()
+    this.invalidate()
+  }
+
+  private onCtrlUp = (e: PointerEvent) => {
+    const p = this.ctrlPress
+    if (!p || e.pointerId !== p.pointerId) return
+    this.ctrlPress = null
+    e.stopImmediatePropagation()
+    const el = this.renderer.domElement
+    if (el.hasPointerCapture(p.pointerId)) el.releasePointerCapture(p.pointerId)
+    el.style.cursor = ''
+    if (p.dragging) this.endDrag()
+    else if (e.type === 'pointerup') this.cb.onPick(p.id, { shift: p.shift, ctrl: true }) // plain Ctrl+click: toggle selection
+  }
+
+  private pickObjectHit(): { id: string; dist: number } | null {
+    const ray = this.raycaster.ray
+    let best: { id: string; dist: number } | null = null
+    for (const n of this.nodes.values()) {
+      if (!n.mesh || !n.group.visible || !ray.intersectsBox(n.box)) continue
+      const dist = rayMeshDistance(ray, n.mesh)
+      if (dist !== null && (!best || dist < best.dist)) best = { id: n.id, dist }
+    }
+    return best
   }
 
   /** Box test first, then an exact raycast only against the candidates (cheap even for 1M-triangle meshes). */

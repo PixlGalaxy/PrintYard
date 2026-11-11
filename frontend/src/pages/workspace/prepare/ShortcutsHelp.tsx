@@ -28,6 +28,7 @@ const GROUPS: { title: TranslationKey; items: [string[], TranslationKey][] }[] =
       [['O'], 'workspace.tool.orient'],
       [['C'], 'workspace.tool.center'],
       [['←', '→', '↑', '↓'], 'workspace.shortcuts.nudge'],
+      [[MOD], 'workspace.shortcuts.ctrlDrag'],
     ],
   },
   {

@@ -997,6 +997,7 @@
   "slice.failedTitle": "No se pudo iniciar el laminado",
   "slice.engineMissing": "Todavía no hay ningún motor de laminado instalado. Un administrador puede instalarlo en Administración → Motor.",
   "slice.block.presets": "Cargando perfiles de impresora…",
+  "workspace.shortcuts.ctrlDrag": "Arrastra un objeto para moverlo (con cualquier herramienta)",
   "slice.block.empty": "Añade un modelo a esta placa para laminarla.",
   "slice.block.uploading": "Esperando a que terminen las subidas…",
   "slice.block.loading": "Cargando modelos…",
