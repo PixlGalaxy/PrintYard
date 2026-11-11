@@ -9,6 +9,8 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
   },
   server: {
+    // UI translations live in the repo-level locales/ folder (shared with the backend)
+    fs: { allow: ['.', '../locales'] },
     proxy: {
       '/api': {
         // Backend for `npm run dev`; override with VITE_API_TARGET (env var or .env.local)

@@ -1,0 +1,69 @@
+{
+  "titles": {
+    "print.started": "Impresión iniciada",
+    "print.finished": "Impresión terminada",
+    "print.failed": "La impresión falló",
+    "print.cancelled": "Impresión cancelada",
+    "print.paused": "Impresión en pausa",
+    "approval.requested": "Solicitud de aprobación",
+    "approval.approved": "Impresión aprobada",
+    "approval.rejected": "Solicitud de impresión rechazada",
+    "limit.blocked": "Impresión bloqueada por tus límites",
+    "printer.error": "Error de la impresora",
+    "printer.offline": "Impresora desconectada",
+    "printer.heaters_auto_off": "Calentadores apagados",
+    "engine.update_available": "Actualización del motor de laminado disponible",
+    "engine.updated": "Motor de laminado actualizado",
+    "engine.update_failed": "Falló la actualización del motor de laminado",
+    "test": "Notificación de prueba"
+  },
+  "bodies": {
+    "print.started": "{file} empezó a imprimirse en {printer}.",
+    "print.finished": "{file} terminó de imprimirse en {printer}.",
+    "print.failed": "{file} falló en {printer}.",
+    "print.cancelled": "Se canceló {file} en {printer}.",
+    "print.paused": "{file} está en pausa en {printer}.",
+    "approval.requested": "{user} quiere imprimir {file}.",
+    "approval.approved": "Se aprobó tu solicitud para imprimir {file}.",
+    "approval.rejected": "Se rechazó tu solicitud para imprimir {file}.",
+    "limit.blocked": "{file} no se envió a la impresora: {limit}.",
+    "printer.error": "{printer} reportó un error{codeSuffix}.",
+    "printer.offline": "{printer} lleva más de 5 minutos desconectada durante una impresión.",
+    "printer.heaters_auto_off": "{printer} estaba calentando sin ninguna impresión en curso ni nadie usándola, así que SliceDock apagó los calentadores.",
+    "engine.update_available": "Creality Print {version} está disponible.",
+    "engine.updated": "Se instaló Creality Print {version}{auto}.",
+    "engine.update_failed": "No se pudo instalar Creality Print {version}: {error}",
+    "test": "Las notificaciones de SliceDock funcionan."
+  },
+  "fields": {
+    "printer": "Impresora",
+    "file": "Archivo",
+    "user": "Usuario",
+    "duration": "Duración",
+    "estimate": "Tiempo estimado",
+    "grams": "Filamento",
+    "reason": "Motivo",
+    "version": "Versión"
+  },
+  "reasons": {
+    "cancelled_by": "Cancelada por {0}",
+    "cancelled_on_printer": "Cancelada desde la impresora",
+    "replaced_on_printer": "Se inició otra impresión desde la impresora",
+    "printer_error": "Error de la impresora {0}",
+    "printer_failed": "La impresora reportó un fallo",
+    "printer_did_not_start": "La impresora no inició el trabajo",
+    "file_changed": "El archivo cambió o se eliminó",
+    "file_missing": "Falta el archivo",
+    "prints.upload_failed": "Falló la subida a la impresora"
+  },
+  "limits": {
+    "prints.limit_per_print": "usa más filamento que tu límite por impresión",
+    "prints.limit_month": "superaría tu límite mensual de filamento",
+    "prints.limit_hours": "tarda más que tu límite de tiempo por impresión"
+  },
+  "unknownFile": "Una impresión",
+  "unknownPrinter": "la impresora",
+  "removePrint": "Recuerda retirar la pieza: la cama queda marcada como ocupada hasta que alguien confirme que está libre.",
+  "auto": " automáticamente",
+  "codeSuffix": " (código {code})"
+}

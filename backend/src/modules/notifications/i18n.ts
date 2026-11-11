@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { localesDir } from '../../lib/resources.js';
 import type { Language } from '../../types.js';
 import { EVENT_META, type DeliverableEvent, type NotifyEventData } from './events.js';
 
@@ -14,9 +17,10 @@ export interface RenderedMessage {
   link: string | null;
 }
 
+/** `locales/<lang>/notifications.json`. Bodies are templates: `{file}`, `{printer}`, `{user}`, `{version}`, `{code}`, `{codeSuffix}`, `{error}`, `{limit}`, `{auto}`. */
 type Strings = {
   titles: Record<DeliverableEvent, string>;
-  bodies: Record<DeliverableEvent, (d: Required<Vars>) => string>;
+  bodies: Record<DeliverableEvent, string>;
   fields: { printer: string; file: string; user: string; duration: string; estimate: string; grams: string; reason: string; version: string };
   reasons: Record<string, string>;
   limits: Record<string, string>;
@@ -24,140 +28,19 @@ type Strings = {
   unknownPrinter: string;
   removePrint: string;
   auto: string;
+  /** Appended to `printer.error` when there is a code (` (code {code})`). */
+  codeSuffix: string;
 };
 
-interface Vars {
-  file: string;
-  printer: string;
-  user: string;
-  version: string;
-  code: string;
-  error: string;
-  limit: string;
-  auto: string;
-}
+type Vars = Record<'file' | 'printer' | 'user' | 'version' | 'code' | 'codeSuffix' | 'error' | 'limit' | 'auto', string>;
 
-const EN: Strings = {
-  titles: {
-    'print.started': 'Print started',
-    'print.finished': 'Print finished',
-    'print.failed': 'Print failed',
-    'print.cancelled': 'Print cancelled',
-    'print.paused': 'Print paused',
-    'approval.requested': 'Approval requested',
-    'approval.approved': 'Print approved',
-    'approval.rejected': 'Print request rejected',
-    'limit.blocked': 'Print blocked by your limits',
-    'printer.error': 'Printer error',
-    'printer.offline': 'Printer offline',
-    'printer.heaters_auto_off': 'Heaters switched off',
-    'engine.update_available': 'Slicer engine update available',
-    'engine.updated': 'Slicer engine updated',
-    'engine.update_failed': 'Slicer engine update failed',
-    test: 'Test notification',
-  },
-  bodies: {
-    'print.started': (v) => `${v.file} started on ${v.printer}.`,
-    'print.finished': (v) => `${v.file} finished on ${v.printer}.`,
-    'print.failed': (v) => `${v.file} failed on ${v.printer}.`,
-    'print.cancelled': (v) => `${v.file} was cancelled on ${v.printer}.`,
-    'print.paused': (v) => `${v.file} is paused on ${v.printer}.`,
-    'approval.requested': (v) => `${v.user} wants to print ${v.file}.`,
-    'approval.approved': (v) => `Your request to print ${v.file} was approved.`,
-    'approval.rejected': (v) => `Your request to print ${v.file} was rejected.`,
-    'limit.blocked': (v) => `${v.file} was not sent to the printer: ${v.limit}.`,
-    'printer.error': (v) => `${v.printer} reported an error${v.code ? ` (code ${v.code})` : ''}.`,
-    'printer.offline': (v) => `${v.printer} has been offline for more than 5 minutes during a print.`,
-    'printer.heaters_auto_off': (v) => `${v.printer} was heating with no print running and nobody using it, so SliceDock switched the heaters off.`,
-    'engine.update_available': (v) => `Creality Print ${v.version} is available.`,
-    'engine.updated': (v) => `Creality Print ${v.version} was installed${v.auto}.`,
-    'engine.update_failed': (v) => `Could not install Creality Print ${v.version}: ${v.error}`,
-    test: () => 'SliceDock notifications are working.',
-  },
-  fields: { printer: 'Printer', file: 'File', user: 'User', duration: 'Duration', estimate: 'Estimated time', grams: 'Filament', reason: 'Reason', version: 'Version' },
-  reasons: {
-    cancelled_by: 'Cancelled by {0}',
-    cancelled_on_printer: 'Cancelled on the printer',
-    replaced_on_printer: 'Another print was started on the printer',
-    printer_error: 'Printer error {0}',
-    printer_failed: 'The printer reported a failure',
-    printer_did_not_start: 'The printer did not start the job',
-    file_changed: 'The file changed or was removed',
-    file_missing: 'The file is missing',
-    'prints.upload_failed': 'Upload to the printer failed',
-  },
-  limits: {
-    'prints.limit_per_print': 'it uses more filament than your per-print limit',
-    'prints.limit_month': 'it would exceed your monthly filament limit',
-    'prints.limit_hours': 'it takes longer than your per-print time limit',
-  },
-  unknownFile: 'A print',
-  unknownPrinter: 'the printer',
-  removePrint: 'Remember to remove the print: the bed stays marked as occupied until someone confirms it is clear.',
-  auto: ' automatically',
-};
+const load = (lang: Language): Strings => JSON.parse(readFileSync(join(localesDir(), lang, 'notifications.json'), 'utf8')) as Strings;
 
-const ES: Strings = {
-  titles: {
-    'print.started': 'Impresión iniciada',
-    'print.finished': 'Impresión terminada',
-    'print.failed': 'La impresión falló',
-    'print.cancelled': 'Impresión cancelada',
-    'print.paused': 'Impresión en pausa',
-    'approval.requested': 'Solicitud de aprobación',
-    'approval.approved': 'Impresión aprobada',
-    'approval.rejected': 'Solicitud de impresión rechazada',
-    'limit.blocked': 'Impresión bloqueada por tus límites',
-    'printer.error': 'Error de la impresora',
-    'printer.offline': 'Impresora desconectada',
-    'printer.heaters_auto_off': 'Calentadores apagados',
-    'engine.update_available': 'Actualización del motor de laminado disponible',
-    'engine.updated': 'Motor de laminado actualizado',
-    'engine.update_failed': 'Falló la actualización del motor de laminado',
-    test: 'Notificación de prueba',
-  },
-  bodies: {
-    'print.started': (v) => `${v.file} empezó a imprimirse en ${v.printer}.`,
-    'print.finished': (v) => `${v.file} terminó de imprimirse en ${v.printer}.`,
-    'print.failed': (v) => `${v.file} falló en ${v.printer}.`,
-    'print.cancelled': (v) => `Se canceló ${v.file} en ${v.printer}.`,
-    'print.paused': (v) => `${v.file} está en pausa en ${v.printer}.`,
-    'approval.requested': (v) => `${v.user} quiere imprimir ${v.file}.`,
-    'approval.approved': (v) => `Se aprobó tu solicitud para imprimir ${v.file}.`,
-    'approval.rejected': (v) => `Se rechazó tu solicitud para imprimir ${v.file}.`,
-    'limit.blocked': (v) => `${v.file} no se envió a la impresora: ${v.limit}.`,
-    'printer.error': (v) => `${v.printer} reportó un error${v.code ? ` (código ${v.code})` : ''}.`,
-    'printer.offline': (v) => `${v.printer} lleva más de 5 minutos desconectada durante una impresión.`,
-    'printer.heaters_auto_off': (v) => `${v.printer} estaba calentando sin ninguna impresión en curso ni nadie usándola, así que SliceDock apagó los calentadores.`,
-    'engine.update_available': (v) => `Creality Print ${v.version} está disponible.`,
-    'engine.updated': (v) => `Se instaló Creality Print ${v.version}${v.auto}.`,
-    'engine.update_failed': (v) => `No se pudo instalar Creality Print ${v.version}: ${v.error}`,
-    test: () => 'Las notificaciones de SliceDock funcionan.',
-  },
-  fields: { printer: 'Impresora', file: 'Archivo', user: 'Usuario', duration: 'Duración', estimate: 'Tiempo estimado', grams: 'Filamento', reason: 'Motivo', version: 'Versión' },
-  reasons: {
-    cancelled_by: 'Cancelada por {0}',
-    cancelled_on_printer: 'Cancelada desde la impresora',
-    replaced_on_printer: 'Se inició otra impresión desde la impresora',
-    printer_error: 'Error de la impresora {0}',
-    printer_failed: 'La impresora reportó un fallo',
-    printer_did_not_start: 'La impresora no inició el trabajo',
-    file_changed: 'El archivo cambió o se eliminó',
-    file_missing: 'Falta el archivo',
-    'prints.upload_failed': 'Falló la subida a la impresora',
-  },
-  limits: {
-    'prints.limit_per_print': 'usa más filamento que tu límite por impresión',
-    'prints.limit_month': 'superaría tu límite mensual de filamento',
-    'prints.limit_hours': 'tarda más que tu límite de tiempo por impresión',
-  },
-  unknownFile: 'Una impresión',
-  unknownPrinter: 'la impresora',
-  removePrint: 'Recuerda retirar la pieza: la cama queda marcada como ocupada hasta que alguien confirme que está libre.',
-  auto: ' automáticamente',
-};
+const STRINGS: Record<Language, Strings> = { en: load('en'), es: load('es') };
+const EN = STRINGS.en;
 
-const STRINGS: Record<Language, Strings> = { en: EN, es: ES };
+/** `{name}` placeholders → values (single pass, so a value containing `{x}` is never re-expanded). */
+const fill = (tpl: string, vars: Vars) => tpl.replace(/\{(\w+)\}/g, (m, k: string) => (Object.hasOwn(vars, k) ? vars[k as keyof Vars] : m));
 
 export function formatDuration(sec: number): string {
   const total = Math.max(0, Math.round(sec / 60));
@@ -187,17 +70,19 @@ const clip = (v: string, max: number) => (v.length > max ? `${v.slice(0, max - 1
 /** Renders an event in one language. `publicUrl` (exposure.publicUrl) turns the path into a clickable link. */
 export function renderMessage(event: DeliverableEvent, data: NotifyEventData, language: Language, publicUrl: string | null = null): RenderedMessage {
   const s = STRINGS[language] ?? EN;
-  const vars: Required<Vars> = {
+  const code = data.code === null || data.code === undefined ? '' : String(data.code);
+  const vars: Vars = {
     file: clip(data.fileName?.trim() || s.unknownFile, 120),
     printer: clip(data.printerName?.trim() || s.unknownPrinter, 80),
     user: clip(data.username?.trim() || '?', 64),
     version: clip(data.version ?? '?', 40),
-    code: data.code === null || data.code === undefined ? '' : String(data.code),
+    code,
+    codeSuffix: code ? s.codeSuffix.replace('{code}', code) : '',
     error: clip(data.error ?? '', 300),
     limit: (typeof data.code === 'string' && s.limits[data.code]) || String(data.code ?? ''),
     auto: data.auto ? s.auto : '',
   };
-  let body = s.bodies[event](vars);
+  let body = fill(s.bodies[event], vars);
   if (event === 'print.finished') body += `\n${s.removePrint}`;
 
   const fields: { name: string; value: string }[] = [];

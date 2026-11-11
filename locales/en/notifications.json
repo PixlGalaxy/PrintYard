@@ -1,0 +1,69 @@
+{
+  "titles": {
+    "print.started": "Print started",
+    "print.finished": "Print finished",
+    "print.failed": "Print failed",
+    "print.cancelled": "Print cancelled",
+    "print.paused": "Print paused",
+    "approval.requested": "Approval requested",
+    "approval.approved": "Print approved",
+    "approval.rejected": "Print request rejected",
+    "limit.blocked": "Print blocked by your limits",
+    "printer.error": "Printer error",
+    "printer.offline": "Printer offline",
+    "printer.heaters_auto_off": "Heaters switched off",
+    "engine.update_available": "Slicer engine update available",
+    "engine.updated": "Slicer engine updated",
+    "engine.update_failed": "Slicer engine update failed",
+    "test": "Test notification"
+  },
+  "bodies": {
+    "print.started": "{file} started on {printer}.",
+    "print.finished": "{file} finished on {printer}.",
+    "print.failed": "{file} failed on {printer}.",
+    "print.cancelled": "{file} was cancelled on {printer}.",
+    "print.paused": "{file} is paused on {printer}.",
+    "approval.requested": "{user} wants to print {file}.",
+    "approval.approved": "Your request to print {file} was approved.",
+    "approval.rejected": "Your request to print {file} was rejected.",
+    "limit.blocked": "{file} was not sent to the printer: {limit}.",
+    "printer.error": "{printer} reported an error{codeSuffix}.",
+    "printer.offline": "{printer} has been offline for more than 5 minutes during a print.",
+    "printer.heaters_auto_off": "{printer} was heating with no print running and nobody using it, so SliceDock switched the heaters off.",
+    "engine.update_available": "Creality Print {version} is available.",
+    "engine.updated": "Creality Print {version} was installed{auto}.",
+    "engine.update_failed": "Could not install Creality Print {version}: {error}",
+    "test": "SliceDock notifications are working."
+  },
+  "fields": {
+    "printer": "Printer",
+    "file": "File",
+    "user": "User",
+    "duration": "Duration",
+    "estimate": "Estimated time",
+    "grams": "Filament",
+    "reason": "Reason",
+    "version": "Version"
+  },
+  "reasons": {
+    "cancelled_by": "Cancelled by {0}",
+    "cancelled_on_printer": "Cancelled on the printer",
+    "replaced_on_printer": "Another print was started on the printer",
+    "printer_error": "Printer error {0}",
+    "printer_failed": "The printer reported a failure",
+    "printer_did_not_start": "The printer did not start the job",
+    "file_changed": "The file changed or was removed",
+    "file_missing": "The file is missing",
+    "prints.upload_failed": "Upload to the printer failed"
+  },
+  "limits": {
+    "prints.limit_per_print": "it uses more filament than your per-print limit",
+    "prints.limit_month": "it would exceed your monthly filament limit",
+    "prints.limit_hours": "it takes longer than your per-print time limit"
+  },
+  "unknownFile": "A print",
+  "unknownPrinter": "the printer",
+  "removePrint": "Remember to remove the print: the bed stays marked as occupied until someone confirms it is clear.",
+  "auto": " automatically",
+  "codeSuffix": " (code {code})"
+}

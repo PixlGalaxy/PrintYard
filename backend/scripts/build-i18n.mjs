@@ -8,8 +8,8 @@
  *   - src/libslic3r/PrintConfig.cpp: per option `def->tooltip = L("…")` and `def->enum_labels.*(L("…"))`
  *   - localization/i18n/<lang>/CrealityPrint_<lang>.po: gettext catalog (msgid = the English string)
  * Writes:
- *   - resources/crealityprint-option-text.json: { options: { key: { tooltip?, enumLabels? } } } (English)
- *   - resources/i18n/<lang>.json: { messages: { english: translated } } restricted to the strings SliceDock shows
+ *   - ../locales/en/slicer.json: { options: { key: { tooltip?, enumLabels? } } } (English)
+ *   - ../locales/<lang>/slicer.json: { messages: { english: translated } } restricted to the strings SliceDock shows
  *     (option labels, tooltips, enum labels, categories, page and group names). Empty and fuzzy entries are skipped.
  * The clone is only read; nothing in it is built or executed.
  */
@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const backend = join(dirname(fileURLToPath(import.meta.url)), '..');
+const locales = join(backend, '..', 'locales');
 const [clone, ...langsArg] = process.argv.slice(2);
 if (!clone) {
   console.error('usage: node scripts/build-i18n.mjs <CrealityPrint clone> [lang ...]');
@@ -83,8 +84,9 @@ starts.forEach((s, i) => {
 });
 
 const optionModes = JSON.parse(readFileSync(join(backend, 'resources', 'crealityprint-option-modes.json'), 'utf8'));
+mkdirSync(join(locales, 'en'), { recursive: true });
 writeFileSync(
-  join(backend, 'resources', 'crealityprint-option-text.json'),
+  join(locales, 'en', 'slicer.json'),
   JSON.stringify({ source: 'CrealityPrint v7.3.1 src/libslic3r/PrintConfig.cpp (AGPL-3.0)', options }, null, 1) + '\n',
 );
 
@@ -150,9 +152,9 @@ for (const lang of langs) {
     if (t && t !== s) messages[s] = t;
     else if (!t) missing++;
   }
-  mkdirSync(join(backend, 'resources', 'i18n'), { recursive: true });
+  mkdirSync(join(locales, lang), { recursive: true });
   writeFileSync(
-    join(backend, 'resources', 'i18n', `${lang}.json`),
+    join(locales, lang, 'slicer.json'),
     JSON.stringify(
       {
         source: `CrealityPrint v7.3.1 localization/i18n/${lang}/CrealityPrint_${lang}.po`,

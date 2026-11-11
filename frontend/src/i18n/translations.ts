@@ -1,6 +1,7 @@
 import type { Language } from '../types'
-import en from './en.json'
-import es from './es.json'
+// Shared with the backend: <repo>/locales/<lang>/ui.json
+import en from '../../../locales/en/ui.json'
+import es from '../../../locales/es/ui.json'
 
 /** Every key of en.json. Other locales are checked against it, so a missing key fails `tsc`. */
 export type TranslationKey = keyof typeof en

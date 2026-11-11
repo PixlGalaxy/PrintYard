@@ -8,6 +8,8 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
+# UI translations are imported from the shared locales/ folder
+COPY locales/ /app/locales/
 RUN npm run build
 
 # ---------- Stage 2: backend build ----------
@@ -59,6 +61,7 @@ COPY --from=backend-build /app/backend/package*.json ./
 COPY --from=backend-build /app/backend/node_modules ./node_modules
 COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=backend-build /app/backend/resources ./resources
+COPY locales/ /app/locales/
 COPY --from=frontend-build /app/frontend/dist ./public
 COPY LICENSE /app/LICENSE
 COPY entrypoint.sh /entrypoint.sh
