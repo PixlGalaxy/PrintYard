@@ -109,7 +109,20 @@ export interface PrinterDriver {
    * null when missing / too large / not a PNG. Optional (test fakes).
    */
   fetchFileThumbnail?(thumbName: string, maxBytes?: number): Promise<Buffer | null>;
+  // ---- printer-side presets (optional: test fakes may omit them) ----
+  /** The printer's material list (WS `get reqMaterials` → raw `retMaterials[]`, untrusted); null when offline / no answer. */
+  requestMaterials?(timeoutMs?: number): Promise<unknown[] | null>;
+  /**
+   * Writes a SliceDock file into Moonraker's `config` root (only `slicedock/<name>.json`, never printer.cfg): a plain
+   * file upload, no restart, safe while printing. Throws when offline / refused.
+   */
+  writeConfigFile?(relPath: string, data: Buffer): Promise<void>;
+  /** Reads `slicedock/<name>.json` back from the `config` root; null when missing; 413 above `maxBytes`. */
+  readConfigFile?(relPath: string, maxBytes: number): Promise<Buffer | null>;
 }
+
+/** The only files SliceDock writes to / reads from the printer's Moonraker `config` root. */
+export const SLICEDOCK_CONFIG_FILE = /^slicedock\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.json$/;
 
 export interface CurrentJobFile {
   fileName: string;

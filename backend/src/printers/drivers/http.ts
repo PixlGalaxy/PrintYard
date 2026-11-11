@@ -27,7 +27,8 @@ export async function getJson(url: string, timeoutMs: number): Promise<unknown |
   }
 }
 
-async function readCapped(res: Response, max: number): Promise<string | null> {
+/** Response body as text, null when it is larger than `max` bytes (the read stops there). */
+export async function readCapped(res: Response, max: number): Promise<string | null> {
   if (!res.body) return '';
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];

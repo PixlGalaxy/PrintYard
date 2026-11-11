@@ -7,8 +7,8 @@ import { AppError } from '../../errors.js';
 import { logger } from '../../logger.js';
 import type { LiveJob, PrinterStatus } from '../../types.js';
 import { JobRetention } from './job-retention.js';
-import { formatHostForUrl, getJson, isRecord, normalizeMac } from '../drivers/http.js';
-import type { ControlTelemetry, CurrentJobFile, EtaHints, PrinterDriver, PrinterEndpoint, PrinterIdentity, UploadResult } from '../drivers/types.js';
+import { formatHostForUrl, getJson, isRecord, normalizeMac, readCapped } from '../drivers/http.js';
+import { SLICEDOCK_CONFIG_FILE, type ControlTelemetry, type CurrentJobFile, type EtaHints, type PrinterDriver, type PrinterEndpoint, type PrinterIdentity, type UploadResult } from '../drivers/types.js';
 import { assertWritable } from '../read-only.js';
 import { postMultipartFile, type UploadProgress } from '../drivers/upload.js';
 import { CrealityConnection, type SocketFactory } from './connection.js';
@@ -78,6 +78,7 @@ export class K2SELiveDriver implements PrinterDriver {
   private readonly statusCbs = new Set<StatusCb>();
   private readonly identityCbs = new Set<IdentityCb>();
   private readonly fileWaiters = new Set<(list: PrinterFileEntry[]) => void>();
+  private readonly materialWaiters = new Set<(list: unknown[]) => void>();
   private identity: PrinterIdentity = { mac: null, firmware: null, serial: null, hostname: null, model: null };
   private identifiedHost: string | null = null;
   private lastEmit = 0;
@@ -501,6 +502,73 @@ export class K2SELiveDriver implements PrinterDriver {
     return list !== null;
   }
 
+  // ---- printer-side presets ----
+
+  /** `get reqMaterials` (read-only, what Creality Print's device page sends) → raw `retMaterials[]`, null on timeout. */
+  requestMaterials(timeoutMs = 8000): Promise<unknown[] | null> {
+    if (!this.online) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const finish = (v: unknown[] | null) => {
+        clearTimeout(timer);
+        this.materialWaiters.delete(waiter);
+        resolve(v);
+      };
+      const waiter = (list: unknown[]) => finish(list);
+      this.materialWaiters.add(waiter);
+      const timer = setTimeout(() => finish(null), timeoutMs);
+      if (!this.conn.send(cmd.reqMaterials())) finish(null);
+    });
+  }
+
+  /**
+   * Moonraker `POST /server/files/upload` with `root=config`: a plain file write under `slicedock/` (never printer.cfg,
+   * no firmware restart), safe while printing.
+   */
+  async writeConfigFile(relPath: string, data: Buffer): Promise<void> {
+    assertWritable();
+    if (!SLICEDOCK_CONFIG_FILE.test(relPath)) throw new AppError(400, 'printers.invalid_path', 'Invalid printer config path');
+    const ep = this.endpoint;
+    if (!this.online || !ep || this.opts.moonraker === false) throw printerOffline();
+    const slash = relPath.lastIndexOf('/');
+    const form = new FormData();
+    form.append('root', 'config');
+    form.append('path', relPath.slice(0, slash));
+    form.append('file', new Blob([new Uint8Array(data)], { type: 'application/json' }), relPath.slice(slash + 1));
+    const res = await fetch(`http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}/server/files/upload`, {
+      method: 'POST',
+      body: form,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(20_000),
+    });
+    await res.body?.cancel().catch(() => undefined);
+    if (res.status < 200 || res.status >= 300) throw uploadFailed(`The printer refused the file (HTTP ${res.status})`);
+  }
+
+  /** `GET /server/files/config/slicedock/<name>.json` (read-only), capped at `maxBytes`. */
+  async readConfigFile(relPath: string, maxBytes: number): Promise<Buffer | null> {
+    if (!SLICEDOCK_CONFIG_FILE.test(relPath)) throw new AppError(400, 'printers.invalid_path', 'Invalid printer config path');
+    const ep = this.endpoint;
+    if (!this.online || !ep || this.opts.moonraker === false) throw printerOffline();
+    const url = `http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}/server/files/config/${relPath.split('/').map(encodeURIComponent).join('/')}`;
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(15_000) });
+    if (res.status === 404) {
+      await res.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new AppError(502, 'printers.config_unavailable', `The printer did not serve the file (HTTP ${res.status})`);
+    }
+    const declared = Number(res.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      await res.body?.cancel().catch(() => undefined);
+      throw new AppError(413, 'profiles_backup.too_large', 'The backup file on the printer is too large');
+    }
+    const text = await readCapped(res, maxBytes);
+    if (text === null) throw new AppError(413, 'profiles_backup.too_large', 'The backup file on the printer is too large');
+    return Buffer.from(text, 'utf8');
+  }
+
   /** Asks for the file list (every 2 s) until `ok(list)`; null on timeout. */
   private waitForList(ok: (list: PrinterFileEntry[]) => boolean, timeoutMs: number): Promise<PrinterFileEntry[] | null> {
     return new Promise((resolve) => {
@@ -590,6 +658,7 @@ export class K2SELiveDriver implements PrinterDriver {
 
   private onFrame(frame: Record<string, unknown>): void {
     this.lastFrameAt = Date.now();
+    if (Array.isArray(frame.retMaterials)) for (const w of [...this.materialWaiters]) w(frame.retMaterials as unknown[]);
     const list = parseFileList(frame);
     if (list) {
       this.files = list;

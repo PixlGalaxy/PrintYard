@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { crc32, deflateSync } from 'node:zlib';
@@ -8,11 +9,12 @@ import { logger } from '../../logger.js';
 /**
  * In-process Creality K2 SE simulator speaking the same LAN protocol as the real printer, on ONE port:
  * - WebSocket (any path, like :9999): full dump on connect, partial delta pushes every tick, `get`
- *   ReqPrinterPara / boxsInfo / reqGcodeFile, `set` pause / stop / opGcodeFile printprt: + deleteprt:, heart_beat → "ok".
+ *   ReqPrinterPara / boxsInfo / reqGcodeFile / reqMaterials, `set` pause / stop / opGcodeFile printprt: + deleteprt:, heart_beat → "ok".
  * - HTTP (like :80): `GET /info`, `POST /upload/<name>` (multipart field `file`), `GET /downloads/humbnail/*`.
  * - HTTP (like Moonraker :7125): `GET /machine/system_info`, `GET /printer/info`, `GET /printer/objects/query`,
  *   `GET /server/files/gcodes/<name>`; Moonraker websocket at `/websocket` (`printer.objects.subscribe` +
  *   `notify_status_update` on every push). `GET /downloads/original/current_print_image.png` while printing.
+ *   `POST /server/files/upload` (root=config) + `GET /server/files/config/<path>` (SliceDock's profile backup).
  * Used when a printer's host is `sim` or `SLICEDOCK_SIM_PRINTER=1`. Never used for a real address.
  */
 
@@ -36,6 +38,21 @@ export interface SimulatorOptions {
    * thumbnails, like the user's real K2 SE. Off by default so tests see only the two sample files.
    */
   foreignFiles?: boolean;
+  /** `retMaterials[]` answered to `get reqMaterials` (default: the trimmed real capture in test/fixtures, else []). */
+  materials?: unknown[];
+}
+
+/**
+ * The real K2 SE's material list (trimmed capture, backend/test/fixtures/k2se/retmaterials.json). Only present in a
+ * source checkout: the Docker image has no test folder, so its simulator answers an empty list.
+ */
+export function simMaterials(): unknown[] {
+  try {
+    const raw = JSON.parse(readFileSync(new URL('../../../test/fixtures/k2se/retmaterials.json', import.meta.url), 'utf8')) as { retMaterials?: unknown };
+    return Array.isArray(raw.retMaterials) ? raw.retMaterials : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Creality list metadata of a stored file (what `retGcodeFileInfo2` reports). */
@@ -116,6 +133,14 @@ export class PrinterSimulator {
   pauseGlitch = false;
   /** Test hook: the printer ignores `get ReqPrinterPara` and sends no pushes (a frozen Creality WS link). */
   freezeCrealityWs = false;
+  /** Files in Moonraker's `config` root written through `POST /server/files/upload` (path → content). */
+  readonly configFiles = new Map<string, Buffer>();
+  /** Test hook: `POST /server/files/upload` answers 500. */
+  failConfigUploads = false;
+  /** `retMaterials[]` answered to `get reqMaterials`; tests may replace it. */
+  materials: unknown[];
+  /** `get reqMaterials` requests received. */
+  materialRequests = 0;
   /** Upload throttle in bytes/s (0 = unlimited); tests may change it at runtime. */
   uploadBytesPerSec: number;
   private server: Server | null = null;
@@ -148,8 +173,10 @@ export class PrinterSimulator {
       startDelayTicks: 1,
       uploadBytesPerSec: 0,
       foreignFiles: false,
+      materials: [],
       ...opts,
     };
+    this.materials = opts.materials ?? simMaterials();
     this.uploadBytesPerSec = this.o.uploadBytesPerSec;
     this.addFile({ name: 'calibration_cube.gcode', bytes: sampleGcode(100), seconds: 900, layers: 100 });
     this.addFile({ name: 'two_cubes.gcode', bytes: twoObjectGcode(60), seconds: 1200, layers: 60 });
@@ -295,6 +322,28 @@ export class PrinterSimulator {
         res.end(f.bytes);
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/server/files/upload') {
+        const body = await readBody(req, 16 * 1024 * 1024);
+        const ct = String(req.headers['content-type'] ?? '');
+        const root = multipartField(body, ct, 'root') ?? 'gcodes';
+        const dir = multipartField(body, ct, 'path') ?? '';
+        const file = extractMultipartFile(body, ct);
+        const fileName = multipartFileName(body, ct);
+        if (this.failConfigUploads) return json(500, { error: { code: 500, message: 'sim failure' } });
+        if (root !== 'config' || !file || !fileName) return json(400, { error: { code: 400, message: 'bad upload' } });
+        const path = [dir, fileName].filter(Boolean).join('/');
+        if (path.includes('..') || path.startsWith('/')) return json(400, { error: { code: 400, message: 'bad path' } });
+        this.configFiles.set(path, Buffer.from(file));
+        return json(201, { result: { item: { path, root: 'config', size: file.length }, action: 'create_file' } });
+      }
+      if (req.method === 'GET' && url.pathname.startsWith('/server/files/config/')) {
+        const path = decodeURIComponent(url.pathname.slice('/server/files/config/'.length));
+        const f = this.configFiles.get(path);
+        if (!f) return json(404, { error: { code: 404, message: 'File does not exist' } });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': String(f.length) });
+        res.end(f);
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/downloads/original/current_print_image.png') {
         if (!this.current) {
           res.writeHead(404).end();
@@ -429,6 +478,10 @@ export class PrinterSimulator {
       if ('ReqPrinterPara' in params) ws.send(JSON.stringify(this.state));
       if ('boxsInfo' in params) ws.send(JSON.stringify({ boxsInfo: this.boxsInfo() }));
       if ('reqGcodeFile' in params) ws.send(JSON.stringify({ retGcodeFileInfo2: this.fileList() }));
+      if ('reqMaterials' in params) {
+        this.materialRequests++;
+        ws.send(JSON.stringify({ retMaterials: this.materials }));
+      }
       return;
     }
     if (msg.method !== 'set') return;
@@ -946,6 +999,39 @@ export function extractMultipartFile(body: Buffer, contentType: string): Buffer 
     pos = next;
   }
   return null;
+}
+
+const HEADER_END = Buffer.from([13, 10, 13, 10]);
+
+function multipartParts(body: Buffer, contentType: string): { headers: string; content: Buffer }[] {
+  const m = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);
+  const boundary = m?.[1] ?? m?.[2];
+  if (!boundary) return [];
+  const delim = Buffer.from(`--${boundary}`);
+  const out: { headers: string; content: Buffer }[] = [];
+  let pos = body.indexOf(delim);
+  while (pos >= 0) {
+    const headerStart = pos + delim.length + 2;
+    const headerEnd = body.indexOf(HEADER_END, headerStart);
+    if (headerEnd < 0) break;
+    const next = body.indexOf(delim, headerEnd);
+    if (next < 0) break;
+    out.push({ headers: body.subarray(headerStart, headerEnd).toString('utf8'), content: body.subarray(headerEnd + 4, next - 2) });
+    pos = next;
+  }
+  return out;
+}
+
+/** Text value of the multipart field `name` (not a file part). */
+function multipartField(body: Buffer, contentType: string, name: string): string | null {
+  const part = multipartParts(body, contentType).find((p) => p.headers.toLowerCase().includes(`name="${name}"`) && !/filename=/i.test(p.headers));
+  return part ? part.content.toString('utf8') : null;
+}
+
+/** File name of the multipart `file` part. */
+function multipartFileName(body: Buffer, contentType: string): string | null {
+  const part = multipartParts(body, contentType).find((p) => /name="file"/i.test(p.headers));
+  return part ? (/filename="([^"]*)"/i.exec(part.headers)?.[1] ?? null) : null;
 }
 
 /** Print time and layer count from slicer comments (Creality Print / Orca footer, Cura header). */

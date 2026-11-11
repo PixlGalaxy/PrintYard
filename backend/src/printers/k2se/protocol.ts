@@ -11,7 +11,7 @@ import type { CfsSlot, PrinterState, PrinterStatus } from '../../types.js';
 export type RawPrinterState = Record<string, unknown>;
 
 /** Keys that are large lists or replies, kept out of the cumulative state (handled separately). */
-const DETACHED_KEYS = new Set(['retGcodeFileInfo2', 'retGcodeFileInfo', 'historyList', 'objects']);
+const DETACHED_KEYS = new Set(['retGcodeFileInfo2', 'retGcodeFileInfo', 'historyList', 'objects', 'retMaterials']);
 
 export type ParsedFrame =
   | { kind: 'ok' }
@@ -437,6 +437,8 @@ export const cmd = {
   reqStatus: () => ({ method: 'get', params: { ReqPrinterPara: 1 } }),
   reqBoxsInfo: () => ({ method: 'get', params: { boxsInfo: 1 } }),
   reqFiles: () => ({ method: 'get', params: { reqGcodeFile: 1 } }),
+  /** The printer's material (filament) list, `retMaterials[]` (read-only; only sent on request). */
+  reqMaterials: () => ({ method: 'get', params: { reqMaterials: 1 } }),
   pause: () => ({ method: 'set', params: { pause: 1 } }),
   resume: () => ({ method: 'set', params: { pause: 0 } }),
   stop: () => ({ method: 'set', params: { stop: 1 } }),
