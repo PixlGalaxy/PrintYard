@@ -2,6 +2,7 @@
 // - Manual control: home buttons (X, Y, Z, all), a circular XY jog pad (ring segments ±X/±Y, centre = home XY),
 //   a vertical Z pill (single step / ×10 step), a vertical E pill (extrude/retract, nozzle ≥ 170 °C), step selector
 //   (0.1/1/10/50 mm), jog feedrate and the X/Y/Z readout (green = homed). Locked while a job is active.
+//   Below it, an explicit extruder row: length (1–50 mm), speed (1–10 mm/s), Retract / Extrude buttons.
 // - Preheat: PLA/PETG/ABS/ASA/TPU (first-layer nozzle/bed temps of the bundled K2 SE "Generic" filament profiles,
 //   bounded by the printer's maxima) + Off; light switch.
 // - Sliders with a numeric input: speed % (M220), flow % (M221), part fan %, bed and nozzle temperature (gradient
@@ -11,7 +12,7 @@
 // - bed occupied (last print not removed): homing, jogging and extruding are locked ("Remove the print first");
 // - a print is being uploaded: motion and motors off are locked;
 // - while a job runs/uploads: heaters, fan, speed and flow only for its owner or an admin.
-import { ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Fan, Gauge, House, Lock, Move3d, Power, PowerOff, Waves } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronsDown, ChevronsUp, ChevronUp, Fan, Gauge, House, Lock, Move3d, Power, PowerOff, Waves } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../../../api'
 import { BedIcon, ExtruderIcon, LightIcon, NozzleIcon } from '../../../components/printerIcons'
@@ -27,6 +28,9 @@ const STEPS = ['0.1', '1', '10', '50'] as const
 const FEEDS = [1500, 3000, 6000, 12000]
 const Z_FEED = 600
 const E_SPEED = 5
+/** Extruder row: mm per press and mm/s (server caps: 50 mm, 10 mm/s). */
+const E_LENGTHS = ['1', '5', '10', '25', '50'] as const
+const E_SPEEDS = [1, 2, 5, 10]
 const MIN_EXTRUDE_TEMP = 170
 /** First-layer temps of the bundled "Generic <material> @Creality K2 SE 0.4 nozzle" filament profiles. */
 const PREHEAT = [
@@ -83,6 +87,8 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
   const { onError } = useToast()
   const [step, setStep] = useStoredState<(typeof STEPS)[number]>('sd:jog:step', '10')
   const [feed, setFeed] = useStoredState('sd:jog:feed', 6000)
+  const [eLen, setELen] = useStoredState<(typeof E_LENGTHS)[number]>('sd:jog:eLen', '10')
+  const [eSpeed, setESpeed] = useStoredState('sd:jog:eSpeed', E_SPEED)
   const [busy, setBusy] = useState<string | null>(null)
 
   const active = ACTIVE.includes(status.state)
@@ -232,10 +238,10 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
               caption="E"
               icon={<ExtruderIcon size={12} />}
               buttons={[
-                { icon: <ChevronsUp size={16} />, label: t('jog.retractBy', { d: eBig }), onClick: () => void send('e', { action: 'extrude', length: -eBig, speed: E_SPEED }), disabled: eOff },
-                { icon: <ChevronUp size={16} />, label: t('jog.retractBy', { d: eSmall }), onClick: () => void send('e', { action: 'extrude', length: -eSmall, speed: E_SPEED }), disabled: eOff },
-                { icon: <ChevronDown size={16} />, label: t('jog.extrudeBy', { d: eSmall }), onClick: () => void send('e', { action: 'extrude', length: eSmall, speed: E_SPEED }), disabled: eOff },
-                { icon: <ChevronsDown size={16} />, label: t('jog.extrudeBy', { d: eBig }), onClick: () => void send('e', { action: 'extrude', length: eBig, speed: E_SPEED }), disabled: eOff },
+                { icon: <ChevronsUp size={16} />, label: t('jog.retractBy', { d: eBig }), onClick: () => void send('e', { action: 'extrude', length: -eBig, speed: eSpeed }), disabled: eOff },
+                { icon: <ChevronUp size={16} />, label: t('jog.retractBy', { d: eSmall }), onClick: () => void send('e', { action: 'extrude', length: -eSmall, speed: eSpeed }), disabled: eOff },
+                { icon: <ChevronDown size={16} />, label: t('jog.extrudeBy', { d: eSmall }), onClick: () => void send('e', { action: 'extrude', length: eSmall, speed: eSpeed }), disabled: eOff },
+                { icon: <ChevronsDown size={16} />, label: t('jog.extrudeBy', { d: eBig }), onClick: () => void send('e', { action: 'extrude', length: eBig, speed: eSpeed }), disabled: eOff },
               ]}
             />
           </span>
@@ -263,6 +269,55 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
           </button>
         </div>
         {!motionOff && homed !== 'xyz' && <p className="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300">{t('jog.homeFirst')}</p>}
+
+        {/* Extruder: explicit length + speed + Retract / Extrude */}
+        <div className="mt-2 border-t border-line pt-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 flex items-center gap-1 text-xs font-semibold">
+              <ExtruderIcon size={14} />
+              {t('jog.extruder')}
+            </span>
+            <Segmented label={t('jog.length')} value={eLen} onChange={setELen} options={E_LENGTHS.map((v) => ({ value: v, label: v }))} />
+            <span className="text-[11px] text-muted">mm</span>
+            <select
+              aria-label={t('jog.speed')}
+              title={t('jog.speed')}
+              className={`${selectCls} h-8! w-auto! text-xs`}
+              value={eSpeed}
+              onChange={(e) => setESpeed(Number(e.target.value))}
+              disabled={motionOff}
+            >
+              {E_SPEEDS.map((v) => (
+                <option key={v} value={v}>
+                  {t('jog.feedOption', { v })}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mt-1.5 grid grid-cols-2 gap-1.5" title={eReason ?? motionReason}>
+            <button
+              type="button"
+              disabled={eOff}
+              title={t('jog.retractBy', { d: eLen })}
+              onClick={() => void send('e-retract', { action: 'extrude', length: -Number(eLen), speed: eSpeed })}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface-2/50 text-xs font-semibold transition-colors hover:border-sky-500/50 hover:bg-sky-500/10 focus-visible:outline-2 focus-visible:outline-sky-500 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ArrowUp size={14} className={busy === 'e-retract' ? 'animate-pulse' : ''} />
+              {t('jog.retract')} {eLen} mm
+            </button>
+            <button
+              type="button"
+              disabled={eOff}
+              title={t('jog.extrudeBy', { d: eLen })}
+              onClick={() => void send('e-extrude', { action: 'extrude', length: Number(eLen), speed: eSpeed })}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/10 text-xs font-semibold text-orange-700 transition-colors hover:bg-orange-500/20 focus-visible:outline-2 focus-visible:outline-orange-500 disabled:pointer-events-none disabled:opacity-40 dark:text-orange-300"
+            >
+              <ArrowDown size={14} className={busy === 'e-extrude' ? 'animate-pulse' : ''} />
+              {t('jog.extrude')} {eLen} mm
+            </button>
+          </div>
+          {!motionOff && cold && <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">{t('jog.coldNozzle', { min: MIN_EXTRUDE_TEMP })}</p>}
+        </div>
       </section>
 
       {/* Preheat + light */}
