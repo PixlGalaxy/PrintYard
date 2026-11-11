@@ -23,6 +23,8 @@ export interface PresetDraft {
   filamentType?: string | null
   color?: string | null
   vendor?: string | null
+  /** Select the prefilled name when the dialog opens (the user is expected to tweak it) */
+  selectName?: boolean
 }
 
 const BAD_NAME = /[;"\\]/
@@ -143,7 +145,7 @@ export default function FilamentPresetDialog({
     >
       <form id="filament-preset-form" onSubmit={submit} className="space-y-4" noValidate>
         <Field label={t('filaments.name')} error={nameError}>
-          {(p) => <input {...p} className={inputCls} value={name} maxLength={100} onChange={(e) => setName(e.target.value)} onBlur={() => setTouched(true)} placeholder={t('filaments.namePlaceholder')} data-autofocus />}
+          {(p) => <input {...p} className={inputCls} value={name} maxLength={100} onChange={(e) => setName(e.target.value)} onBlur={() => setTouched(true)} placeholder={t('filaments.namePlaceholder')} onFocus={draft?.selectName ? (e) => e.currentTarget.select() : undefined} data-autofocus />}
         </Field>
         <Field label={t('filaments.base')} hint={isCustomPresetId(base) ? t('filaments.baseCustomHint') : t('filaments.baseHint')}>
           {(p) => (

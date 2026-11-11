@@ -1871,5 +1871,13 @@
   "errors.profiles_backup.disabled": "La copia de perfiles está desactivada.",
   "errors.profiles_backup.unsupported": "Esta impresora no puede guardar una copia.",
   "errors.profiles_backup.write_failed": "La impresora no aceptó el archivo de copia.",
-  "errors.printers.config_unavailable": "La impresora no envió el archivo. Inténtalo de nuevo en un momento."
+  "errors.printers.config_unavailable": "La impresora no envió el archivo. Inténtalo de nuevo en un momento.",
+  "loadedNow.group": "Cargado ahora",
+  "loadedNow.offline": "La impresora está desconectada: no hay bobinas cargadas que mostrar.",
+  "loadedNow.empty": "Ahora mismo no hay ninguna bobina cargada en la impresora.",
+  "loadedNow.pa": "PA {pa}",
+  "loadedNow.preset": "Corresponde a {name}",
+  "loadedNow.noPreset": "Sin perfil equivalente",
+  "loadedNow.savedAs": "Guardado como {name}",
+  "loadedNow.save": "Guardar como mi filamento"
 }

@@ -19,6 +19,7 @@ import FilamentPresetDialog, { type PresetDraft } from '../prepare/FilamentPrese
 import { IMPORT_ACCEPT, MAX_IMPORT_BYTES, readAsBase64, saveExport } from './files'
 import ImportReportDialog from './ImportReportDialog'
 import ProcessProfileDialog, { type ProcessDialogMode } from './ProcessProfileDialog'
+import LoadedNow from './LoadedNow'
 import PrinterFilaments from './PrinterFilaments'
 import ProfileEditor, { type EditorProfile } from './ProfileEditor'
 import Group from './ProfileGroup'
@@ -277,6 +278,14 @@ function ProfilesSection({ kind, bundle }: { kind: ProfileFileKind; bundle: Prof
                 <Group title={t('profiles.group.shared')} count={shared.length}>
                   {shared.map(rowView)}
                 </Group>
+              )}
+              {kind === 'filament' && (
+                <LoadedNow
+                  bundle={bundle}
+                  mine={mine.flatMap((r) => (r.filament ? [r.filament] : []))}
+                  onSave={setFilamentDraft}
+                  onShow={select}
+                />
               )}
               {kind === 'filament' && <PrinterFilaments bundle={bundle} onDuplicate={setFilamentDraft} />}
               <Group title={t('profiles.group.system')} count={system.length}>

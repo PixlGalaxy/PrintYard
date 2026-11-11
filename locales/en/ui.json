@@ -1871,5 +1871,13 @@
   "errors.profiles_backup.disabled": "The profiles backup is turned off.",
   "errors.profiles_backup.unsupported": "This printer cannot hold a backup.",
   "errors.profiles_backup.write_failed": "The printer did not accept the backup file.",
-  "errors.printers.config_unavailable": "The printer did not send the file. Try again in a moment."
+  "errors.printers.config_unavailable": "The printer did not send the file. Try again in a moment.",
+  "loadedNow.group": "Loaded now",
+  "loadedNow.offline": "The printer is offline: no loaded spools to show.",
+  "loadedNow.empty": "No spool is loaded in the printer right now.",
+  "loadedNow.pa": "PA {pa}",
+  "loadedNow.preset": "Matches {name}",
+  "loadedNow.noPreset": "No matching preset",
+  "loadedNow.savedAs": "Saved as {name}",
+  "loadedNow.save": "Save as my filament"
 }
