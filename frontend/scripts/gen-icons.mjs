@@ -224,6 +224,8 @@ for (const [skin, accent] of Object.entries(skins)) {
 writeFileSync(join(icons, 'badge-96.png'), png(96, render(96, [{ polys: markAt(0.9), color: '#ffffff' }])))
 
 writeFileSync(join(pub, 'favicon.svg'), faviconSvg(skins.sky))
+// Standalone PNG of the icon (default sky skin), for links, READMEs and anything that cannot take SVG
+writeFileSync(join(pub, 'icon.png'), png(512, render(512, VARIANTS.icon(skins.sky))))
 writeFileSync(
   join(pub, 'favicon.ico'),
   ico([16, 32, 48].map((size) => ({ size, data: png(size, render(size, VARIANTS.icon(skins.sky))) }))),
