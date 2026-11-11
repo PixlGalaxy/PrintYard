@@ -1,14 +1,35 @@
 // Auto-orient heuristic: try "which direction faces down" candidates (large convex-hull facets plus the six
-// axes) and keep the one with the least overhang area, preferring a big contact face and a low height.
+// axes), measure each one (overhang area, estimated support volume, bed contact, height) and keep the best for the
+// chosen mode. Creality Print offers Default (biggest face down), Minimize support volume and Minimize print time;
+// SliceDock adds Strong (lay the part down so layers run along its length) as the default.
 import { Matrix3, Matrix4, Quaternion, Vector3 } from 'three'
 import type { MeshInfo } from './meshes'
+
+export type OrientMode = 'strong' | 'stable' | 'support' | 'fast'
+export const ORIENT_MODES: OrientMode[] = ['strong', 'stable', 'support', 'fast']
 
 const DOWN = new Vector3(0, 0, -1)
 const COS_OVERHANG = Math.cos((45 * Math.PI) / 180)
 const MAX_SAMPLES = 150_000
 
-/** Rotation (world) that puts the best face down, or null when the current orientation is already best. */
-export function bestOrientation(info: MeshInfo, m: Matrix4): Quaternion | null {
+/**
+ * Score of one candidate (lower is better). All terms are 0..1:
+ * H = height / tallest candidate height, O = overhang area share, V = estimated support volume share,
+ * C = bed contact share.
+ */
+const SCORE: Record<OrientMode, (s: { H: number; O: number; V: number; C: number }) => number> = {
+  // Lowest height first (layers along the longest axis: the weak Z direction is the short one), few supports, a base
+  strong: ({ H, O, V, C }) => 0.6 * H + 0.35 * O + 0.25 * V - 0.25 * C,
+  // Creality's "Default Orient": the biggest flat face on the bed
+  stable: ({ H, O, C }) => -1 * C + 0.25 * O + 0.05 * H,
+  // Creality's "Minimize support volume"
+  support: ({ H, O, V, C }) => 1 * V + 0.3 * O - 0.1 * C + 0.02 * H,
+  // Creality's "Minimize print time": fewer layers, and supports cost time too
+  fast: ({ H, V, C }) => 1 * H + 0.4 * V - 0.05 * C,
+}
+
+/** Rotation (world) that puts the best face down for `mode`, or null when the current orientation is already best. */
+export function bestOrientation(info: MeshInfo, m: Matrix4, mode: OrientMode = 'strong'): Quaternion | null {
   const pos = info.geometry.getAttribute('position').array as Float32Array
   const triCount = pos.length / 9
   const stride = Math.max(1, Math.floor(triCount / MAX_SAMPLES))
@@ -72,22 +93,29 @@ export function bestOrientation(info: MeshInfo, m: Matrix4): Quaternion | null {
     const height = hi - lo
     extentMax = Math.max(extentMax, height)
     let overhang = 0
+    let support = 0
     let touching = 0
     for (let i = 0; i < n; i++) {
       const dot = nor[i * 3] * d.x + nor[i * 3 + 1] * d.y + nor[i * 3 + 2] * d.z
       if (dot <= COS_OVERHANG) continue
       const depth = hi - (cen[i * 3] * d.x + cen[i * 3 + 1] * d.y + cen[i * 3 + 2] * d.z)
       if (depth < 0.3) touching += area[i]
-      else overhang += area[i] * dot
+      else {
+        overhang += area[i] * dot
+        // A column of support from the bed up to this face (upper bound: ignores the part below it)
+        support += area[i] * dot * depth
+      }
     }
-    return { d, height, overhang, contact: Math.max(contact, touching) }
+    return { d, height, overhang, support, contact: Math.max(contact, touching) }
   })
 
+  const ext = extentMax || 1
+  const scoreOf = SCORE[mode]
   let best = scored[0]
   let bestScore = Infinity
   let current = Infinity
   for (const s of scored) {
-    const score = s.overhang / total + 0.15 * (s.height / (extentMax || 1)) - 0.35 * Math.min(1, s.contact / total)
+    const score = scoreOf({ H: s.height / ext, O: s.overhang / total, V: Math.min(1, s.support / (total * ext)), C: Math.min(1, s.contact / total) })
     if (s.d.distanceTo(DOWN) < 1e-3) current = Math.min(current, score)
     if (score < bestScore - 1e-6) {
       bestScore = score

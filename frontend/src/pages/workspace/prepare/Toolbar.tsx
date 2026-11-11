@@ -1,9 +1,12 @@
 import {
+  Anchor,
   ArrowDownToLine,
   ChevronDown,
   Compass,
   Copy,
   Crosshair,
+  Dumbbell,
+  Fence,
   FilePlus2,
   FlipHorizontal2,
   LayoutGrid,
@@ -13,13 +16,15 @@ import {
   Rotate3d,
   Scaling,
   Trash2,
+  Zap,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../../i18n/I18nContext'
 import { arrange, autoOrient, centerSelected, deleteSelected, duplicateSelected, env, mirrorSelected } from '../../../workspace/ops'
+import { ORIENT_MODES, type OrientMode } from '../../../workspace/orient'
 import { useWs, workspace, type Tool } from '../../../workspace/store'
 import { Divider, ToolButton } from './bits'
-import { floatCls, menuCls, menuItemCls, MOD, useDismiss } from './styles'
+import { floatCls, menuCls, menuItemCls, MOD, useDismiss, type Tone } from './styles'
 
 export default function Toolbar({
   onImport,
@@ -36,43 +41,122 @@ export default function Toolbar({
   const hasObjects = useWs((s) => s.doc.objects.length > 0)
 
   // Phones get the core tools only (one row); lay-on-face, duplicate and mirror stay on tablet/desktop
-  const tools: { id: Tool; icon: typeof Move; label: string; key: string; phone?: false }[] = [
-    { id: 'select', icon: MousePointer2, label: t('workspace.tool.select'), key: 'Q' },
-    { id: 'move', icon: Move, label: t('workspace.tool.move'), key: 'T' },
-    { id: 'rotate', icon: Rotate3d, label: t('workspace.tool.rotate'), key: 'R' },
-    { id: 'scale', icon: Scaling, label: t('workspace.tool.scale'), key: 'S' },
-    { id: 'layFace', icon: ArrowDownToLine, label: t('workspace.tool.layFace'), key: 'F', phone: false },
+  const tools: { id: Tool; icon: typeof Move; label: string; key: string; tone: Tone; phone?: false }[] = [
+    { id: 'select', icon: MousePointer2, label: t('workspace.tool.select'), key: 'Q', tone: 'blue' },
+    { id: 'move', icon: Move, label: t('workspace.tool.move'), key: 'T', tone: 'emerald' },
+    { id: 'rotate', icon: Rotate3d, label: t('workspace.tool.rotate'), key: 'R', tone: 'amber' },
+    { id: 'scale', icon: Scaling, label: t('workspace.tool.scale'), key: 'S', tone: 'fuchsia' },
+    { id: 'layFace', icon: ArrowDownToLine, label: t('workspace.tool.layFace'), key: 'F', tone: 'teal', phone: false },
   ]
 
   return (
     <div className={`${floatCls} flex max-w-full flex-wrap items-center justify-center gap-0.5 p-1`} role="toolbar" aria-label={t('workspace.toolbar')}>
-      <ToolButton label={t('workspace.tool.import')} hotkey={`${MOD}+I`} onClick={onImport}>
+      <ToolButton label={t('workspace.tool.import')} hotkey={`${MOD}+I`} tone="sky" onClick={onImport}>
         <FilePlus2 size={18} />
       </ToolButton>
-      <ToolButton label={t('workspace.tool.library')} onClick={onLibrary}>
+      <ToolButton label={t('workspace.tool.library')} tone="violet" onClick={onLibrary}>
         <Library size={18} />
       </ToolButton>
       <Divider />
-      {tools.map(({ id, icon: Icon, label, key, phone }) => (
-        <ToolButton key={id} label={label} hotkey={key} active={tool === id} className={phone === false ? 'max-sm:hidden' : ''} onClick={() => workspace.setTool(tool === id && id !== 'select' ? 'select' : id)}>
+      {tools.map(({ id, icon: Icon, label, key, tone, phone }) => (
+        <ToolButton key={id} label={label} hotkey={key} tone={tone} active={tool === id} className={phone === false ? 'max-sm:hidden' : ''} onClick={() => workspace.setTool(tool === id && id !== 'select' ? 'select' : id)}>
           <Icon size={18} />
         </ToolButton>
       ))}
       <Divider />
-      <ToolButton label={t('workspace.tool.orient')} hotkey="O" disabled={!hasObjects} onClick={() => onOriented(autoOrient())}>
-        <Compass size={18} />
-      </ToolButton>
+      <OrientButton disabled={!hasObjects} onOriented={onOriented} />
       <ArrangeButton disabled={!hasObjects} />
-      <ToolButton label={t('workspace.tool.center')} hotkey="C" disabled={!hasSel} onClick={centerSelected}>
+      <ToolButton label={t('workspace.tool.center')} hotkey="C" tone="cyan" disabled={!hasSel} onClick={centerSelected}>
         <Crosshair size={18} />
       </ToolButton>
-      <ToolButton label={t('workspace.tool.duplicate')} hotkey={`${MOD}+D`} disabled={!hasSel} className="max-sm:hidden" onClick={duplicateSelected}>
+      <ToolButton label={t('workspace.tool.duplicate')} hotkey={`${MOD}+D`} tone="lime" disabled={!hasSel} className="max-sm:hidden" onClick={duplicateSelected}>
         <Copy size={18} />
       </ToolButton>
       <MirrorButton disabled={!hasSel} />
-      <ToolButton label={t('workspace.tool.delete')} hotkey="Del" disabled={!hasSel} onClick={deleteSelected}>
+      <ToolButton label={t('workspace.tool.delete')} hotkey="Del" tone="red" disabled={!hasSel} onClick={deleteSelected}>
         <Trash2 size={18} />
       </ToolButton>
+    </div>
+  )
+}
+
+/** Each orient mode has its own icon and colour (menu row, and the button flashes it after applying). */
+const ORIENT_LOOK: Record<OrientMode, { icon: typeof Compass; tone: Tone; icon_cls: string; row: string; badge: string }> = {
+  strong: {
+    icon: Dumbbell,
+    tone: 'orange',
+    icon_cls: 'text-orange-500',
+    row: 'hover:bg-orange-500/10',
+    badge: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+  },
+  stable: { icon: Anchor, tone: 'emerald', icon_cls: 'text-emerald-500', row: 'hover:bg-emerald-500/10', badge: '' },
+  support: { icon: Fence, tone: 'violet', icon_cls: 'text-violet-500', row: 'hover:bg-violet-500/10', badge: '' },
+  fast: { icon: Zap, tone: 'sky', icon_cls: 'text-sky-500', row: 'hover:bg-sky-500/10', badge: '' },
+}
+
+/** Auto orient: the button (and O) always uses Strong; the arrow applies another mode once. */
+function OrientButton({ disabled, onOriented }: { disabled: boolean; onOriented: (count: number) => void }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const [flash, setFlash] = useState<OrientMode | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+  const ref = useRef<HTMLDivElement>(null)
+  useDismiss(ref, open, () => setOpen(false))
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const run = (mode: OrientMode) => {
+    setOpen(false)
+    onOriented(autoOrient(mode))
+    setFlash(mode)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setFlash(null), 1800)
+  }
+  const FlashIcon = flash ? ORIENT_LOOK[flash].icon : Compass
+
+  return (
+    <div ref={ref} className="relative flex items-center">
+      <ToolButton
+        label={flash ? `${t('workspace.tool.orient')}: ${t(`workspace.orient.mode.${flash}`)}` : t('workspace.tool.orient')}
+        hotkey="O"
+        tone={flash ? ORIENT_LOOK[flash].tone : 'orange'}
+        active={!!flash}
+        disabled={disabled}
+        onClick={() => run('strong')}
+      >
+        <FlashIcon size={18} />
+      </ToolButton>
+      <button
+        type="button"
+        aria-label={t('workspace.orient.options')}
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="-ml-1 inline-flex h-8 w-3.5 items-center justify-center rounded-md text-orange-600 hover:text-orange-500 disabled:opacity-35 max-sm:hidden dark:text-orange-400"
+      >
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div className={`${menuCls} top-full left-0 mt-2 w-72`}>
+          {ORIENT_MODES.map((mode) => {
+            const look = ORIENT_LOOK[mode]
+            const Icon = look.icon
+            return (
+              <button key={mode} type="button" className={`${menuItemCls} ${look.row} items-start`} onClick={() => run(mode)}>
+                <span className={`mt-px inline-flex size-6 shrink-0 items-center justify-center rounded-lg bg-current/10 ${look.icon_cls}`}>
+                  <Icon size={14} />
+                </span>
+                <span className="min-w-0 text-left">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    {t(`workspace.orient.mode.${mode}`)}
+                    {mode === 'strong' && <span className={`rounded px-1.5 py-px text-[10px] font-semibold ${look.badge}`}>{t('workspace.orient.default')}</span>}
+                  </span>
+                  <span className="block text-xs leading-snug font-normal text-muted">{t(`workspace.orient.hint.${mode}`)}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -85,7 +169,7 @@ function ArrangeButton({ disabled }: { disabled: boolean }) {
   useDismiss(ref, open, () => setOpen(false))
   return (
     <div ref={ref} className="relative flex items-center">
-      <ToolButton label={t('workspace.tool.arrange')} hotkey="A" disabled={disabled} onClick={() => arrange('all')}>
+      <ToolButton label={t('workspace.tool.arrange')} hotkey="A" tone="indigo" disabled={disabled} onClick={() => arrange('all')}>
         <LayoutGrid size={18} />
       </ToolButton>
       <button
@@ -94,7 +178,7 @@ function ArrangeButton({ disabled }: { disabled: boolean }) {
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className="-ml-1 inline-flex h-8 w-3.5 items-center justify-center rounded-md text-muted hover:text-fg disabled:opacity-35 max-sm:hidden"
+        className="-ml-1 inline-flex h-8 w-3.5 items-center justify-center rounded-md text-indigo-600 hover:text-indigo-500 disabled:opacity-35 max-sm:hidden dark:text-indigo-400"
       >
         <ChevronDown size={12} />
       </button>
@@ -145,7 +229,7 @@ function MirrorButton({ disabled }: { disabled: boolean }) {
   ] as const
   return (
     <div ref={ref} className="relative max-sm:hidden">
-      <ToolButton label={t('workspace.tool.mirror')} disabled={disabled} active={open} onClick={() => setOpen((o) => !o)}>
+      <ToolButton label={t('workspace.tool.mirror')} tone="pink" disabled={disabled} active={open} onClick={() => setOpen((o) => !o)}>
         <FlipHorizontal2 size={18} />
       </ToolButton>
       {open && (

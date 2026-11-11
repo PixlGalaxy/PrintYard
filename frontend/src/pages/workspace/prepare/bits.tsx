@@ -1,4 +1,5 @@
 // Small building blocks of the Prepare tab: tooltip, keycap, popover, floating card, tool button.
+import { TONES, type Tone } from './styles'
 import type { ReactNode } from 'react'
 
 const SIDES = {
@@ -45,6 +46,7 @@ export function Kbd({ children }: { children: ReactNode }) {
 }
 
 /** Square toolbar button. */
+
 export function ToolButton({
   label,
   hotkey,
@@ -55,6 +57,7 @@ export function ToolButton({
   side,
   badge,
   className,
+  tone,
 }: {
   label: string
   hotkey?: string
@@ -65,7 +68,15 @@ export function ToolButton({
   side?: keyof typeof SIDES
   badge?: ReactNode
   className?: string
+  tone?: Tone
 }) {
+  const look = tone
+    ? active
+      ? TONES[tone].active
+      : `${TONES[tone].idle} active:scale-95`
+    : active
+      ? 'bg-accent-500 text-white shadow-sm shadow-accent-500/30'
+      : 'text-muted hover:bg-surface-2 hover:text-fg active:scale-95'
   return (
     <Tip label={label} hotkey={hotkey} side={side} className={className}>
       <button
@@ -74,11 +85,7 @@ export function ToolButton({
         aria-pressed={active}
         disabled={disabled}
         onClick={onClick}
-        className={`relative inline-flex size-8 items-center justify-center rounded-xl transition-all duration-150 focus-visible:outline-2 focus-visible:outline-accent-500 disabled:pointer-events-none disabled:opacity-35 ${
-          active
-            ? 'bg-accent-500 text-white shadow-sm shadow-accent-500/30'
-            : 'text-muted hover:bg-surface-2 hover:text-fg active:scale-95'
-        }`}
+        className={`relative inline-flex size-8 items-center justify-center rounded-xl transition-all duration-150 focus-visible:outline-2 focus-visible:outline-accent-500 disabled:pointer-events-none disabled:opacity-35 ${look}`}
       >
         {children}
         {badge}

@@ -37,3 +37,24 @@ export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, cl
   }, [open, ref])
 }
 
+
+/**
+ * Per-tool colours (toolbar): the icon is tinted at rest and the button fills with the colour while active, so a
+ * tool change is visible at a glance. Full class strings so Tailwind keeps them.
+ */
+export const TONES = {
+  sky: { idle: 'text-sky-600 dark:text-sky-400 hover:bg-sky-500/10', active: 'bg-sky-500 text-white shadow-sm shadow-sky-500/30' },
+  violet: { idle: 'text-violet-600 dark:text-violet-400 hover:bg-violet-500/10', active: 'bg-violet-500 text-white shadow-sm shadow-violet-500/30' },
+  blue: { idle: 'text-blue-600 dark:text-blue-400 hover:bg-blue-500/10', active: 'bg-blue-500 text-white shadow-sm shadow-blue-500/30' },
+  emerald: { idle: 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10', active: 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30' },
+  amber: { idle: 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10', active: 'bg-amber-500 text-white shadow-sm shadow-amber-500/30' },
+  fuchsia: { idle: 'text-fuchsia-600 dark:text-fuchsia-400 hover:bg-fuchsia-500/10', active: 'bg-fuchsia-500 text-white shadow-sm shadow-fuchsia-500/30' },
+  teal: { idle: 'text-teal-600 dark:text-teal-400 hover:bg-teal-500/10', active: 'bg-teal-500 text-white shadow-sm shadow-teal-500/30' },
+  orange: { idle: 'text-orange-600 dark:text-orange-400 hover:bg-orange-500/10', active: 'bg-orange-500 text-white shadow-sm shadow-orange-500/30' },
+  indigo: { idle: 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10', active: 'bg-indigo-500 text-white shadow-sm shadow-indigo-500/30' },
+  cyan: { idle: 'text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10', active: 'bg-cyan-500 text-white shadow-sm shadow-cyan-500/30' },
+  lime: { idle: 'text-lime-600 dark:text-lime-400 hover:bg-lime-500/10', active: 'bg-lime-500 text-white shadow-sm shadow-lime-500/30' },
+  pink: { idle: 'text-pink-600 dark:text-pink-400 hover:bg-pink-500/10', active: 'bg-pink-500 text-white shadow-sm shadow-pink-500/30' },
+  red: { idle: 'text-red-600 dark:text-red-400 hover:bg-red-500/10', active: 'bg-red-500 text-white shadow-sm shadow-red-500/30' },
+} as const
+export type Tone = keyof typeof TONES

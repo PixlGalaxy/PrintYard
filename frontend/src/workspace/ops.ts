@@ -6,7 +6,7 @@ import type { Viewport } from '../three/Viewport'
 import { findFreeSpot, pack, type Rect } from './arrange'
 import { centerAt, dropToBed, fromMatrix, hullBox, rotateAroundCenter, toMatrix } from './geometry'
 import { meshes, type MeshInfo } from './meshes'
-import { bestOrientation } from './orient'
+import { bestOrientation, type OrientMode } from './orient'
 import { K2SE_BED, plateAt, plateOrigin, type BedSize } from './plates'
 import { newObjectId, workspace } from './store'
 import { modelThumbs } from './thumbnails'
@@ -283,12 +283,12 @@ export function layOnFace(id: string, worldNormal: Vector3) {
 }
 
 /** Auto-orient the selection (or every object of the active plate). Returns how many objects turned. */
-export function autoOrient(): number {
+export function autoOrient(mode: OrientMode = 'strong'): number {
   const ids = workspace.state.selection.length
     ? workspace.state.selection
     : workspace.state.doc.objects.filter((o) => o.plate === workspace.state.activePlate).map((o) => o.id)
   return transformObjects(ids, (m, info) => {
-    const q = bestOrientation(info, m)
+    const q = bestOrientation(info, m, mode)
     return q ? rotateAroundCenter(m, q, info.hull) : null
   })
 }
