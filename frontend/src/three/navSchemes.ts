@@ -15,7 +15,7 @@ const b = (button: Nav3dButton, modifier: Nav3dModifier = 'none'): Nav3dBinding 
 /** Built-in schemes. Wheel always zooms. */
 export const NAV3D_SCHEMES: Record<Exclude<Nav3dPreset, 'custom'>, Mapping> = {
   // Creality Print / OrcaSlicer: left orbit, right or middle pan (Shift/Ctrl+left pan too), zoom to cursor
-  slicedock: { orbit: [b('left')], pan: [b('right'), b('middle'), b('left', 'shift'), b('left', 'ctrl')], zoom: [], zoomToCursor: true },
+  printyard: { orbit: [b('left')], pan: [b('right'), b('middle'), b('left', 'shift'), b('left', 'ctrl')], zoom: [], zoomToCursor: true },
   // Tinkercad: right-drag orbit, Shift/Ctrl+right-drag or middle-drag pan, wheel zoom (towards the cursor)
   tinkercad: { orbit: [b('right')], pan: [b('right', 'shift'), b('right', 'ctrl'), b('middle')], zoom: [], zoomToCursor: true },
   // Repetier-Host: left-drag rotates, Shift+left or middle moves the view, wheel zoom (towards the centre).
@@ -39,13 +39,13 @@ export interface ResolvedNav extends Mapping {
 const clamp = (v: number | undefined) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(3, Math.max(0.2, v)) : 1)
 
 export function resolveNav(prefs: Nav3dPrefs | null | undefined): ResolvedNav {
-  const preset = prefs?.preset ?? 'slicedock'
+  const preset = prefs?.preset ?? 'printyard'
   let mapping: Mapping
   if (preset === 'custom') {
     const c = prefs?.custom ?? DEFAULT_CUSTOM
     mapping = { orbit: [c.orbit], pan: [c.pan], zoom: c.zoom ? [c.zoom] : [], zoomToCursor: c.zoomToCursor }
   } else {
-    mapping = NAV3D_SCHEMES[preset] ?? NAV3D_SCHEMES.slicedock
+    mapping = NAV3D_SCHEMES[preset] ?? NAV3D_SCHEMES.printyard
   }
   return {
     ...mapping,

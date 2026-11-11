@@ -39,8 +39,8 @@ export const PREPARE_LEVELS = ['basic', 'advanced', 'expert'] as const;
 export type PrepareLevel = (typeof PREPARE_LEVELS)[number];
 
 /** 3D viewport navigation (PREP-UX). Keep in sync with frontend/src/types.ts + frontend/src/three/navigation.ts. */
-// `slicedock` is the default (PrintYard) scheme: kept as the stored id from before the rename (user prefs JSON).
-export const NAV3D_PRESETS = ['slicedock', 'tinkercad', 'repetier', 'cad', 'blender', 'custom'] as const;
+// `printyard` is the default scheme (stored as `slicedock` before the rename; read back as `printyard`).
+export const NAV3D_PRESETS = ['printyard', 'tinkercad', 'repetier', 'cad', 'blender', 'custom'] as const;
 export type Nav3dPreset = (typeof NAV3D_PRESETS)[number];
 export const NAV3D_BUTTONS = ['left', 'middle', 'right'] as const;
 export const NAV3D_MODIFIERS = ['none', 'shift', 'ctrl', 'alt'] as const;

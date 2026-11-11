@@ -24,7 +24,7 @@ import {
 // three.js stays out of the Account chunk until the card is shown
 const Nav3dPreview = lazy(() => import('./Nav3dPreview'))
 
-const DEFAULTS: Nav3dPrefs = { preset: 'slicedock' }
+const DEFAULTS: Nav3dPrefs = { preset: 'printyard' }
 const ACTIONS: Action[] = ['orbit', 'pan', 'zoom']
 
 /** Account → 3D navigation: mouse scheme for the Prepare / Preview / Live 3D views (saved per user). */

@@ -39,9 +39,9 @@ describe('PREP-UX: 3D navigation prefs + owned bed surfaces', () => {
     const bad = [
       { preset: 'maya' },
       { preset: 'custom' },
-      { preset: 'slicedock', orbitSpeed: 9 },
-      { preset: 'slicedock', defaultView: 'bottom' },
-      { preset: 'slicedock', extra: 1 },
+      { preset: 'printyard', orbitSpeed: 9 },
+      { preset: 'printyard', defaultView: 'bottom' },
+      { preset: 'printyard', extra: 1 },
       {
         preset: 'custom',
         custom: { orbit: { button: 'left', modifier: 'none' }, pan: { button: 'left', modifier: 'none' }, zoom: null, zoomToCursor: true },
@@ -75,6 +75,8 @@ describe('PREP-UX: 3D navigation prefs + owned bed surfaces', () => {
   it('unreadable stored nav3d falls back to defaults', () => {
     assert.equal(parseNav3d('{oops'), null);
     assert.equal(parseNav3d('{"preset":"maya"}'), null);
+    // pre-rename id of the default scheme
+    assert.equal(parseNav3d('{"preset":"slicedock"}')?.preset, 'printyard');
     assert.deepEqual(parseNav3d('{"preset":"cad"}'), { preset: 'cad' });
   });
 

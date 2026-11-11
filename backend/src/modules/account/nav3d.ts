@@ -8,7 +8,8 @@ const same = (a: z.infer<typeof binding> | null, b: z.infer<typeof binding> | nu
 /** Per-user 3D navigation preferences (`users.nav3d`, JSON). */
 export const nav3dSchema = z
   .object({
-    preset: z.enum(NAV3D_PRESETS),
+    // `slicedock` was the default scheme's id before the rename
+    preset: z.preprocess((v) => (v === 'slicedock' ? 'printyard' : v), z.enum(NAV3D_PRESETS)),
     custom: z
       .object({
         orbit: binding,

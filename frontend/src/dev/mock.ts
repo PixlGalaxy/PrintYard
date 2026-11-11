@@ -25,7 +25,9 @@ import type {
   UserLimits,
 } from '../types'
 
-export const MOCK_PASSWORD = 'slicedock123' // unchanged by the rename: mock state in localStorage keeps it
+export const MOCK_PASSWORD = 'printyard123'
+// Mock state saved in localStorage before the rename still has the old password: both are accepted at sign-in
+const LEGACY_MOCK_PASSWORD = 'slicedock123'
 
 export interface MockFlags {
   /** false = the browser looks like it comes through a proxy / public host */
@@ -447,7 +449,7 @@ export const mockTransport: Transport = async (method, path, body) => {
     // ---------- auth ----------
     if (p === '/auth/login') {
       const u = state.users.find((x) => x.username.toLowerCase() === String(b.username).toLowerCase())
-      if (!u || u.password !== b.password) {
+      if (!u || (u.password !== b.password && !(u.password === LEGACY_MOCK_PASSWORD && b.password === MOCK_PASSWORD))) {
         audit('auth.login_failed', String(b.username))
         throw new ApiError(401, 'auth.invalid_credentials', 'Invalid credentials')
       }
