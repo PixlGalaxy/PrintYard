@@ -1,6 +1,6 @@
 // Files library (/files): Private / Shared (+ All for admins) / On the printer tabs, grid or list, drag & drop uploads
 // with the global queue, search + kind filter + sort, multi-select with bulk actions, context menu,
-// thumbnails, retention info. Logic borrowed from WebinCloud's file explorer, in SliceDock's design.
+// thumbnails, retention info. Logic borrowed from WebinCloud's file explorer, in PrintYard's design.
 import {
   ArrowDownWideNarrow,
   CheckSquare,
@@ -615,7 +615,7 @@ const PRINTER_SKIP: Record<string, TranslationKey> = {
 }
 
 /**
- * Delete confirmation. G-code files SliceDock uploaded to a printer list their printer copies; "Also delete from the
+ * Delete confirmation. G-code files PrintYard uploaded to a printer list their printer copies; "Also delete from the
  * printer" (default on) removes them there too (the server skips copies in use, offline or not verifiable).
  */
 function DeleteFilesDialog({ files, onClose, onConfirm }: { files: LibraryFile[]; onClose: () => void; onConfirm: (alsoPrinter: boolean) => Promise<unknown> }) {

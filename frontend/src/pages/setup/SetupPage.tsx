@@ -262,7 +262,7 @@ function Wizard({ status, models }: { status: SetupStatus; models: PrinterModelI
                       onChange={() => void setLanguage(l)}
                       icon={<span className="text-xs font-bold uppercase">{l}</span>}
                       title={LANGUAGE_NAMES[l]}
-                      description={l === 'en' ? 'Use SliceDock in English' : 'Usar SliceDock en español'}
+                      description={l === 'en' ? 'Use PrintYard in English' : 'Usar PrintYard en español'}
                     />
                   ))}
                 </div>

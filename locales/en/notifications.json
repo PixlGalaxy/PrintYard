@@ -29,11 +29,11 @@
     "limit.blocked": "{file} was not sent to the printer: {limit}.",
     "printer.error": "{printer} reported an error{codeSuffix}.",
     "printer.offline": "{printer} has been offline for more than 5 minutes during a print.",
-    "printer.heaters_auto_off": "{printer} was heating with no print running and nobody using it, so SliceDock switched the heaters off.",
+    "printer.heaters_auto_off": "{printer} was heating with no print running and nobody using it, so PrintYard switched the heaters off.",
     "engine.update_available": "Creality Print {version} is available.",
     "engine.updated": "Creality Print {version} was installed{auto}.",
     "engine.update_failed": "Could not install Creality Print {version}: {error}",
-    "test": "SliceDock notifications are working."
+    "test": "PrintYard notifications are working."
   },
   "fields": {
     "printer": "Printer",

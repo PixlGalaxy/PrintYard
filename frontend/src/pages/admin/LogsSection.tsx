@@ -62,7 +62,7 @@ export default function LogsSection() {
     const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `slicedock-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`
+    a.download = `printyard-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`
     a.click()
     URL.revokeObjectURL(url)
   }

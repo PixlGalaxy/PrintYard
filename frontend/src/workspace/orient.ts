@@ -1,7 +1,7 @@
 // Auto-orient heuristic: try "which direction faces down" candidates (large convex-hull facets plus the six
 // axes), measure each one (overhang area, estimated support volume, bed contact, height) and keep the best for the
 // chosen mode. Creality Print offers Default (biggest face down), Minimize support volume and Minimize print time;
-// SliceDock adds Strong (lay the part down so layers run along its length) as the default.
+// PrintYard adds Strong (lay the part down so layers run along its length) as the default.
 import { Matrix3, Matrix4, Quaternion, Vector3 } from 'three'
 import type { MeshInfo } from './meshes'
 

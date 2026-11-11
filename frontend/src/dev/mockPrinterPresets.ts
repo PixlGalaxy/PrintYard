@@ -29,8 +29,8 @@ const mat = (id: string, name: string, brand: string, type: string, colors: stri
 const MATERIALS: PrinterMaterial[] = [
   mat('01001', 'Hyper PLA', 'Creality', 'PLA', ['#C12E1F', '#0A2989', '#FFFFFF', '#000000', '#B68601', '#9E007E'], 190, 240, 220, 60, {
     differs: [
-      { key: 'nozzle_temperature', printer: '225', slicedock: '220', kept: true },
-      { key: 'pressure_advance', printer: '0.036', slicedock: '0.04', kept: true },
+      { key: 'nozzle_temperature', printer: '225', printyard: '220', kept: true },
+      { key: 'pressure_advance', printer: '0.036', printyard: '0.04', kept: true },
     ],
     values: { nozzle_temperature: '225', pressure_advance: '0.036' },
   }),
@@ -65,7 +65,7 @@ function status(): ProfilesBackupStatus {
   const offline = s.flags.printerOffline
   return {
     enabled: s.settings['printers.profilesBackup.enabled'] ?? true,
-    path: 'slicedock/profiles-backup.json',
+    path: 'printyard/profiles-backup.json',
     printers: s.printers.map((p, i) => ({
       printerId: p.id,
       name: p.name,
@@ -115,7 +115,7 @@ export function handlePrinterPresets(method: string, p: string, url: URL): unkno
     return {
       printerId: Number(url.searchParams.get('printerId')),
       createdAt: new Date(backup.lastBackupAt ?? Date.now()).toISOString(),
-      slicedockVersion: 'dev',
+      printyardVersion: 'dev',
       counts: {
         process: PREVIEW_ITEMS.filter((i) => i.kind === 'process').length,
         filament: PREVIEW_ITEMS.filter((i) => i.kind === 'filament').length,

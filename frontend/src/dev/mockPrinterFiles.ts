@@ -1,5 +1,5 @@
 // Dev-only: the G-code files stored on the mock K2 SE (Files → On the printer). Names and metadata mirror the
-// user's real printer (Creality Print uploads, touchscreen samples) plus two files SliceDock uploaded.
+// user's real printer (Creality Print uploads, touchscreen samples) plus two files PrintYard uploaded.
 import type { PrinterStoredFile } from '../types'
 
 const DIR = '/usr/data/printer_data/gcodes'
@@ -27,7 +27,7 @@ export function seedPrinterFiles(now = Date.now()): MockPrinterFile[] {
     materials: ['PLA'],
     colors: ['#56df3d'],
     software: 'Creality',
-    uploadedBySliceDock: false,
+    uploadedByPrintYard: false,
     libraryFileId: null,
     ...o,
   })
@@ -38,8 +38,8 @@ export function seedPrinterFiles(now = Date.now()): MockPrinterFile[] {
     f('4color_3DBenchy_PLA_1h0m.gcode', { size: 2_416_121, createdAt: 1583064866000, filamentMm: 5_237, estimatedSec: 3_602, materials: ['PLA', 'PLA', 'PLA', 'PLA'], colors: ['#ff0000', '#ffffff', '#0000ff', '#000000'], shape: 'boat', seed: 4 }),
     f('Spatula_PLA_32m19s.gcode', { size: 2_237_205, createdAt: 1583064866000, filamentMm: 6_258, estimatedSec: 1_939, colors: ['#ffffff'], shape: 'hex', seed: 7 }),
     f('3DBenchy_PLA_22m53s.gcode', { size: 2_132_294, createdAt: 1583064866000, filamentMm: 3_720, estimatedSec: 1_373, colors: ['#ff6a13'], shape: 'boat', seed: 1 }),
-    f('Twisted_tower_PLA_0.2mm_p3.gcode', { size: 1_204_331, createdAt: now - 4 * DAY, filamentMm: 3_290, estimatedSec: 2_400, colors: ['#0ea5e9'], software: 'Creality Print 7.3.1.6378', uploadedBySliceDock: true, libraryFileId: 1, shape: 'tower', seed: 0 }),
-    f('Gear_set_PETG_0.2mm_p5.gcode', { size: 988_120, createdAt: now - 2 * DAY - 3 * 60 * MIN, filamentMm: 7_740, estimatedSec: 4_500, materials: ['PETG'], colors: ['#f97316', '#0ea5e9'], software: 'Creality Print 7.3.1.6378', uploadedBySliceDock: true, libraryFileId: 4, shape: 'hex', seed: 3 }),
+    f('Twisted_tower_PLA_0.2mm_p3.gcode', { size: 1_204_331, createdAt: now - 4 * DAY, filamentMm: 3_290, estimatedSec: 2_400, colors: ['#0ea5e9'], software: 'Creality Print 7.3.1.6378', uploadedByPrintYard: true, libraryFileId: 1, shape: 'tower', seed: 0 }),
+    f('Gear_set_PETG_0.2mm_p5.gcode', { size: 988_120, createdAt: now - 2 * DAY - 3 * 60 * MIN, filamentMm: 7_740, estimatedSec: 4_500, materials: ['PETG'], colors: ['#f97316', '#0ea5e9'], software: 'Creality Print 7.3.1.6378', uploadedByPrintYard: true, libraryFileId: 4, shape: 'hex', seed: 3 }),
     f('usb_macro_test.gcode', { size: 18_220, createdAt: now - 9 * DAY, layerHeight: null, filamentMm: null, estimatedSec: null, materials: [], colors: [], software: null, shape: 'box', seed: 5, dangerous: true }),
   ]
 }

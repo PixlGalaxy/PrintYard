@@ -1,4 +1,4 @@
-// G-code provenance (sliced by SliceDock vs uploaded), scan result and "declared vs measured" grams.
+// G-code provenance (sliced by PrintYard vs uploaded), scan result and "declared vs measured" grams.
 import { BadgeCheck, FileUp, ShieldAlert } from 'lucide-react'
 import { Badge } from '../../components/ui'
 import { useI18n } from '../../i18n/I18nContext'

@@ -958,10 +958,10 @@ function mockScan(text: string): GcodeScan {
 /** prints.untrusted_gcode / prints.dangerous_gcode, like PrintingService. */
 function gcodePolicy(f: LibraryFile, u: { role: string; canPrintUploadedGcode?: boolean }, allowDangerous: boolean) {
   if (f.meta.trusted) return
-  if (u.role !== 'admin' && !u.canPrintUploadedGcode) throw new ApiError(403, 'prints.untrusted_gcode', 'Only G-code sliced in SliceDock can be printed')
+  if (u.role !== 'admin' && !u.canPrintUploadedGcode) throw new ApiError(403, 'prints.untrusted_gcode', 'Only G-code sliced in PrintYard can be printed')
   const scan = f.meta.gcode?.scan
   if (scan && !scan.ok && !allowDangerous) {
-    throw new ApiError(403, 'prints.dangerous_gcode', 'The G-code contains commands SliceDock does not allow', {
+    throw new ApiError(403, 'prints.dangerous_gcode', 'The G-code contains commands PrintYard does not allow', {
       total: scan.total,
       findings: scan.findings.slice(0, 20),
       limits: scan.limits,
@@ -1007,7 +1007,7 @@ function readOnlyGuard() {
 }
 
 /**
- * Simulated SliceDock → printer upload: `print.update` with state `uploading`, then `print.upload` frames (4/s) up
+ * Simulated PrintYard → printer upload: `print.update` with state `uploading`, then `print.upload` frames (4/s) up
  * to 100 % (sent when the "printer" answered), like the real backend. ~8 MB/s, or ~1 MB/s with "Slow uploads".
  */
 async function sendToPrinter(job: PrintJob, confirmBedClear: boolean) {
@@ -1120,8 +1120,8 @@ function handlePrinterFiles(method: string, printerId: number, action: string | 
   if (action === 'print' && method === 'POST') {
     readOnlyGuard()
     const f = printerFileByName(b.name)
-    if (u.role !== 'admin' && !(u as { canPrintUploadedGcode?: boolean }).canPrintUploadedGcode && !f.uploadedBySliceDock) {
-      throw new ApiError(403, 'prints.untrusted_gcode', 'Only G-code sliced in SliceDock can be printed')
+    if (u.role !== 'admin' && !(u as { canPrintUploadedGcode?: boolean }).canPrintUploadedGcode && !f.uploadedByPrintYard) {
+      throw new ApiError(403, 'prints.untrusted_gcode', 'Only G-code sliced in PrintYard can be printed')
     }
     return delay(600, () => importPrinterFile(f, u.id, true)).then(async ({ file, imported }) => {
       const job = (await handleF2('POST', '/prints', url, {
@@ -1156,7 +1156,7 @@ function handlePrinterFiles(method: string, printerId: number, action: string | 
   throw new ApiError(404, 'common.not_found', 'Not found')
 }
 
-/** Printer copies of a library G-code: one per SliceDock print of it that is not running (like printer_uploads). */
+/** Printer copies of a library G-code: one per PrintYard print of it that is not running (like printer_uploads). */
 function mockPrinterCopies(fileId: number): { printerId: number; printerName: string; name: string }[] {
   const f = mockFiles.get(fileId)
   if (!f || f.kind !== 'gcode') return []

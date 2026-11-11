@@ -3,7 +3,7 @@ import { useId } from 'react'
 const LAYERS = [12, 21.94, 31.88, 41.81, 51.75, 61.69, 71.62, 81.56]
 
 /**
- * SliceDock "Sliced S" app icon (same artwork as /icons/icon-512.png): the white mark on a rounded tile whose
+ * PrintYard "Sliced S" app icon (same artwork as /icons/icon-512.png): the white mark on a rounded tile whose
  * gradient follows the active skin through the `--accent-400/600` CSS variables.
  */
 export default function Logo({ size = 36, className = '' }: { size?: number; className?: string }) {
@@ -18,7 +18,7 @@ export default function Logo({ size = 36, className = '' }: { size?: number; cla
       width={size}
       height={size}
       role="img"
-      aria-label="SliceDock"
+      aria-label="PrintYard"
       className={`shrink-0 select-none ${className}`}
     >
       <defs>

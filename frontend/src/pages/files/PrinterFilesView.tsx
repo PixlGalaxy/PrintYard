@@ -1,5 +1,5 @@
 // Files → "On the printer" (like Creality Print's Local files): the printer's own G-code list with thumbnails,
-// SliceDock badge, select all / multi-select, sort, refresh, and Print / Import / Delete per file or in bulk.
+// PrintYard badge, select all / multi-select, sort, refresh, and Print / Import / Delete per file or in bulk.
 import {
   ArrowDownWideNarrow,
   CalendarDays,
@@ -302,9 +302,9 @@ export default function PrinterFilesView({ scopeSwitch }: { scopeSwitch: ReactNo
                   <Thumb file={f} />
                 </button>
                 <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-                  {f.uploadedBySliceDock && (
-                    <span title={t('printerFiles.sliceDockHint')} className="rounded-full bg-sky-500 px-2 py-0.5 text-[11px] font-semibold text-white shadow">
-                      {t('printerFiles.sliceDock')}
+                  {f.uploadedByPrintYard && (
+                    <span title={t('printerFiles.printYardHint')} className="rounded-full bg-sky-500 px-2 py-0.5 text-[11px] font-semibold text-white shadow">
+                      {t('printerFiles.printYard')}
                     </span>
                   )}
                   {f.inUse && (
@@ -345,7 +345,7 @@ export default function PrinterFilesView({ scopeSwitch }: { scopeSwitch: ReactNo
                     <Meta icon={<HardDrive size={12} />} label={t('printerFiles.size')} value={f.size != null ? formatBytes(f.size) : '—'} />
                     <Meta icon={<CalendarDays size={12} />} label={t('printerFiles.created')} value={f.createdAt != null ? formatDate(f.createdAt) : '—'} wide />
                   </dl>
-                  {!f.uploadedBySliceDock && <p className="mt-1.5 text-[11px] text-muted/80">{t('printerFiles.foreign')}</p>}
+                  {!f.uploadedByPrintYard && <p className="mt-1.5 text-[11px] text-muted/80">{t('printerFiles.foreign')}</p>}
                   <div className="mt-auto flex items-center gap-1 pt-3">
                     <Button size="sm" variant="primary" className="flex-1" icon={<PrinterLayers size={14} />} disabled={readOnly || f.inUse} onClick={() => openPrint(f)}>
                       {t('printerFiles.print')}
@@ -378,17 +378,17 @@ export default function PrinterFilesView({ scopeSwitch }: { scopeSwitch: ReactNo
                 </span>
                 {f.inUse ? (
                   <Badge tone="amber">{t('printerFiles.inUse')}</Badge>
-                ) : f.uploadedBySliceDock ? (
-                  <Badge tone="sky">{t('printerFiles.sliceDock')}</Badge>
+                ) : f.uploadedByPrintYard ? (
+                  <Badge tone="sky">{t('printerFiles.printYard')}</Badge>
                 ) : (
                   <Badge tone="red">{t('printerFiles.foreign')}</Badge>
                 )}
               </li>
             ))}
           </ul>
-          {deleting.some((f) => !f.uploadedBySliceDock && !f.inUse) && (
+          {deleting.some((f) => !f.uploadedByPrintYard && !f.inUse) && (
             <p className="mt-2 text-xs text-red-700 dark:text-red-300">
-              {t('printerFiles.foreignWarning', { n: deleting.filter((f) => !f.uploadedBySliceDock && !f.inUse).length })}
+              {t('printerFiles.foreignWarning', { n: deleting.filter((f) => !f.uploadedByPrintYard && !f.inUse).length })}
             </p>
           )}
           {deleting.some((f) => f.inUse) && <p className="mt-1 text-xs text-muted">{t('printerFiles.inUseSkipped')}</p>}

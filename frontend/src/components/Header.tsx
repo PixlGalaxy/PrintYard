@@ -1,6 +1,6 @@
 // Top navigation, modelled on WebinCloud's Navbar: logo left, icon nav links (labels hide on phones),
 // Admin as a LayoutDashboard link (pending-approvals badge), and the avatar account menu with coloured icons and
-// a sign-out confirmation. Full width; appearance lives in Account settings. SliceDock tokens.
+// a sign-out confirmation. Full width; appearance lives in Account settings. PrintYard tokens.
 import { FolderOpen, Home, LayoutDashboard, Lock, LogOut, SlidersHorizontal, TriangleAlert, UserRound, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
@@ -54,7 +54,7 @@ export default function Header({ user }: { user: User }) {
         <Link to="/" className="flex shrink-0 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500">
           <Logo size={40} className="sm:hidden" />
           <Logo size={46} className="hidden sm:block" />
-          <span className="hidden text-lg font-semibold tracking-tight md:block">SliceDock</span>
+          <span className="hidden text-lg font-semibold tracking-tight md:block">PrintYard</span>
         </Link>
 
         <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">

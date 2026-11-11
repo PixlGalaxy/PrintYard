@@ -110,7 +110,7 @@ const httpTransport: Transport = async (method, path, body) => {
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
-    throw new ApiError(0, 'common.network', 'Cannot reach the SliceDock server.')
+    throw new ApiError(0, 'common.network', 'Cannot reach the PrintYard server.')
   }
 
   if (res.status === 204) return undefined
@@ -178,7 +178,7 @@ const xhrUpload: Uploader = (path, file, { onProgress, signal, fields }) =>
         }
       } else reject(errorFromBody(xhr.status, xhr.responseText))
     }
-    xhr.onerror = () => reject(new ApiError(0, 'common.network', 'Cannot reach the SliceDock server.'))
+    xhr.onerror = () => reject(new ApiError(0, 'common.network', 'Cannot reach the PrintYard server.'))
     xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
     signal?.addEventListener('abort', () => xhr.abort(), { once: true })
     const form = new FormData()
@@ -200,7 +200,7 @@ const httpBinary: BinarySender = async (method, path, blob) => {
       body: blob,
     })
   } catch {
-    throw new ApiError(0, 'common.network', 'Cannot reach the SliceDock server.')
+    throw new ApiError(0, 'common.network', 'Cannot reach the PrintYard server.')
   }
   const text = await res.text().catch(() => '')
   if (!res.ok) throw errorFromBody(res.status, text)
@@ -214,7 +214,7 @@ const httpBlob: BlobFetcher = async (path, { onProgress, signal }) => {
     res = await fetch(`/api${path}`, { credentials: 'same-origin', signal })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err
-    throw new ApiError(0, 'common.network', 'Cannot reach the SliceDock server.')
+    throw new ApiError(0, 'common.network', 'Cannot reach the PrintYard server.')
   }
   if (!res.ok) throw errorFromBody(res.status, await res.text().catch(() => ''))
   const total = Number(res.headers.get('Content-Length') ?? 0)
@@ -304,7 +304,7 @@ export const api = {
   printerCommand: (id: number, command: 'pause' | 'resume' | 'cancel') => req<void>('POST', `/printers/${id}/${command}`),
   /** Someone removed the finished print from the plate */
   bedCleared: (id: number) => req<void>('POST', `/printers/${id}/bed-cleared`),
-  /** The G-code the printer is running (also for jobs started outside SliceDock) */
+  /** The G-code the printer is running (also for jobs started outside PrintYard) */
   printerCurrentGcode: (id: number, opts: TransferOptions & { last?: boolean } = {}) =>
     blobFetcher(`/printers/${id}/current-gcode${opts.last ? '?last=1' : ''}`, opts),
   /** Jog / home / temperatures / fan / motors off (typed; the server builds the G-code) */
@@ -320,10 +320,10 @@ export const api = {
     uploader('/files', file, { ...opts, fields: { ...opts.fields, ...(opts.visibility ? { visibility: opts.visibility } : {}) } }) as Promise<LibraryFile>,
   updateFile: (id: number, patch: { name?: string; visibility?: Visibility; pinned?: boolean }) =>
     req<LibraryFile>('PATCH', `/files/${id}`, patch),
-  /** Deletes a library file; `printer: true` also removes the copies SliceDock uploaded to printers (per-copy results) */
+  /** Deletes a library file; `printer: true` also removes the copies PrintYard uploaded to printers (per-copy results) */
   deleteFile: (id: number, opts: { printer?: boolean } = {}) =>
     req<{ printer: PrinterCopyResult[] } | undefined>('DELETE', `/files/${id}${opts.printer ? '?printer=1' : ''}`),
-  /** Printer copies SliceDock uploaded for these files (what a delete can also remove) */
+  /** Printer copies PrintYard uploaded for these files (what a delete can also remove) */
   printerCopies: (ids: number[]) => get<{ items: { fileId: number; copies: PrinterCopy[] }[] }>(`/files/printer-copies?ids=${ids.join(',')}`),
   /** Raw file bytes for the viewers (`/files/:id/content`), with download progress */
   fileContent: (id: number, opts: TransferOptions = {}) => blobFetcher(`/files/${id}/content`, opts),

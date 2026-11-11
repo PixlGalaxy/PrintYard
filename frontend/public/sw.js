@@ -1,4 +1,4 @@
-// SliceDock service worker: Web Push only (no offline caching).
+// PrintYard service worker: Web Push only (no offline caching).
 // Registered by the app in production builds, or in dev with ?sw=1.
 
 self.addEventListener('install', () => {
@@ -28,7 +28,7 @@ self.addEventListener('push', (event) => {
       data = { body: event.data.text() }
     }
   }
-  const title = typeof data.title === 'string' && data.title ? data.title : 'SliceDock'
+  const title = typeof data.title === 'string' && data.title ? data.title : 'PrintYard'
   const options = {
     body: typeof data.body === 'string' ? data.body : '',
     icon: data.icon || '/icons/icon-192.png',

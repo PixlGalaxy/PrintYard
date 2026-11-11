@@ -243,7 +243,7 @@ export function handleNotify(method: string, p: string, b: Record<string, unknow
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
         new Notification(u.language === 'es' ? 'Notificación de prueba' : 'Test notification', {
-          body: u.language === 'es' ? 'Las notificaciones de SliceDock funcionan.' : 'SliceDock notifications are working.',
+          body: u.language === 'es' ? 'Las notificaciones de PrintYard funcionan.' : 'PrintYard notifications are working.',
           icon: '/icons/icon-192.png',
         })
       } catch {

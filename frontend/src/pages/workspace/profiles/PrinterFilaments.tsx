@@ -1,5 +1,5 @@
 // Profiles tab → Filament: "Show printer filaments" (per-user, off by default) and, when on, the printer's own filament
-// list as a read-only group. Each one maps to a SliceDock system preset; settings that differ get a "Differs" badge
+// list as a read-only group. Each one maps to a PrintYard system preset; settings that differ get a "Differs" badge
 // (details on click) and "Duplicate as my filament" opens the create dialog with the printer's values.
 import { Copy, Printer, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
@@ -156,7 +156,7 @@ function MaterialDialog({ material: m, bundle, onClose, onDuplicate }: { materia
                   <tr>
                     <th className="px-2.5 py-1.5 font-medium">{t('printerFilaments.diffSetting')}</th>
                     <th className="px-2.5 py-1.5 font-medium">{t('printerFilaments.diffPrinter')}</th>
-                    <th className="px-2.5 py-1.5 font-medium">{t('printerFilaments.diffSliceDock')}</th>
+                    <th className="px-2.5 py-1.5 font-medium">{t('printerFilaments.diffPrintYard')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line/70">
@@ -168,7 +168,7 @@ function MaterialDialog({ material: m, bundle, onClose, onDuplicate }: { materia
                         {!d.kept && <span className="block text-[10px] text-amber-600 dark:text-amber-400">{t('printerFilaments.notKept')}</span>}
                       </td>
                       <td className="px-2.5 py-1.5 font-mono break-all">{d.printer}</td>
-                      <td className="px-2.5 py-1.5 font-mono break-all text-muted">{d.slicedock ?? '—'}</td>
+                      <td className="px-2.5 py-1.5 font-mono break-all text-muted">{d.printyard ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

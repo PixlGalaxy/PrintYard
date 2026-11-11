@@ -138,7 +138,7 @@ function RestoreDialog({ preview, onClose, onRestore }: { preview: ProfilesBacku
       dismissable={!busy}
       icon={<ArchiveRestore size={18} />}
       title={t('profilesBackup.previewTitle')}
-      subtitle={t('profilesBackup.previewFrom', { when: formatDate(preview.createdAt), version: preview.slicedockVersion })}
+      subtitle={t('profilesBackup.previewFrom', { when: formatDate(preview.createdAt), version: preview.printyardVersion })}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>

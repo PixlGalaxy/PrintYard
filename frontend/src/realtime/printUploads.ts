@@ -1,4 +1,4 @@
-// Live "Sending to printer" state (SliceDock → printer G-code upload), shared by the print dialog and
+// Live "Sending to printer" state (PrintYard → printer G-code upload), shared by the print dialog and
 // <PrinterUploadProgress/>. Fed by WS `print.upload` (progress, ≤4/s) and `print.update` (state `uploading` starts
 // an entry before the first byte; `printing`/`failed`/`cancelled` ends it).
 import { useSyncExternalStore } from 'react'

@@ -139,7 +139,7 @@ export function PublicShell({ children, wide }: { children: ReactNode; wide?: bo
         {wide && (
           <span className="flex items-center gap-2.5">
             <Logo size={30} />
-            <span className="text-sm font-semibold tracking-tight">SliceDock</span>
+            <span className="text-sm font-semibold tracking-tight">PrintYard</span>
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">

@@ -83,7 +83,7 @@ export default function MockToolbar() {
         {check('readOnly', 'Read-only mode (reload to apply)')}
         <label className="sdm-row">
           <input type="checkbox" checked={flags.slowUploads === true} onChange={(e) => flag('slowUploads', e.target.checked)} />
-          Slow uploads (browser → SliceDock → printer)
+          Slow uploads (browser → PrintYard → printer)
         </label>
         <label className="sdm-row">
           Latency

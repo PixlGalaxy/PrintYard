@@ -35,6 +35,7 @@ export const SKINS = [
 export type Skin = (typeof SKINS)[number]
 
 /** 3D viewport navigation (mirrors backend/src/types.ts; behaviour in three/navigation.ts) */
+// `slicedock` is the default (PrintYard) scheme: kept as the stored id from before the rename (user prefs JSON).
 export const NAV3D_PRESETS = ['slicedock', 'tinkercad', 'repetier', 'cad', 'blender', 'custom'] as const
 export type Nav3dPreset = (typeof NAV3D_PRESETS)[number]
 export const NAV3D_BUTTONS = ['left', 'middle', 'right'] as const
@@ -99,7 +100,7 @@ export interface User {
   lastLoginAt: number | null
   /** May use the printer motion/temperature/fan controls (admins always) */
   canControlPrinter?: boolean
-  /** 3D navigation preferences; null = SliceDock defaults */
+  /** 3D navigation preferences; null = PrintYard defaults */
   nav3d?: Nav3dPrefs | null
   /** Prepare tab settings level; null = admin default (`workspace.defaultLevel`) */
   prepareLevel?: PrepareLevel | null
@@ -121,7 +122,7 @@ export interface UserLimits {
 
 export interface AdminUser extends User {
   limits: UserLimits
-  /** May print G-code SliceDock did not slice (admins always can). */
+  /** May print G-code PrintYard did not slice (admins always can). */
   canPrintUploadedGcode: boolean
 }
 
@@ -177,14 +178,14 @@ export interface SetupStatus {
 }
 
 export interface AppConfig {
-  appName: 'SliceDock'
+  appName: 'PrintYard'
   version: string
   setupComplete: boolean
   languages: Language[]
   defaultLanguage: Language
   /** Global appearance defaults (optional for older servers) */
   appearance?: AppearanceDefaults
-  /** Server started with SLICEDOCK_READ_ONLY=1: every printer write is refused (423 printers.read_only) */
+  /** Server started with PRINTYARD_READ_ONLY=1: every printer write is refused (423 printers.read_only) */
   readOnly?: boolean
   /** Retention info for the Files page notice */
   files?: { retentionEnabled: boolean; retentionKeep: number; maxUploadMb?: number }
@@ -252,7 +253,7 @@ export interface AccountPatch {
   /** null = use the admin default */
   themeMode?: ThemeMode | null
   skin?: Skin | null
-  /** null = SliceDock defaults */
+  /** null = PrintYard defaults */
   nav3d?: Nav3dPrefs | null
   /** null = use the admin default */
   prepareLevel?: PrepareLevel | null
@@ -294,7 +295,7 @@ export interface Settings {
   'limits.currency': string
   'files.retention.enabled': boolean
   'files.retention.keep': number
-  /** keep only the newest N SliceDock uploads on each printer (others are deleted from the printer) */
+  /** keep only the newest N PrintYard uploads on each printer (others are deleted from the printer) */
   'printers.retention.enabled': boolean
   'printers.retention.keep': number
   /** idle heater safety: heaters on with no print and no control action for this long → off (0 = never) */
@@ -351,7 +352,7 @@ export interface GcodeSummary {
   layers: number | null
   printerModel: string | null
   slicer: string | null
-  /** `slicer` = sliced by SliceDock (trusted); `computed` = parsed from the moves (uploads). Absent on legacy rows. */
+  /** `slicer` = sliced by PrintYard (trusted); `computed` = parsed from the moves (uploads). Absent on legacy rows. */
   estimateSource?: 'slicer' | 'computed'
   /** Uploads only: what the file's own comments claim (display only). */
   declared?: { printSeconds: number | null; filamentGrams: number[]; layers: number | null }
@@ -402,7 +403,7 @@ export interface FileMeta {
   bbox?: [number, number, number]
   gcode?: GcodeSummary
   project?: { plates: number; objects: number }
-  /** G-code sliced by SliceDock itself. */
+  /** G-code sliced by PrintYard itself. */
   trusted?: boolean
 }
 
@@ -599,7 +600,7 @@ export type ProfileFileKind = 'process' | 'filament'
 /** `POST /api/profile-files/import` result */
 // ---- printer-side presets (mirrors backend/src/types.ts) ----
 
-/** One filament of the printer's own material list, mapped onto a SliceDock system preset */
+/** One filament of the printer's own material list, mapped onto a PrintYard system preset */
 export interface PrinterMaterial {
   id: string
   name: string
@@ -612,10 +613,10 @@ export interface PrinterMaterial {
   nozzleTemp: number | null
   bedTemp: number | null
   inherits: string
-  /** Matching SliceDock system preset; null when none */
+  /** Matching PrintYard system preset; null when none */
   systemPresetId: string | null
   /** Settings that differ from that preset (`kept` = part of `values`) */
-  differs: { key: string; printer: string; slicedock: string | null; kept: boolean }[]
+  differs: { key: string; printer: string; printyard: string | null; kept: boolean }[]
   /** What "Duplicate as my filament" stores (screened like an import) */
   values: Record<string, string>
 }
@@ -648,7 +649,7 @@ export interface ProfilesBackupStatus {
 export interface ProfilesBackupPreview {
   printerId: number
   createdAt: string
-  slicedockVersion: string
+  printyardVersion: string
   counts: { process: number; filament: number; create: number; unchanged: number; renamed: number; ownerMapped: number }
   items: {
     kind: ProfileFileKind
@@ -771,7 +772,7 @@ export interface PrinterStatus {
   bedClear?: boolean
   bedOccupiedSince?: number | null
   lastPrintId?: number | null
-  /** Job being printed (also when started outside SliceDock); null when idle */
+  /** Job being printed (also when started outside PrintYard); null when idle */
   job?: PrinterJobInfo | null
   /** The job that ended on the bed, kept while `bedClear === false` (final values) */
   lastJob?: LastJob | null
@@ -873,7 +874,7 @@ export type PrintRequestState = 'pending' | 'approved' | 'rejected' | 'uploading
 /** Kept as an alias (it used to add `uploading`). */
 export type PrintJobState = PrintRequestState
 
-/** WS `print.upload`: SliceDock → printer upload progress (owner + admins, ≤4/s; 100 % once the printer answered). */
+/** WS `print.upload`: PrintYard → printer upload progress (owner + admins, ≤4/s; 100 % once the printer answered). */
 export interface PrintUploadProgress {
   printId: number
   printerId: number
@@ -990,7 +991,7 @@ export interface ProjectBody {
 
 // ---------- Phase 4: notifications (backend/src/modules/notifications) ----------
 
-/** A G-code copy SliceDock uploaded to a printer for a library file */
+/** A G-code copy PrintYard uploaded to a printer for a library file */
 export interface PrinterCopy {
   printerId: number
   printerName: string
@@ -1025,8 +1026,8 @@ export interface PrinterStoredFile {
   colors: string[]
   software: string | null
   thumbnailUrl: string | null
-  /** SliceDock uploaded it */
-  uploadedBySliceDock: boolean
+  /** PrintYard uploaded it */
+  uploadedByPrintYard: boolean
   libraryFileId: number | null
   /** Printing/paused or used by an open print (cannot be deleted) */
   inUse: boolean

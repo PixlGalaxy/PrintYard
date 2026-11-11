@@ -1,5 +1,5 @@
-// Admin → Printers: keep only the newest N SliceDock uploads on each printer's storage (the server deletes older
-// SliceDock files after each upload; files it did not upload, and files in use, are never touched).
+// Admin → Printers: keep only the newest N PrintYard uploads on each printer's storage (the server deletes older
+// PrintYard files after each upload; files it did not upload, and files in use, are never touched).
 import { HardDrive } from 'lucide-react'
 import { SettingRow } from '../../components/Card'
 import { inputCls } from '../../components/styles'

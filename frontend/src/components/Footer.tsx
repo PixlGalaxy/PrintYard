@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useI18n } from '../i18n/I18nContext'
 
-// Same structure as WebinCloud's footer (bordered strip, author link, source link), in SliceDock tokens
+// Same structure as WebinCloud's footer (bordered strip, author link, source link), in PrintYard tokens
 const link =
   'inline-flex items-center gap-1.5 font-medium text-accent-600 transition-colors hover:text-accent-700 hover:underline dark:text-accent-400 dark:hover:text-accent-300'
 
@@ -24,7 +24,7 @@ export default function Footer() {
     <footer className="border-t border-line bg-surface-2/60 backdrop-blur-sm">
       <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-3 text-center text-xs text-muted sm:px-6">
         <span>
-          © {YEAR} <span className="font-semibold text-fg/80">SliceDock</span>{' '}
+          © {YEAR} <span className="font-semibold text-fg/80">PrintYard</span>{' '}
           <span className="font-mono" title={t('footer.version')}>
             {formatVersion(config?.version)}
           </span>
@@ -34,7 +34,7 @@ export default function Footer() {
           <GithubMark /> PixlGalaxy
         </a>
         <span aria-hidden>·</span>
-        <a href="https://github.com/PixlGalaxy/SliceDock" target="_blank" rel="noreferrer noopener" className={link}>
+        <a href="https://github.com/PixlGalaxy/PrintYard" target="_blank" rel="noreferrer noopener" className={link}>
           {t('footer.source')}
         </a>
         {/* Phones: the disclaimer gets its own line instead of a dangling separator */}

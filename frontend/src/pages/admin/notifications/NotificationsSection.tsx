@@ -47,7 +47,7 @@ const CHANNEL_META: Record<NotifyChannel, { icon: LucideIcon; title: Translation
     desc: 'notify.channelDesc.ntfy',
     fields: [
       { key: 'serverUrl', label: 'notify.field.serverUrl', hint: 'notify.field.serverUrlHint', placeholder: 'https://ntfy.sh' },
-      { key: 'topic', label: 'notify.field.topic', hint: 'notify.field.topicHint', placeholder: 'slicedock-k2-7f3a' },
+      { key: 'topic', label: 'notify.field.topic', hint: 'notify.field.topicHint', placeholder: 'printyard-k2-7f3a' },
       { key: 'token', label: 'notify.field.token', hint: 'notify.field.tokenHint', secret: true, placeholder: 'tk_…' },
     ],
   },
@@ -56,7 +56,7 @@ const CHANNEL_META: Record<NotifyChannel, { icon: LucideIcon; title: Translation
     title: 'notify.channel.webhook',
     desc: 'notify.channelDesc.webhook',
     fields: [
-      { key: 'url', label: 'notify.field.url', hint: 'notify.field.urlHint', secret: true, placeholder: 'https://example.com/hooks/slicedock' },
+      { key: 'url', label: 'notify.field.url', hint: 'notify.field.urlHint', secret: true, placeholder: 'https://example.com/hooks/printyard' },
       { key: 'secret', label: 'notify.field.secret', hint: 'notify.field.secretHint', secret: true },
     ],
   },

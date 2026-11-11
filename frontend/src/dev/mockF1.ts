@@ -186,7 +186,7 @@ async function sliceResult(m: MockJob) {
   const g = generateSampleGcode({ layerHeight: lh, height, radius: 18 + Math.min(14, objs.length * 3), colors })
   // Same rule as the server (sliceOutputName): <project or first object name>_plate<N>.gcode, ≤ 64 chars
   const clean = (v: string | undefined) => (v ?? '').replace(/\.(gcode|3mf|stl|obj)$/i, '').replace(/[^\p{L}\p{N} ._()+-]+/gu, '_').replace(/(?:^|[_ -])plate[_ -]?\d+$/i, '').trim()
-  const base = ([clean(m.req.name), clean(objs[0]?.name)].find((v) => v && !/^plate$/i.test(v)) ?? 'SliceDock').slice(0, 48)
+  const base = ([clean(m.req.name), clean(objs[0]?.name)].find((v) => v && !/^plate$/i.test(v)) ?? 'PrintYard').slice(0, 48)
   const file: LibraryFile = mockFiles.add({
     ownerId: m.ownerId,
     name: `${base}_plate${plate + 1}.gcode`,
@@ -281,7 +281,7 @@ async function build3mf(name: string, scene: SceneDoc, thumb?: string): Promise<
     '3D/3dmodel.model': strToU8(model),
     'Metadata/model_settings.config': strToU8(`<?xml version="1.0" encoding="UTF-8"?><config>${settings.join('')}${scene.plates.map((p, i) => `<plate><metadata key="plater_id" value="${i + 1}"/><metadata key="plater_name" value="${p.name ?? ''}"/><metadata key="bed_type" value="${p.bedType ?? ''}"/></plate>`).join('')}</config>`),
     'Metadata/project_settings.config': strToU8(JSON.stringify(config, null, 2)),
-    'Metadata/slicedock_scene.json': strToU8(JSON.stringify(scene)),
+    'Metadata/printyard_scene.json': strToU8(JSON.stringify(scene)),
   }
   if (thumb) files['Metadata/plate_1.png'] = Uint8Array.from(atob(thumb), (c) => c.charCodeAt(0))
   return new Blob([zipSync(files, { level: 6 }) as Uint8Array<ArrayBuffer>], { type: 'model/3mf' })
@@ -348,7 +348,7 @@ export function handleF1(method: string, p: string, url: URL, b: Record<string, 
       const file = mockFiles.get(id)
       if (!file || file.kind !== 'project' || (file.ownerId !== u.id && file.visibility !== 'shared')) throw new ApiError(404, 'common.not_found', 'Not found')
       const scene = scenes[id]
-      if (!scene) throw new ApiError(404, 'projects.no_scene', 'This project has no SliceDock scene')
+      if (!scene) throw new ApiError(404, 'projects.no_scene', 'This project has no PrintYard scene')
       return { file, scene }
     }
   }

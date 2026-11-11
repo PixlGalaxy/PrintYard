@@ -72,7 +72,7 @@ interface Props {
   /** Admin, or a user with the "can control the printer" permission */
   allowed: boolean
   readOnly: boolean
-  /** A print is being uploaded to this printer (SliceDock state `uploading`). */
+  /** A print is being uploaded to this printer (PrintYard state `uploading`). */
   uploading?: boolean
   /** The running/uploading job belongs to someone else and the viewer is not an admin (tuning locked). */
   jobLocked?: boolean

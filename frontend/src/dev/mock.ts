@@ -25,7 +25,7 @@ import type {
   UserLimits,
 } from '../types'
 
-export const MOCK_PASSWORD = 'slicedock123'
+export const MOCK_PASSWORD = 'slicedock123' // unchanged by the rename: mock state in localStorage keeps it
 
 export interface MockFlags {
   /** false = the browser looks like it comes through a proxy / public host */
@@ -44,7 +44,7 @@ export interface MockFlags {
   proxyHeaders: boolean
   /** F2: server in read-only mode (printer writes refused with 423) */
   readOnly: boolean
-  /** Upload progress demo: slow browser → SliceDock uploads (~400 KB/s) and SliceDock → printer sends (~1 MB/s) */
+  /** Upload progress demo: slow browser → PrintYard uploads (~400 KB/s) and PrintYard → printer sends (~1 MB/s) */
   slowUploads?: boolean
 }
 
@@ -344,7 +344,7 @@ function probe(body: { host?: string; mac?: string; staticIp?: boolean }): Probe
 }
 
 const LOG_MESSAGES: [LogLevel, string, string][] = [
-  ['info', 'app', 'SliceDock listening on http://0.0.0.0:3000'],
+  ['info', 'app', 'PrintYard listening on http://0.0.0.0:3000'],
   ['info', 'db', 'Migrations up to date (1 applied)'],
   ['debug', 'http', 'GET /api/config 200 2ms'],
   ['info', 'auth', 'Login ok for admin from 192.168.8.20'],
@@ -380,7 +380,7 @@ export const mockTransport: Transport = async (method, path, body) => {
     // ---------- public ----------
     if (p === '/health') return { ok: true, version: '0.1.0-mock' }
     if (p === '/config') {
-      return { appName: 'SliceDock', version: '0.1.0-mock', setupComplete: state.setupComplete, languages: ['en', 'es'], defaultLanguage: state.settings['app.defaultLanguage'], appearance: { defaultMode: state.settings['appearance.defaultMode'], defaultSkin: state.settings['appearance.defaultSkin'] }, workspace: { defaultLevel: state.settings['workspace.defaultLevel'] ?? 'basic' }, readOnly: flags.readOnly, files: { retentionEnabled: state.settings['files.retention.enabled'], retentionKeep: state.settings['files.retention.keep'], maxUploadMb: state.settings['files.maxUploadMb'] }, printing: { calibrateByDefault: (state.settings as unknown as Record<string, unknown>)['printing.calibrateByDefault'] === true } }
+      return { appName: 'PrintYard', version: '0.1.0-mock', setupComplete: state.setupComplete, languages: ['en', 'es'], defaultLanguage: state.settings['app.defaultLanguage'], appearance: { defaultMode: state.settings['appearance.defaultMode'], defaultSkin: state.settings['appearance.defaultSkin'] }, workspace: { defaultLevel: state.settings['workspace.defaultLevel'] ?? 'basic' }, readOnly: flags.readOnly, files: { retentionEnabled: state.settings['files.retention.enabled'], retentionKeep: state.settings['files.retention.keep'], maxUploadMb: state.settings['files.maxUploadMb'] }, printing: { calibrateByDefault: (state.settings as unknown as Record<string, unknown>)['printing.calibrateByDefault'] === true } }
     }
     if (p === '/setup/status') {
       const admin = state.users.some((u) => u.id === state.sessionUserId && u.role === 'admin')
