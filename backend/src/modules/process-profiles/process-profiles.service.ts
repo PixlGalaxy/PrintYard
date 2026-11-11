@@ -96,6 +96,30 @@ export class ProcessProfilesService implements CustomProcessProvider {
     private readonly audit: AuditService,
   ) {}
 
+  private readonly changeListeners = new Set<() => void>();
+
+  /** Called after every stored change (create, edit, delete, share, user hand-over): the printer backup listens. */
+  onChange(cb: () => void): () => void {
+    this.changeListeners.add(cb);
+    return () => this.changeListeners.delete(cb);
+  }
+
+  private changed(): void {
+    for (const cb of this.changeListeners) {
+      try {
+        cb();
+      } catch (err) {
+        logger.warn('profile change listener failed', err);
+      }
+    }
+  }
+
+  /** Every stored profile of every user (printer backup). */
+  allRecords(): (CustomProcessRecord & { printerModel: PrinterModel; updatedAt: number })[] {
+    const rows = this.db.prepare(`${SELECT} ORDER BY u.username, p.name COLLATE NOCASE, p.id`).all() as Row[];
+    return rows.map((r) => ({ ...this.toRecord(r), printerModel: r.printer_model, updatedAt: r.updated_at }));
+  }
+
   private toRecord(r: Row): CustomProcessRecord {
     return { id: r.id, ownerId: r.owner_id, ownerName: r.owner_name, scope: r.scope, name: r.name, inherits: r.inherits, values: parseValues(r.values_json) };
   }
@@ -227,6 +251,7 @@ export class ProcessProfilesService implements CustomProcessProvider {
     const id = Number(info.lastInsertRowid);
     this.audit.log('process_profile.create', actor, body.name, { id, inherits, scope: body.scope, keys: Object.keys(values).length, via });
     logger.info(`Process profile #${id} "${body.name}" created by "${viewer.username}" (inherits "${inherits}")`);
+    this.changed();
     return this.get(viewer, id);
   }
 
@@ -254,6 +279,7 @@ export class ProcessProfilesService implements CustomProcessProvider {
         fields: Object.keys(patch),
         ...(values && { keys: Object.keys(values).length }),
       });
+      this.changed();
     }
     return this.get(viewer, id);
   }
@@ -264,6 +290,7 @@ export class ProcessProfilesService implements CustomProcessProvider {
     this.db.prepare('DELETE FROM process_profiles WHERE id = ?').run(id);
     clearDefaults(this.db, 'default_process_preset', `${CUSTOM_FILAMENT_PREFIX}${id}`);
     this.audit.log('process_profile.delete', actor, r.name, { id, ownerId: r.owner_id, scope: r.scope });
+    this.changed();
   }
 
   setScope(viewer: ProfileViewer, id: number, scope: FilamentPresetScope, actor: AuditActor): ProcessProfile {
@@ -273,13 +300,14 @@ export class ProcessProfilesService implements CustomProcessProvider {
       this.db.prepare('UPDATE process_profiles SET scope = ?, updated_at = ? WHERE id = ?').run(scope, Date.now(), id);
       if (scope === 'private') clearDefaults(this.db, 'default_process_preset', `${CUSTOM_FILAMENT_PREFIX}${id}`, r.owner_id);
       this.audit.log('process_profile.share', actor, r.name, { id, scope, ownerId: r.owner_id });
+      this.changed();
     }
     return this.get(viewer, id);
   }
 
   /** User deletion: same rules as filament presets (private ones deleted or moved, shared ones always moved). */
   handOver(userId: number, username: string, adminId: number, mode: 'delete' | 'transfer'): number {
-    return this.db.transaction(() => {
+    const moved = this.db.transaction(() => {
       if (mode === 'delete') this.db.prepare("DELETE FROM process_profiles WHERE owner_id = ? AND scope = 'private'").run(userId);
       const rows = this.db.prepare('SELECT id, name, printer_model FROM process_profiles WHERE owner_id = ?').all(userId) as Pick<Row, 'id' | 'name' | 'printer_model'>[];
       for (const r of rows) {
@@ -291,6 +319,8 @@ export class ProcessProfilesService implements CustomProcessProvider {
       }
       return rows.length;
     })();
+    this.changed();
+    return moved;
   }
 
   private nameUsedBy(ownerId: number, printerModel: string, name: string, exceptId: number): boolean {

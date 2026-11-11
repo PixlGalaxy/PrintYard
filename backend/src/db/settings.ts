@@ -69,6 +69,8 @@ export const SETTING_DEFS = {
   'printers.retention.enabled': def(z.boolean(), true),
   'printers.retention.keep': def(z.number().int().min(1).max(1000), 10),
   // Idle heater safety: no print running and a heater target > 0 for this long without a control action → heaters off (0 = disabled).
+  // Copy of every user's process profiles and custom filaments on the printer (Moonraker config root).
+  'printers.profilesBackup.enabled': def(z.boolean(), true),
   'printers.idleHeaterOffMinutes': def(z.number().int().min(0).max(24 * 60), 15),
   // B2: default of the "Print calibration" toggle (Creality `enableSelfTest`) when a request does not say.
   'printing.calibrateByDefault': def(z.boolean(), false),

@@ -102,6 +102,8 @@ export interface User {
   defaultProcessPreset: string | null;
   /** Filament preset id for slot 1 of a new project; null = bundle default. */
   defaultFilamentPreset: string | null;
+  /** Lists the printer's own filaments (Profiles tab, Prepare picker). Off by default. */
+  showPrinterFilaments: boolean;
 }
 
 export interface UserLimits {
@@ -700,6 +702,87 @@ export interface ProfileImportReport {
   remapped: { profile: string; from: string; to: string }[];
   /** Name already taken (or a system preset name): the profile was saved under `to`. */
   renamed: { from: string; to: string }[];
+}
+
+// ---- printer-side presets ----
+
+/** One filament of the printer's own material list (WS `retMaterials`), mapped onto SliceDock's system presets. */
+export interface PrinterMaterial {
+  /** Creality material id (`base.id`, e.g. "01001"). */
+  id: string;
+  name: string;
+  brand: string;
+  /** Material type (`base.meterialType`, e.g. "PLA"). */
+  type: string;
+  /** First official colour (`base.colors[0]`), `#RRGGBB`. */
+  color: string | null;
+  /** Official colours (at most 12). */
+  colors: string[];
+  minTemp: number | null;
+  maxTemp: number | null;
+  /** `kvParam.nozzle_temperature` / `hot_plate_temp`. */
+  nozzleTemp: number | null;
+  bedTemp: number | null;
+  /** `kvParam.inherits` as the printer sends it. */
+  inherits: string;
+  /** The SliceDock system preset it maps to (exact `inherits`, else same family / material); null when none. */
+  systemPresetId: string | null;
+  /** Settings that differ from that system preset (printer value, SliceDock value), at most 50. */
+  differs: { key: string; printer: string; slicedock: string | null; kept: boolean }[];
+  /** What "Duplicate as my filament" stores: the differing values that passed the same screening as an import. */
+  values: Record<string, string>;
+}
+
+export interface PrinterMaterialsView {
+  /** The viewer's "Show printer filaments" preference; when false nothing was asked from the printer. */
+  enabled: boolean;
+  printerId: number | null;
+  online: boolean;
+  /** Epoch ms of the cached answer (null = never fetched). */
+  fetchedAt: number | null;
+  materials: PrinterMaterial[];
+  /** Error code of the last failed fetch (e.g. `printer_materials.no_answer`). */
+  error?: string;
+}
+
+/** Status of the profiles backup on each printer (Admin → Printers). */
+export interface ProfilesBackupStatus {
+  enabled: boolean;
+  /** Path in the printer's Moonraker `config` root. */
+  path: string;
+  printers: {
+    printerId: number;
+    name: string;
+    online: boolean;
+    lastBackupAt: number | null;
+    lastAttemptAt: number | null;
+    /** Error code of the last failed attempt (cleared by a success). */
+    lastError: string | null;
+    /** A change is waiting to be written (debounce, or the printer is offline). */
+    pending: boolean;
+    process: number;
+    filament: number;
+  }[];
+}
+
+/** What a restore of the printer's backup would do (Admin → Printers → Restore). */
+export interface ProfilesBackupPreview {
+  printerId: number;
+  createdAt: string;
+  slicedockVersion: string;
+  counts: { process: number; filament: number; create: number; unchanged: number; renamed: number; ownerMapped: number };
+  items: {
+    kind: ProfileFileKind;
+    name: string;
+    owner: string;
+    /** The SliceDock user it will belong to (unknown owners → the restoring admin). */
+    restoreOwner: string;
+    ownerKnown: boolean;
+    shared: boolean;
+    action: 'create' | 'unchanged';
+    /** Name after de-duplication ("Name (2)") when `action` is create. */
+    finalName: string;
+  }[];
 }
 
 export type SliceJobState = 'queued' | 'preparing' | 'slicing' | 'postprocessing' | 'done' | 'failed' | 'cancelled';

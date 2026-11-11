@@ -56,6 +56,16 @@ export interface ExportFile {
 
 type Viewer = ProfileViewer & { username: string };
 
+/** One preset JSON object to import (a Creality/Orca user preset, or a SliceDock backup entry in the same shape). */
+export interface ImportItem {
+  kind: ProfileFileKind;
+  /** Label in the report (archive entry, file name, backup entry). */
+  entry: string;
+  obj: Record<string, unknown>;
+  /** Default private; a backup restore keeps the shared flag. */
+  scope?: 'private' | 'shared';
+}
+
 const push = <T>(list: T[], item: T) => {
   if (list.length < MAX_REPORT) list.push(item);
 };
@@ -170,8 +180,11 @@ export class ProfileFilesService {
     return { type, entries };
   }
 
-  /** Parent, diff against it, screening: what would be stored, and what is dropped (never stored). */
-  private prepare(p: ParsedPreset, report: ProfileImportReport) {
+  /**
+   * Parent, diff against it, screening: what would be stored, and what is dropped (never stored). Shared by the file
+   * import, the printer's filament list ("Duplicate as my filament") and the printer backup restore.
+   */
+  preparePreset(p: ParsedPreset, report: Pick<ProfileImportReport, 'dropped' | 'remapped'>) {
     const system = this.system(p.kind);
     const parent = pickParent(p.kind, p.inherits, p.values, system);
     if (parent !== p.inherits) push(report.remapped, { profile: p.name, from: p.inherits, to: parent });
@@ -209,9 +222,10 @@ export class ProfileFilesService {
   }
 
   /** A name free for the viewer: "Name", else "Name (2)", "Name (3)"… (Creality asks to overwrite; SliceDock never does). */
-  private freeName(kind: ProfileFileKind, name: string, viewer: Viewer): string | null {
+  freeName(kind: ProfileFileKind, name: string, viewer: Pick<Viewer, 'id'>, scope: 'private' | 'shared' = 'private', taken: Set<string> = new Set()): string | null {
     const free = (n: string) =>
-      kind === 'process' ? this.processProfiles.nameFree(MODEL, n, viewer.id, 'private') : this.filamentPresets.nameFree(MODEL, n, viewer.id, 'private');
+      !taken.has(n.toLowerCase()) &&
+      (kind === 'process' ? this.processProfiles.nameFree(MODEL, n, viewer.id, scope) : this.filamentPresets.nameFree(MODEL, n, viewer.id, scope));
     if (free(name)) return name;
     for (let i = 2; i < 100; i++) {
       const suffix = ` (${i})`;
@@ -226,6 +240,7 @@ export class ProfileFilesService {
     const { type, entries } = await this.readUpload(fileName, data, report);
     const isSystem = (kind: 'process' | 'filament', name: string) =>
       kind === 'process' ? this.profiles.isSystemProcess(MODEL, name) : this.profiles.isSystemFilament(MODEL, name);
+    const items: ImportItem[] = [];
     for (const { entry, obj, hint } of entries) {
       const kind = classifyPreset(entry, obj, hint, isSystem);
       if (kind === 'printer') {
@@ -237,30 +252,9 @@ export class ProfileFilesService {
         push(report.skipped, { entry, reason: 'unknown_kind' });
         continue;
       }
-      const parsed = readPreset(kind, entry, obj);
-      const { parent, values, meta } = this.prepare(parsed, report);
-      const name = this.freeName(kind, parsed.name, viewer);
-      if (!name) {
-        push(report.skipped, { entry, reason: 'name_taken' });
-        continue;
-      }
-      if (name !== parsed.name) push(report.renamed, { from: parsed.name, to: name });
-      try {
-        // The create path validates again (same checks): nothing unscreened can be stored.
-        const created =
-          kind === 'process'
-            ? this.processProfiles.create(viewer, { printerModel: MODEL, basePresetId: parent, name, values, scope: 'private' }, actor, 'import')
-            : this.filamentPresets.create(
-                viewer,
-                { printerModel: MODEL, basePresetId: parent, name, values, scope: 'private', filamentType: meta.filamentType, vendor: meta.vendor, color: meta.color },
-                actor,
-              );
-        push(report.created, { kind, id: created.id, presetId: created.presetId, name: created.name, inherits: created.inherits, keys: Object.keys(created.values).length });
-      } catch (err) {
-        if (!(err instanceof AppError)) throw err;
-        push(report.skipped, { entry, reason: err.code });
-      }
+      items.push({ kind, entry, obj });
     }
+    this.importItems(viewer, items, actor, report);
     this.audit.log('profile.import', actor, fileName.slice(0, 200), {
       type,
       created: report.created.length,
@@ -270,6 +264,38 @@ export class ProfileFilesService {
     });
     logger.info(`Profile import "${fileName.slice(0, 80)}" by "${viewer.username}": ${report.created.length} created, ${report.skipped.length} skipped, ${report.dropped.length} keys dropped`);
     return report;
+  }
+
+  /**
+   * Stores preset JSON objects for `viewer` (the import path: parent pick, diff, screening, free name, then the
+   * create path, which validates again). Used by the file import and the printer backup restore.
+   */
+  importItems(viewer: Viewer, items: ImportItem[], actor: AuditActor, report: ProfileImportReport): void {
+    for (const { kind, entry, obj, scope = 'private' } of items) {
+      const parsed = readPreset(kind, entry, obj);
+      const { parent, values, meta } = this.preparePreset(parsed, report);
+      const name = this.freeName(kind, parsed.name, viewer, scope);
+      if (!name) {
+        push(report.skipped, { entry, reason: 'name_taken' });
+        continue;
+      }
+      if (name !== parsed.name) push(report.renamed, { from: parsed.name, to: name });
+      try {
+        // The create path validates again (same checks): nothing unscreened can be stored.
+        const created =
+          kind === 'process'
+            ? this.processProfiles.create(viewer, { printerModel: MODEL, basePresetId: parent, name, values, scope }, actor, 'import')
+            : this.filamentPresets.create(
+                viewer,
+                { printerModel: MODEL, basePresetId: parent, name, values, scope, filamentType: meta.filamentType, vendor: meta.vendor, color: meta.color },
+                actor,
+              );
+        push(report.created, { kind, id: created.id, presetId: created.presetId, name: created.name, inherits: created.inherits, keys: Object.keys(created.values).length });
+      } catch (err) {
+        if (!(err instanceof AppError)) throw err;
+        push(report.skipped, { entry, reason: err.code });
+      }
+    }
   }
 
   // ---------- export ----------

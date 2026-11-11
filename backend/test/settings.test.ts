@@ -48,6 +48,7 @@ describe('SettingsService', () => {
       'slicing.maxMemoryMb': 0,
       'printers.retention.enabled': true,
       'printers.retention.keep': 10,
+      'printers.profilesBackup.enabled': true,
       'printers.idleHeaterOffMinutes': 15,
       'printing.calibrateByDefault': false,
       'limits.costPerKg': null,

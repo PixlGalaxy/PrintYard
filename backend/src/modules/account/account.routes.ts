@@ -27,6 +27,8 @@ const profileSchema = z
     /** "Always used" process / filament preset (system name or `custom:<n>`); null = bundle default */
     defaultProcessPreset: z.string().min(1).max(200).nullable().optional(),
     defaultFilamentPreset: z.string().min(1).max(200).nullable().optional(),
+    /** List the printer's own filaments in the Profiles tab and the Prepare picker */
+    showPrinterFilaments: z.boolean().optional(),
   })
   .strict();
 

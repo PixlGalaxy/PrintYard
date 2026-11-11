@@ -58,6 +58,8 @@ export function createTestApp(opts: { loginGuard?: LoginGuardOptions; context?: 
     close() {
       ctx.loginGuard.stop();
       ctx.printerControl.stop();
+      ctx.profilesBackup.stop();
+      ctx.printerMaterials.stop();
       ctx.printerManager.stop();
       ctx.hub.close();
       db.close();

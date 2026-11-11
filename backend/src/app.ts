@@ -31,6 +31,8 @@ import { profilesRoutes } from './modules/profiles/profiles.routes.js';
 import { filamentPresetsRoutes } from './modules/filament-presets/filament-presets.routes.js';
 import { processProfilesRoutes } from './modules/process-profiles/process-profiles.routes.js';
 import { profileFilesRoutes } from './modules/profile-files/profile-files.routes.js';
+import { printerMaterialsRoutes } from './modules/printer-materials/printer-materials.routes.js';
+import { profilesBackupRoutes } from './modules/profiles-backup/profiles-backup.routes.js';
 import { projectsRoutes } from './modules/projects/projects.routes.js';
 import { slicingRoutes } from './modules/slicing/slicing.routes.js';
 import { accountNotificationRoutes, adminNotificationRoutes } from './modules/notifications/notifications.routes.js';
@@ -71,6 +73,7 @@ export function createApp(ctx: AppContext): Express {
   api.use('/admin/notifications', requireAdmin, adminNotificationRoutes(ctx)); // Phase 4
   api.use('/admin/engine', requireAdmin, engineRoutes(ctx)); // B1
   api.use('/admin/users/:id/avatar', requireAdmin, adminAvatarRoutes(ctx)); // AVATARS
+  api.use('/admin/profiles-backup', requireAdmin, profilesBackupRoutes(ctx)); // PRINTER-PRESETS
   api.use('/admin', requireAdmin, adminRoutes(ctx));
   api.use('/usage', requireAuth, usageRoutes(ctx));
   api.use('/files', requireAuth, filesRoutes(ctx)); // B1
@@ -79,6 +82,7 @@ export function createApp(ctx: AppContext): Express {
   api.use('/filament-presets', requireAuth, filamentPresetsRoutes(ctx)); // FILAMENTS
   api.use('/process-profiles', requireAuth, processProfilesRoutes(ctx)); // PROFILES
   api.use('/profile-files', requireAuth, profileFilesRoutes(ctx)); // PROFILES: Creality Print import/export
+  api.use('/printer-materials', requireAuth, printerMaterialsRoutes(ctx)); // PRINTER-PRESETS: the printer's filaments
   api.use('/slice', requireAuth, slicingRoutes(ctx)); // B1
   api.use('/printers/:id/files', requireAuth, printerFilesRoutes(ctx)); // PRINTER-FILES: Files → On the printer
   api.post('/prints', pendingPrintCap(ctx)); // review 3A #3: cap open approval requests per user

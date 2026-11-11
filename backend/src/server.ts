@@ -76,6 +76,8 @@ function main(): void {
     ctx.tempHistory.stop();
     ctx.engine.stop(); // B1
     ctx.slicing.stop(); // B1
+    ctx.profilesBackup.stop(); // PRINTER-PRESETS
+    ctx.printerMaterials.stop();
     void ctx.projects.pool.terminate(); // B1: build worker
     ctx.printerControl.stop(); // idle heater watchdog
     ctx.notificationSources.stop(); // Phase 4

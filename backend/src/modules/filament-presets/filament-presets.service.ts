@@ -145,6 +145,30 @@ export class FilamentPresetsService implements CustomFilamentProvider {
     private readonly audit: AuditService,
   ) {}
 
+  private readonly changeListeners = new Set<() => void>();
+
+  /** Called after every stored change (create, edit, delete, share, user hand-over): the printer backup listens. */
+  onChange(cb: () => void): () => void {
+    this.changeListeners.add(cb);
+    return () => this.changeListeners.delete(cb);
+  }
+
+  private changed(): void {
+    for (const cb of this.changeListeners) {
+      try {
+        cb();
+      } catch (err) {
+        logger.warn('profile change listener failed', err);
+      }
+    }
+  }
+
+  /** Every stored profile of every user (printer backup). */
+  allRecords(): (CustomFilamentRecord & { printerModel: PrinterModel; updatedAt: number })[] {
+    const rows = this.db.prepare(`${SELECT} ORDER BY u.username, p.name COLLATE NOCASE, p.id`).all() as Row[];
+    return rows.map((r) => ({ ...this.toRecord(r), printerModel: r.printer_model, updatedAt: r.updated_at }));
+  }
+
   private toRecord(r: Row): CustomFilamentRecord {
     let values: Record<string, string> = {};
     try {
@@ -318,6 +342,7 @@ export class FilamentPresetsService implements CustomFilamentProvider {
     const id = Number(info.lastInsertRowid);
     this.audit.log('filament_preset.create', actor, body.name, { id, inherits, scope: body.scope, keys: Object.keys(values).length });
     logger.info(`Custom filament #${id} "${body.name}" created by "${viewer.username}" (inherits "${inherits}")`);
+    this.changed();
     return this.get(viewer, id);
   }
 
@@ -348,6 +373,7 @@ export class FilamentPresetsService implements CustomFilamentProvider {
         fields: Object.keys(patch),
         ...(values && { keys: Object.keys(values).length, changed: changedValues(this.toRecord(r).values, values) }),
       });
+      this.changed();
     }
     return this.get(viewer, id);
   }
@@ -358,6 +384,7 @@ export class FilamentPresetsService implements CustomFilamentProvider {
     this.db.prepare('DELETE FROM filament_presets WHERE id = ?').run(id);
     clearDefaults(this.db, 'default_filament_preset', `${CUSTOM_FILAMENT_PREFIX}${id}`);
     this.audit.log('filament_preset.delete', actor, r.name, { id, ownerId: r.owner_id, scope: r.scope });
+    this.changed();
   }
 
   /** Owner or admin: share with every user, or make private again (other users' defaults on it are cleared). */
@@ -368,6 +395,7 @@ export class FilamentPresetsService implements CustomFilamentProvider {
       this.db.prepare('UPDATE filament_presets SET scope = ?, updated_at = ? WHERE id = ?').run(scope, Date.now(), id);
       if (scope === 'private') clearDefaults(this.db, 'default_filament_preset', `${CUSTOM_FILAMENT_PREFIX}${id}`, r.owner_id);
       this.audit.log('filament_preset.share', actor, r.name, { id, scope, ownerId: r.owner_id });
+      this.changed();
     }
     return this.get(viewer, id);
   }
@@ -377,7 +405,7 @@ export class FilamentPresetsService implements CustomFilamentProvider {
    * a clash); shared presets always move to the acting admin so everyone keeps them. Returns the moved count.
    */
   handOver(userId: number, username: string, adminId: number, mode: 'delete' | 'transfer'): number {
-    return this.db.transaction(() => {
+    const moved = this.db.transaction(() => {
       if (mode === 'delete') this.db.prepare("DELETE FROM filament_presets WHERE owner_id = ? AND scope = 'private'").run(userId);
       const rows = this.db.prepare('SELECT id, name, scope, printer_model FROM filament_presets WHERE owner_id = ?').all(userId) as Pick<
         Row,
@@ -393,6 +421,8 @@ export class FilamentPresetsService implements CustomFilamentProvider {
       }
       return rows.length;
     })();
+    this.changed();
+    return moved;
   }
 
   private nameUsedBy(ownerId: number, printerModel: string, name: string, exceptId: number): boolean {

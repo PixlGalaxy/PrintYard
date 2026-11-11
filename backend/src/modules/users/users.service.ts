@@ -31,6 +31,8 @@ export interface UserRow {
   /** 0015: default process / filament preset ids; NULL = bundle default. */
   default_process_preset?: string | null;
   default_filament_preset?: string | null;
+  /** 0016: list the printer's own filaments (0/1). */
+  show_printer_filaments?: number;
 }
 
 interface LimitsRow {
@@ -74,6 +76,7 @@ export function toUser(row: UserRow): User {
     prepareLevel: asLevel(row.prepare_level),
     defaultProcessPreset: row.default_process_preset ?? null,
     defaultFilamentPreset: row.default_filament_preset ?? null,
+    showPrinterFilaments: row.show_printer_filaments === 1,
   };
 }
 
@@ -118,6 +121,7 @@ export interface ProfileUpdateInput {
   /** null = bundle default. Validated by the caller (must be a preset the user may use). */
   defaultProcessPreset?: string | null | undefined;
   defaultFilamentPreset?: string | null | undefined;
+  showPrinterFilaments?: boolean | undefined;
 }
 
 function buildUpdate(fields: [column: string, value: unknown][]): { sql: string; values: unknown[] } | null {
@@ -290,9 +294,15 @@ export class UsersService {
       ['prepare_level', patch.prepareLevel],
       ['default_process_preset', patch.defaultProcessPreset],
       ['default_filament_preset', patch.defaultFilamentPreset],
+      ['show_printer_filaments', patch.showPrinterFilaments === undefined ? undefined : patch.showPrinterFilaments ? 1 : 0],
     ]);
     if (!update) return;
     this.db.prepare(`UPDATE users SET ${update.sql} WHERE id = ?`).run(...update.values, id);
+  }
+
+  /** true when at least one active user wants the printer's filament list (else SliceDock never asks for it). */
+  anyShowsPrinterFilaments(): boolean {
+    return !!this.db.prepare('SELECT 1 FROM users WHERE show_printer_filaments = 1 AND is_active = 1 LIMIT 1').get();
   }
 
   touchLogin(id: number): void {
