@@ -236,6 +236,19 @@ const PER_SLOT_TYPE_MAP: Record<string, OptionDef['type']> = {
 };
 
 const optionCache = new Map<string, OptionDef[]>();
+let vectorKeys: Set<string> | null = null;
+
+/**
+ * true for vector options (`coFloats`, `coStrings`, …: one value per extruder / filament), which Creality Print
+ * writes as JSON arrays in preset files. `filament_<key>` overrides are vectors like their extruder originals.
+ */
+export function isVectorOption(key: string): boolean {
+  if (!vectorKeys) {
+    const data = readJson(join(resourcesDir(), 'crealityprint-option-modes.json')) as { options: RawOption[] };
+    vectorKeys = new Set(data.options.filter((o) => Object.hasOwn(PER_SLOT_TYPE_MAP, o.type)).map((o) => o.key));
+  }
+  return vectorKeys.has(key) || (key.startsWith('filament_') && (FILAMENT_OVERRIDE_BASE_KEYS as readonly string[]).includes(key.slice(9)));
+}
 
 /**
  * Extruder options a filament can override (Orca/Creality `filament_extruder_override_keys`, as present in the K2 SE
@@ -363,6 +376,36 @@ export interface CustomFilamentProvider {
   usableById(printerModel: PrinterModel, id: number, viewer: ProfileViewer): CustomFilamentRecord | null;
 }
 
+/** What the profiles service needs from a user process profile row. */
+export interface CustomProcessRecord {
+  id: number;
+  ownerId: number;
+  ownerName: string;
+  scope: FilamentPresetScope;
+  name: string;
+  inherits: string;
+  values: Record<string, string>;
+}
+
+/** Implemented by ProcessProfilesService; returns only profiles the viewer may use (own + shared; admins: any by id). */
+export interface CustomProcessProvider {
+  usable(printerModel: PrinterModel, viewer: ProfileViewer): CustomProcessRecord[];
+  usableById(printerModel: PrinterModel, id: number, viewer: ProfileViewer): CustomProcessRecord | null;
+}
+
+/**
+ * A process preset resolved for a project. A user profile resolves to its system parent (`raw`) plus its own values
+ * (`values`), which the project build applies through the same path as scene overrides (checked, then layered).
+ */
+export interface ProcessResolution {
+  /** `print_settings_id` */
+  settingsId: string;
+  /** `inherits_group[0]` ('' for system presets) */
+  inherits: string;
+  raw: RawPreset;
+  values: Record<string, string>;
+}
+
 /** A filament preset resolved for a project: flattened values plus what the 3MF needs to keep them. */
 export interface FilamentResolution {
   /** `filament_settings_id` entry. */
@@ -372,6 +415,15 @@ export interface FilamentResolution {
   raw: RawPreset;
   /** Keys that differ from the inherited system preset (listed in `different_settings_to_system`). */
   customKeys: string[];
+}
+
+/** Applies a string override to a raw value: arrays get every entry replaced (or split on commas). */
+export function applyOverride(cfg: RawPreset, key: string, value: string): void {
+  const current = cfg[key];
+  if (Array.isArray(current)) {
+    const parts = value.split(',');
+    cfg[key] = parts.length > 1 ? parts : current.map(() => value);
+  } else cfg[key] = value;
 }
 
 /** Sets one filament value in a flattened preset, keeping the stored shape (per-filament values are arrays). */
@@ -390,6 +442,7 @@ function stripQuotes(v: string | undefined): string | undefined {
 export class ProfilesService {
   private cache = new Map<string, { mtimeMs: number; profiles: PrinterProfiles }>();
   private custom: CustomFilamentProvider | null = null;
+  private customProcess: CustomProcessProvider | null = null;
 
   /** `currentSource` returns the installed engine's profiles when available, else the bundled snapshot. */
   constructor(private readonly currentSource: () => ProfileSource) {}
@@ -403,9 +456,33 @@ export class ProfilesService {
     this.custom = provider;
   }
 
+  /** Registers the user process profile store (wired in context.ts). */
+  setCustomProcesses(provider: CustomProcessProvider): void {
+    this.customProcess = provider;
+  }
+
   /** true when `name` is a system filament preset of the model (custom names must not shadow them). */
   isSystemFilament(printerModel: PrinterModel, name: string): boolean {
     return this.load(printerModel).filament.some((e) => e.name === name);
+  }
+
+  /** true when `name` is a system process preset of the model. */
+  isSystemProcess(printerModel: PrinterModel, name: string): boolean {
+    return this.load(printerModel).process.some((e) => e.name === name);
+  }
+
+  /**
+   * The process preset a scene uses. `custom:<n>` resolves only when the viewer may use the profile (own, shared, or
+   * any for admins); a deleted or unshared profile is `profiles.preset_not_found` with `details.kind/id`.
+   */
+  process(printerModel: PrinterModel, id: string, viewer?: ProfileViewer): ProcessResolution {
+    const n = customFilamentId(id);
+    if (n === null) return { settingsId: id, inherits: '', raw: this.raw(printerModel, 'process', id), values: {} };
+    const rec = n && viewer && this.customProcess ? this.customProcess.usableById(printerModel, n, viewer) : null;
+    if (!rec) {
+      throw new AppError(404, 'profiles.preset_not_found', 'This process profile was deleted or is no longer shared with you', { kind: 'process', id });
+    }
+    return { settingsId: rec.name, inherits: rec.inherits, raw: this.raw(printerModel, 'process', rec.inherits), values: { ...rec.values } };
   }
 
   /** Flattened system preset ⊕ the custom values (and its type/vendor/colour metadata). */
@@ -425,7 +502,9 @@ export class ProfilesService {
   private customRecord(printerModel: PrinterModel, id: string, viewer: ProfileViewer | undefined): CustomFilamentRecord {
     const n = customFilamentId(id);
     const rec = n && viewer && this.custom ? this.custom.usableById(printerModel, n, viewer) : null;
-    if (!rec) throw new AppError(404, 'profiles.preset_not_found', 'Unknown filament preset');
+    if (!rec) {
+      throw new AppError(404, 'profiles.preset_not_found', 'This filament preset was deleted or is no longer shared with you', { kind: 'filament', id });
+    }
     return rec;
   }
 
@@ -515,11 +594,26 @@ export class ProfilesService {
       });
     }
 
+    // User process profiles (own + shared), after the system presets; a profile whose parent is gone is left out.
+    const processNames = new Set(p.process.map((e) => e.name));
+    const customProcess: PresetSummary[] = (viewer && this.customProcess ? this.customProcess.usable(printerModel, viewer) : [])
+      .filter((rec) => processNames.has(rec.inherits))
+      .map((rec) => ({
+        id: `${CUSTOM_FILAMENT_PREFIX}${rec.id}`,
+        name: rec.name,
+        kind: 'process' as const,
+        custom: true,
+        ownerId: rec.ownerId,
+        ownerName: rec.ownerName,
+        scope: rec.scope,
+        inherits: rec.inherits,
+      }));
+
     return {
       engineVersion: p.source.engineVersion,
       printerModel,
       machine: p.machine.map((e) => summary(e, e.name === defaultMachine)),
-      process: p.process.map((e) => summary(e, e.name === defaultProcess)),
+      process: [...p.process.map((e) => summary(e, e.name === defaultProcess)), ...customProcess],
       filament: [...p.filament.map((e) => summary(e, e.name === defaultFilament)), ...custom],
       options: localizeOptions(processOptionDefs(), lang, 'process'),
       filamentOptions: localizeOptions(filamentOptionDefs(), lang, 'filament'),
@@ -534,6 +628,14 @@ export class ProfilesService {
   }
 
   resolved(printerModel: PrinterModel, kind: PresetKind, id: string, viewer?: ProfileViewer): ResolvedPreset {
+    if (kind === 'process' && customFilamentId(id) !== null) {
+      const r = this.process(printerModel, id, viewer);
+      const raw: RawPreset = { ...r.raw };
+      for (const [k, v] of Object.entries(r.values)) applyOverride(raw, k, v);
+      const values: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw)) values[k] = serializeValue(v);
+      return { id, values, inherits: r.inherits, customKeys: Object.keys(r.values).sort() };
+    }
     const custom = kind === 'filament' && customFilamentId(id) !== null ? this.filament(printerModel, id, viewer) : null;
     const raw = custom ? custom.raw : this.raw(printerModel, kind, id);
     const values: Record<string, string> = {};

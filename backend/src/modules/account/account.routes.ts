@@ -24,6 +24,9 @@ const profileSchema = z
     nav3d: nav3dSchema.nullable().optional(),
     /** Prepare tab settings level; null = use the admin default */
     prepareLevel: z.enum(PREPARE_LEVELS).nullable().optional(),
+    /** "Always used" process / filament preset (system name or `custom:<n>`); null = bundle default */
+    defaultProcessPreset: z.string().min(1).max(200).nullable().optional(),
+    defaultFilamentPreset: z.string().min(1).max(200).nullable().optional(),
   })
   .strict();
 
@@ -40,6 +43,10 @@ export function accountRoutes(ctx: AppContext): Router {
     const s = req.session!;
     const { theme, ...patch } = parse(profileSchema, req.body ?? {});
     if (patch.themeMode === undefined && theme !== undefined) patch.themeMode = theme;
+    // A default must be a preset this user can use right now (a private profile of someone else is a 404).
+    const viewer = { id: s.user.id, role: s.user.role };
+    if (patch.defaultProcessPreset) ctx.profiles.process('creality-k2se', patch.defaultProcessPreset, viewer);
+    if (patch.defaultFilamentPreset) ctx.profiles.filament('creality-k2se', patch.defaultFilamentPreset, viewer);
     ctx.users.updateProfile(s.user.id, patch);
     ctx.audit.log('account.update', { userId: s.user.id, username: s.user.username, ip: req.clientIp }, s.user.id, {
       fields: Object.keys(patch),

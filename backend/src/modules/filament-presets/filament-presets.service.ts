@@ -3,19 +3,18 @@ import type { Db } from '../../db/client.js';
 import { AppError, forbidden, notFound } from '../../errors.js';
 import { CONTROL_CHARS } from '../../lib/sanitize.js';
 import { logger } from '../../logger.js';
-import type { FilamentPreset, FilamentPresetScope, OptionDef, PrinterModel } from '../../types.js';
+import type { FilamentPreset, FilamentPresetScope, PrinterModel } from '../../types.js';
 import type { AuditActor, AuditService } from '../audit/audit.service.js';
+import { cleanName } from '../files/files.service.js';
+import { screenOverrides } from '../projects/scene.js';
 import {
   CUSTOM_FILAMENT_PREFIX,
   customFilamentId,
-  filamentOptionDefs,
-  UNSAFE_OPTION_KEY,
   type CustomFilamentProvider,
   type CustomFilamentRecord,
   type ProfilesService,
   type ProfileViewer,
 } from '../profiles/profiles.service.js';
-import { checkOptionValue } from '../profiles/option-bounds.js';
 
 interface Row {
   id: number;
@@ -45,11 +44,14 @@ const MAX_VALUES = 200;
 const cleanLine = (v: string) => v.replace(CONTROL_CHARS, ' ').trim();
 
 /**
- * Display name, also written as `filament_settings_id` in the 3MF (G-code header `"a";"b"`), so `;` and `"` are refused.
+ * Display name of a user profile (filament or process), cleaned like a file name (`cleanName`: last path segment,
+ * no control characters, no `<>:"|?*`). Also written as `filament_settings_id` / `print_settings_id` in the 3MF
+ * (G-code header `"a";"b"`), so `;` and `\` are refused.
  */
-const nameSchema = z
+export const profileNameSchema = z
   .string()
-  .transform(cleanLine)
+  .max(400)
+  .transform((v) => cleanLine(cleanName(cleanLine(v))))
   .pipe(
     z
       .string()
@@ -62,13 +64,13 @@ const metaText = (max: number) => z.string().transform(cleanLine).pipe(z.string(
 /** Material type, also written as `filament_type`: letters, digits, `+`, `-`, `_` and spaces. */
 const typeSchema = metaText(32).refine((v) => v === '' || /^[A-Za-z0-9][A-Za-z0-9+_ -]*$/.test(v), 'Invalid filament type');
 const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/).transform((v) => v.toUpperCase());
-const valuesSchema = z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/, 'Invalid option key'), z.string().max(4096));
+export const valuesSchema = z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/, 'Invalid option key'), z.string().max(4096));
 
 export const createSchema = z.object({
   printerModel: z.literal('creality-k2se').default('creality-k2se'),
   /** System preset id, or `custom:<n>` to copy an existing custom preset (its values become the starting point). */
   basePresetId: z.string().min(1).max(200),
-  name: nameSchema,
+  name: profileNameSchema,
   vendor: metaText(64).nullable().optional(),
   filamentType: typeSchema.nullable().optional(),
   color: colorSchema.nullable().optional(),
@@ -78,7 +80,7 @@ export const createSchema = z.object({
 });
 
 export const patchSchema = z.object({
-  name: nameSchema.optional(),
+  name: profileNameSchema.optional(),
   /** Change the system preset it inherits from (system id only). */
   inherits: z.string().min(1).max(200).optional(),
   vendor: metaText(64).nullable().optional(),
@@ -91,12 +93,6 @@ export const patchSchema = z.object({
 export type CreateBody = z.infer<typeof createSchema>;
 export type PatchBody = z.infer<typeof patchSchema>;
 
-let defsByKey: Map<string, OptionDef> | null = null;
-function filamentDefs(): Map<string, OptionDef> {
-  if (!defsByKey) defsByKey = new Map(filamentOptionDefs().map((o) => [o.key, o]));
-  return defsByKey;
-}
-
 /**
  * Validates and normalises custom values: keys must be filament options (same allowlist as slot overrides), values
  * are single-line engine text, numbers are finite and inside the key's bounds and safety caps (temperatures at most
@@ -104,26 +100,11 @@ function filamentDefs(): Map<string, OptionDef> {
  * `nil` ("use the printer's value") is accepted for the Setting Overrides keys.
  */
 export function validateFilamentValues(values: Record<string, string>): Record<string, string> {
-  const defs = filamentDefs();
-  const entries = Object.entries(values);
-  if (entries.length > MAX_VALUES) throw new AppError(400, 'filament_presets.too_many_values', `At most ${MAX_VALUES} settings`);
-  const badKeys: string[] = [];
-  const badValues: { key: string; reason: string }[] = [];
-  const out: Record<string, string> = {};
-  for (const [key, rawValue] of entries) {
-    const def = defs.get(key);
-    if (!def || UNSAFE_OPTION_KEY.test(key)) {
-      badKeys.push(key);
-      continue;
-    }
-    const v = rawValue.replace(CONTROL_CHARS, ' ').trim();
-    // Type, range and hard safety caps shared with scene overrides (option-bounds.ts; review 3A #2).
-    const reason = checkOptionValue(def, v);
-    if (reason) badValues.push({ key, reason });
-    out[key] = v;
-  }
+  if (Object.keys(values).length > MAX_VALUES) throw new AppError(400, 'filament_presets.too_many_values', `At most ${MAX_VALUES} settings`);
+  // Same allowlist, unsafe-key pattern, type/range/safety caps and CR/LF stripping as scene overrides (review 3A #2).
+  const { ok: out, badKeys, badValues } = screenOverrides(values, 'filament');
   if (badKeys.length > 0) {
-    throw new AppError(400, 'slice.invalid_override', 'Unsupported filament setting', { keys: badKeys.slice(0, 20) });
+    throw new AppError(400, 'slice.invalid_override', 'Unsupported filament setting', { keys: badKeys.slice(0, 20).map((b) => b.key) });
   }
   if (badValues.length > 0) {
     throw new AppError(400, 'filament_presets.invalid_value', 'Some filament settings have invalid values', {
@@ -144,6 +125,15 @@ function changedValues(before: Record<string, string>, after: Record<string, str
     if (out.length >= 50) break;
   }
   return out;
+}
+
+/**
+ * Users whose default process/filament is a profile that is gone (deleted) or no longer visible to them (unshared:
+ * every user but `keepOwner`) fall back to the bundle default.
+ */
+export function clearDefaults(db: Db, column: 'default_process_preset' | 'default_filament_preset', presetId: string, keepOwner?: number): void {
+  db.prepare(`UPDATE users SET ${column} = NULL WHERE ${column} = ? AND id != ? AND role != 'admin'`).run(presetId, keepOwner ?? 0);
+  if (keepOwner === undefined) db.prepare(`UPDATE users SET ${column} = NULL WHERE ${column} = ?`).run(presetId);
 }
 
 // ---- service ----
@@ -196,8 +186,8 @@ export class FilamentPresetsService implements CustomFilamentProvider {
       values: rec.values,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
-      // Shared presets are admin-only to edit (the owner duplicates to change them; review 3A #7).
-      canEdit: viewer.role === 'admin' || (r.owner_id === viewer.id && r.scope !== 'shared'),
+      // Profiles are personal: the owner (or an admin) edits, renames, deletes and shares them; others duplicate.
+      canEdit: viewer.role === 'admin' || r.owner_id === viewer.id,
     };
   }
 
@@ -217,17 +207,13 @@ export class FilamentPresetsService implements CustomFilamentProvider {
   }
 
   /**
-   * Owner or admin; once shared, admins only: everyone slices with a shared preset, so its owner must not change it
-   * silently afterwards (phase 3 review A #7). The owner can still duplicate it ("Duplicate to edit").
+   * Owner or admin (PROFILES: profiles are personal, the owner keeps control of a shared one). Projects and sliced
+   * G-code keep a copy of the values, so a later edit only affects new slices; other users can duplicate instead.
    */
   private writableRow(id: number, viewer: ProfileViewer): Row {
     const r = this.visibleRow(id, viewer);
-    if (viewer.role === 'admin') return r;
-    if (r.owner_id !== viewer.id) throw forbidden('filament_presets.forbidden', 'Only the owner or an admin can change this filament');
-    if (r.scope === 'shared') {
-      throw forbidden('filament_presets.shared_read_only', 'This filament is shared: only an admin can change it. Duplicate it to make your own version');
-    }
-    return r;
+    if (viewer.role === 'admin' || r.owner_id === viewer.id) return r;
+    throw forbidden('filament_presets.forbidden', 'Only the owner or an admin can change this filament');
   }
 
   // CustomFilamentProvider (listing: own + shared; by id: admins may use any, e.g. editing another user's project)
@@ -267,17 +253,20 @@ export class FilamentPresetsService implements CustomFilamentProvider {
   }
 
   /** Names are unique per owner and among shared presets, and never equal a system preset. */
-  private assertNameFree(printerModel: PrinterModel, name: string, ownerId: number, scope: FilamentPresetScope, exceptId = 0): void {
-    if (this.profiles.isSystemFilament(printerModel, name)) {
-      throw new AppError(409, 'filament_presets.name_taken', 'A system filament already has this name');
-    }
-    const clash = this.db
+  nameFree(printerModel: PrinterModel, name: string, ownerId: number, scope: FilamentPresetScope, exceptId = 0): boolean {
+    if (this.profiles.isSystemFilament(printerModel, name)) return false;
+    return !this.db
       .prepare(
         `SELECT 1 FROM filament_presets WHERE id != ? AND printer_model = ? AND name = ? COLLATE NOCASE
            AND (owner_id = ? OR (scope = 'shared' AND ? = 'shared'))`,
       )
       .get(exceptId, printerModel, name, ownerId, scope);
-    if (clash) throw new AppError(409, 'filament_presets.name_taken', 'You already have a filament with this name');
+  }
+
+  private assertNameFree(printerModel: PrinterModel, name: string, ownerId: number, scope: FilamentPresetScope, exceptId = 0): void {
+    if (!this.nameFree(printerModel, name, ownerId, scope, exceptId)) {
+      throw new AppError(409, 'filament_presets.name_taken', 'A filament with this name already exists');
+    }
   }
 
   /** The system preset a custom preset inherits from must exist and belong to the model. */
@@ -288,9 +277,6 @@ export class FilamentPresetsService implements CustomFilamentProvider {
   }
 
   create(viewer: ProfileViewer & { username: string }, body: CreateBody, actor: AuditActor): FilamentPreset {
-    if (body.scope === 'shared' && viewer.role !== 'admin') {
-      throw forbidden('filament_presets.share_admin_only', 'Only admins can create shared filaments');
-    }
     let inherits = body.basePresetId;
     let baseValues: Record<string, string> = {};
     let baseMeta: Pick<CustomFilamentRecord, 'vendor' | 'filamentType' | 'color'> = { vendor: null, filamentType: null, color: null };
@@ -370,16 +356,17 @@ export class FilamentPresetsService implements CustomFilamentProvider {
   delete(viewer: ProfileViewer, id: number, actor: AuditActor): void {
     const r = this.writableRow(id, viewer);
     this.db.prepare('DELETE FROM filament_presets WHERE id = ?').run(id);
+    clearDefaults(this.db, 'default_filament_preset', `${CUSTOM_FILAMENT_PREFIX}${id}`);
     this.audit.log('filament_preset.delete', actor, r.name, { id, ownerId: r.owner_id, scope: r.scope });
   }
 
-  /** Admins only (route guard): share globally or make private again (kept by its owner). */
+  /** Owner or admin: share with every user, or make private again (other users' defaults on it are cleared). */
   setScope(viewer: ProfileViewer, id: number, scope: FilamentPresetScope, actor: AuditActor): FilamentPreset {
-    if (viewer.role !== 'admin') throw forbidden('filament_presets.share_admin_only', 'Only admins can share filaments');
-    const r = this.visibleRow(id, viewer);
+    const r = this.writableRow(id, viewer);
     if (r.scope !== scope) {
       this.assertNameFree(r.printer_model, r.name, r.owner_id, scope, id);
       this.db.prepare('UPDATE filament_presets SET scope = ?, updated_at = ? WHERE id = ?').run(scope, Date.now(), id);
+      if (scope === 'private') clearDefaults(this.db, 'default_filament_preset', `${CUSTOM_FILAMENT_PREFIX}${id}`, r.owner_id);
       this.audit.log('filament_preset.share', actor, r.name, { id, scope, ownerId: r.owner_id });
     }
     return this.get(viewer, id);

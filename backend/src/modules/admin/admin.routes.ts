@@ -130,6 +130,7 @@ export function adminRoutes(ctx: AppContext): Router {
         ? await ctx.files.transferAllOf(id, target.username, { id: me.id })
         : await ctx.files.deleteAllOf(id);
     ctx.filamentPresets.handOver(id, target.username, me.id, mode.data);
+    ctx.processProfiles.handOver(id, target.username, me.id, mode.data);
     const removed = ctx.users.delete(me.id, id);
     ctx.avatars.deleteFile(id);
     ctx.hub.disconnectUser(id);

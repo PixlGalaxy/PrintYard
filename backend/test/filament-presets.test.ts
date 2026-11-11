@@ -69,8 +69,7 @@ describe('custom filament presets', () => {
       [{ basePresetId: 'custom:99999' }, 'profiles.preset_not_found'],
       [{ name: BASE }, 'filament_presets.name_taken'],
       [{ name: 'a;b' }, 'validation.failed'],
-      [{ name: 'custom:1' }, 'validation.failed'],
-      [{ scope: 'shared' }, 'filament_presets.share_admin_only'],
+      [{ name: '../' }, 'validation.failed'],
     ];
     for (const [body, code] of cases) {
       const r = await create(t.alice, { name: 'Bad', ...body });
@@ -87,10 +86,10 @@ describe('custom filament presets', () => {
     assert.equal((await create(t.bob, { name: 'Dup' })).status, 201, 'names are per owner');
   });
 
-  it('shares presets (admin only) and merges them into the profile bundle', async () => {
+  it('shares presets (owner or admin) and merges them into the profile bundle', async () => {
     const own = (await create(t.bob, { name: 'Bob PETG', basePresetId: BASE_PETG, values: { nozzle_temperature: '245' } })).body;
-    assert.equal((await t.bob.post(`/api/filament-presets/${own.id}/share`).send({ scope: 'shared' })).body.error?.code, 'filament_presets.share_admin_only');
-    const shared = await t.admin.post(`/api/filament-presets/${own.id}/share`).send({ scope: 'shared' });
+    assert.equal((await t.alice.post(`/api/filament-presets/${own.id}/share`).send({ scope: 'shared' })).status, 404, 'private of another user');
+    const shared = await t.bob.post(`/api/filament-presets/${own.id}/share`).send({ scope: 'shared' });
     assert.equal(shared.status, 200, JSON.stringify(shared.body));
     assert.equal(shared.body.scope, 'shared');
 

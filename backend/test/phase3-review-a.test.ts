@@ -414,28 +414,34 @@ describe('#3 notification flooding (E4)', () => {
 
 // ---------------------------------------------------------------- E7 / #7
 
-describe('#7 shared presets are admin-only to edit (E7)', () => {
+// PROFILES (product decision): profiles are personal, so the owner keeps editing a shared preset; other users can
+// only use or duplicate it. This replaces the earlier "admin-only once shared" rule of review A #7.
+describe('#7 shared presets: owner or admin edits, others duplicate (E7, PROFILES)', () => {
   let t: B1App;
   const BASE = 'Hyper PLA @Creality K2 SE 0.4 nozzle';
   before(async () => (t = await createB1App()));
   after(() => t?.close());
 
-  it('the owner gets read-only + can duplicate; admin edits are audited with the changed keys', async () => {
+  it('others get read-only + can duplicate; owner and admin edits are audited with the changed keys', async () => {
     const p = (await t.alice.post('/api/filament-presets').send({ basePresetId: BASE, name: 'Club PLA', values: { nozzle_temperature: '210' } })).body;
     assert.equal(p.canEdit, true);
-    assert.equal((await t.admin.post(`/api/filament-presets/${p.id}/share`).send({ scope: 'shared' })).status, 200);
-    assert.equal((await t.alice.get(`/api/filament-presets/${p.id}`)).body.canEdit, false);
-    const e = await t.alice.patch(`/api/filament-presets/${p.id}`).send({ name: 'Club PLA', values: { nozzle_temperature: '250' } });
+    assert.equal((await t.alice.post(`/api/filament-presets/${p.id}/share`).send({ scope: 'shared' })).status, 200);
+    assert.equal((await t.alice.get(`/api/filament-presets/${p.id}`)).body.canEdit, true);
+    assert.equal((await t.bob.get(`/api/filament-presets/${p.id}`)).body.canEdit, false);
+    const e = await t.bob.patch(`/api/filament-presets/${p.id}`).send({ values: { nozzle_temperature: '250' } });
     assert.equal(e.status, 403);
-    assert.equal(e.body.error.code, 'filament_presets.shared_read_only');
-    assert.equal((await t.alice.delete(`/api/filament-presets/${p.id}`)).status, 403);
+    assert.equal(e.body.error.code, 'filament_presets.forbidden');
+    assert.equal((await t.bob.delete(`/api/filament-presets/${p.id}`)).status, 403);
+    assert.equal((await t.bob.post(`/api/filament-presets/${p.id}/share`).send({ scope: 'private' })).status, 403);
     assert.equal((await t.bob.get(`/api/filament-presets/${p.id}`)).body.values.nozzle_temperature, '210');
-    const dup = await t.alice.post('/api/filament-presets').send({ basePresetId: p.presetId, name: 'My Club PLA' });
+    const own = await t.alice.patch(`/api/filament-presets/${p.id}`).send({ values: { nozzle_temperature: '212' } });
+    assert.equal(own.status, 200, JSON.stringify(own.body));
+    const dup = await t.bob.post('/api/filament-presets').send({ basePresetId: p.presetId, name: 'My Club PLA' });
     assert.equal(dup.status, 201, JSON.stringify(dup.body));
     assert.equal(dup.body.canEdit, true);
     const a = await t.admin.patch(`/api/filament-presets/${p.id}`).send({ values: { nozzle_temperature: '215' } });
     assert.equal(a.status, 200, JSON.stringify(a.body));
     const row = t.ctx.db.prepare("SELECT meta FROM audit_log WHERE action = 'filament_preset.update' ORDER BY id DESC LIMIT 1").get() as { meta: string };
-    assert.deepEqual(JSON.parse(row.meta).changed, [{ key: 'nozzle_temperature', from: '210', to: '215' }]);
+    assert.deepEqual(JSON.parse(row.meta).changed, [{ key: 'nozzle_temperature', from: '212', to: '215' }]);
   });
 });

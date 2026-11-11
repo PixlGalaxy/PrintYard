@@ -40,7 +40,7 @@ export function filamentPresetsRoutes(ctx: AppContext): Router {
     res.status(204).end();
   });
 
-  // Admins only (checked in the service): `{scope: 'shared'}` makes it global, `{scope: 'private'}` takes it back.
+  // Owner or admin (checked in the service): `{scope: 'shared'}` makes it visible to everyone, `private` takes it back.
   router.post('/:id/share', (req, res) => {
     const { scope } = parse(shareBody, req.body ?? {});
     res.json(ctx.filamentPresets.setScope(viewerOf(req), idParam(req), scope, actorOf(req)));

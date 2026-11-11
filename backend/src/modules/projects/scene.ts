@@ -3,10 +3,10 @@ import { AppError } from '../../errors.js';
 import { CONTROL_CHARS } from '../../lib/sanitize.js';
 import type { SceneDoc } from '../../types.js';
 import type { Mesh } from '../files/mesh.js';
-import { firstValue, type ProfilesService, type ProfileViewer, type RawPreset } from '../profiles/profiles.service.js';
+import { applyOverride, firstValue, type ProfilesService, type ProfileViewer, type RawPreset } from '../profiles/profiles.service.js';
 import { filamentOptionDefs, processOptionDefs, UNSAFE_OPTION_KEY } from '../profiles/profiles.service.js';
 import type { OptionDef } from '../../types.js';
-import { assertOptionValues } from '../profiles/option-bounds.js';
+import { assertOptionValues, checkOptionValue } from '../profiles/option-bounds.js';
 import type { BuildObject, BuildPlate } from './threemf.js';
 
 /**
@@ -85,25 +85,57 @@ export function assertOverrides(o: Record<string, string>, where: string, kind: 
   assertOptionValues(o, defs, where);
 }
 
-/** Applies a string override to a raw value: arrays get every entry replaced (or split on commas). */
-function applyOverride(cfg: RawPreset, key: string, value: string): void {
-  const current = cfg[key];
-  if (Array.isArray(current)) {
-    const parts = value.split(',');
-    cfg[key] = parts.length > 1 ? parts : current.map(() => value);
-  } else cfg[key] = value;
+export interface ScreenedValues {
+  /** Accepted values, CR/LF and control characters turned into spaces. */
+  ok: Record<string, string>;
+  /** Keys that are not overridable options, or run code / change outputs (`*_gcode`, `post_process`, …). */
+  badKeys: { key: string; reason: 'unsafe' | 'unsupported' }[];
+  /** Values outside their type, range or safety caps (option-bounds.ts). */
+  badValues: { key: string; reason: string }[];
 }
 
 /**
+ * The checks of `assertOverrides`, reporting instead of throwing: used by user profiles (create/edit/import), which
+ * drop or refuse what fails. Same allowlist, same unsafe-key pattern, same typed bounds.
+ */
+export function screenOverrides(values: Record<string, string>, kind: 'process' | 'filament'): ScreenedValues {
+  const defs = defsFor(kind);
+  const out: ScreenedValues = { ok: {}, badKeys: [], badValues: [] };
+  for (const [key, raw] of Object.entries(values)) {
+    if (UNSAFE_OPTION_KEY.test(key)) {
+      out.badKeys.push({ key, reason: 'unsafe' });
+      continue;
+    }
+    const def = defs.get(key);
+    if (!def) {
+      out.badKeys.push({ key, reason: 'unsupported' });
+      continue;
+    }
+    const v = String(raw).replace(CONTROL_CHARS, ' ').trim();
+    const reason = checkOptionValue(def, v);
+    if (reason) out.badValues.push({ key, reason });
+    else out.ok[key] = v;
+  }
+  return out;
+}
+
+
+/**
  * Flattened machine + process + one entry per filament slot for every filament key, plus overrides.
- * `viewer` is whose custom filament presets (`custom:<n>`) may be used; without it only system presets resolve.
+ * `viewer` is whose custom filament presets and process profiles (`custom:<n>`) may be used; without it only system
+ * presets resolve.
  */
 export function buildProjectConfig(profiles: ProfilesService, scene: SceneDoc, viewer?: ProfileViewer): RawPreset {
   assertOverrides(scene.processOverrides, 'processOverrides');
   for (const f of scene.filaments) if (f.overrides) assertOverrides(f.overrides, `filaments[slot ${f.slot}].overrides`, 'filament');
   for (const o of scene.objects) assertOverrides(o.overrides, `object "${o.name}"`);
   const machine = profiles.raw(scene.printerModel, 'machine', scene.machinePresetId);
-  const process = profiles.raw(scene.printerModel, 'process', scene.processPresetId);
+  // A user process profile is its system parent plus its own values; those values go through the same checks and
+  // the same layering as the scene's processOverrides (which still win over them).
+  const proc = profiles.process(scene.printerModel, scene.processPresetId, viewer);
+  if (Object.keys(proc.values).length > 0) assertOverrides(proc.values, `process profile "${proc.settingsId}"`);
+  const processValues: Record<string, string> = { ...proc.values, ...scene.processOverrides };
+  const process = proc.raw;
   const slots = [...scene.filaments].sort((a, b) => a.slot - b.slot);
   const resolved = slots.map((f) => profiles.filament(scene.printerModel, f.presetId, viewer));
   const filaments = resolved.map((r) => r.raw);
@@ -127,11 +159,11 @@ export function buildProjectConfig(profiles: ProfilesService, scene: SceneDoc, v
   cfg.filament_colour = slots.map((s) => s.color.toUpperCase());
   // Custom presets are written under their own name, inheriting their system preset (inherits_group below).
   cfg.filament_settings_id = resolved.map((r) => r.settingsId);
-  cfg.print_settings_id = scene.processPresetId;
+  cfg.print_settings_id = proc.settingsId;
   cfg.printer_settings_id = scene.machinePresetId;
   const bedType = scene.plates[0]?.bedType ?? firstValue(profiles.load(scene.printerModel).model.default_bed_type);
   if (bedType) cfg.curr_bed_type = bedType;
-  for (const [k, v] of Object.entries(scene.processOverrides)) applyOverride(cfg, k, v);
+  for (const [k, v] of Object.entries(processValues)) applyOverride(cfg, k, v);
   // Per-slot filament overrides replace entry i of the per-filament array. Other slots keep their preset value (or
   // the override when no preset has the key; the CLI ignores it there since the key is not in their list below).
   slots.forEach((s, i) => {
@@ -147,11 +179,11 @@ export function buildProjectConfig(profiles: ProfilesService, scene: SceneDoc, v
   // keeps project values for the keys listed here: [process, filament 1..N, printer] (PresetBundle::load_config_model).
   // A custom filament lists its own keys too, so the engine keeps them over the inherited system preset.
   cfg.different_settings_to_system = [
-    Object.keys(scene.processOverrides).sort().join(';'),
+    Object.keys(processValues).sort().join(';'),
     ...slots.map((s, i) => [...new Set([...resolved[i]!.customKeys, ...Object.keys(s.overrides ?? {})])].sort().join(';')),
     '',
   ];
-  cfg.inherits_group = ['', ...resolved.map((r) => r.inherits), ''];
+  cfg.inherits_group = [proc.inherits, ...resolved.map((r) => r.inherits), ''];
 
   return cfg;
 }

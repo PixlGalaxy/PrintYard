@@ -98,6 +98,10 @@ export interface User {
   nav3d: Nav3dPrefs | null;
   /** Prepare tab settings level; null = use the admin default (`workspace.defaultLevel`). */
   prepareLevel: PrepareLevel | null;
+  /** Process preset id used by "New project" and a fresh workspace (system name or `custom:<n>`); null = bundle default. */
+  defaultProcessPreset: string | null;
+  /** Filament preset id for slot 1 of a new project; null = bundle default. */
+  defaultFilamentPreset: string | null;
 }
 
 export interface UserLimits {
@@ -663,6 +667,39 @@ export interface FilamentPreset {
   updatedAt: number;
   /** The viewer may edit/delete it (owner, or admin). */
   canEdit: boolean;
+}
+
+/** A user process profile (`GET /api/process-profiles`). `values` holds only the keys overridden on `inherits`. */
+export interface ProcessProfile {
+  /** Numeric row id; the preset id used in scenes/bundles is `custom:<id>`. */
+  id: number;
+  presetId: string;
+  ownerId: number;
+  ownerName: string;
+  scope: FilamentPresetScope;
+  printerModel: PrinterModel;
+  name: string;
+  inherits: string;
+  values: Record<string, string>;
+  createdAt: number;
+  updatedAt: number;
+  /** The viewer may edit, rename, delete and share it (owner, or admin). */
+  canEdit: boolean;
+}
+
+export type ProfileFileKind = 'process' | 'filament';
+
+/** `POST /api/profile-files/import` result: what was created and what was left out, and why. */
+export interface ProfileImportReport {
+  created: { kind: ProfileFileKind; id: number; presetId: string; name: string; inherits: string; keys: number }[];
+  /** Whole entries (archive files or the uploaded json) that produced no profile. */
+  skipped: { entry: string; reason: string }[];
+  /** Keys left out of a created profile. `reason`: unsafe | unsupported | a value check (`range 0..300`, `number`, …). */
+  dropped: { profile: string; key: string; reason: string }[];
+  /** `inherits` that is not a K2 SE system preset, and the parent used instead. */
+  remapped: { profile: string; from: string; to: string }[];
+  /** Name already taken (or a system preset name): the profile was saved under `to`. */
+  renamed: { from: string; to: string }[];
 }
 
 export type SliceJobState = 'queued' | 'preparing' | 'slicing' | 'postprocessing' | 'done' | 'failed' | 'cancelled';

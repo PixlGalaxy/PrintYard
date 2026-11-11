@@ -29,6 +29,7 @@ import { engineRoutes } from './modules/engine/engine.routes.js';
 import { filesRoutes } from './modules/files/files.routes.js';
 import { profilesRoutes } from './modules/profiles/profiles.routes.js';
 import { filamentPresetsRoutes } from './modules/filament-presets/filament-presets.routes.js';
+import { processProfilesRoutes } from './modules/process-profiles/process-profiles.routes.js';
 import { projectsRoutes } from './modules/projects/projects.routes.js';
 import { slicingRoutes } from './modules/slicing/slicing.routes.js';
 import { accountNotificationRoutes, adminNotificationRoutes } from './modules/notifications/notifications.routes.js';
@@ -73,6 +74,7 @@ export function createApp(ctx: AppContext): Express {
   api.use('/projects', requireAuth, projectsRoutes(ctx)); // B1
   api.use('/profiles', requireAuth, profilesRoutes(ctx)); // B1
   api.use('/filament-presets', requireAuth, filamentPresetsRoutes(ctx)); // FILAMENTS
+  api.use('/process-profiles', requireAuth, processProfilesRoutes(ctx)); // PROFILES
   api.use('/slice', requireAuth, slicingRoutes(ctx)); // B1
   api.use('/printers/:id/files', requireAuth, printerFilesRoutes(ctx)); // PRINTER-FILES: Files → On the printer
   api.post('/prints', pendingPrintCap(ctx)); // review 3A #3: cap open approval requests per user

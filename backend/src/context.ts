@@ -28,6 +28,7 @@ import { EngineManager } from './modules/engine/engine.service.js';
 import { FilesService } from './modules/files/files.service.js';
 import { ProfilesService } from './modules/profiles/profiles.service.js';
 import { FilamentPresetsService } from './modules/filament-presets/filament-presets.service.js';
+import { ProcessProfilesService } from './modules/process-profiles/process-profiles.service.js';
 import { ProjectsService } from './modules/projects/projects.service.js';
 import { SlicingService } from './modules/slicing/slicing.service.js';
 import {
@@ -78,6 +79,8 @@ export interface AppContext {
   projects: ProjectsService;
   /** FILAMENTS: custom filament presets (`custom:<id>` in scenes), merged into the profile bundle. */
   filamentPresets: FilamentPresetsService;
+  /** PROFILES: user process profiles (`custom:<n>` process preset ids). */
+  processProfiles: ProcessProfilesService;
   /** B1: slicing engine install/update/rollback. */
   engine: EngineManager;
   /** B1: slicing job queue (one at a time). */
@@ -154,6 +157,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     profiles: null as unknown as ProfilesService,
     projects: null as unknown as ProjectsService,
     filamentPresets: null as unknown as FilamentPresetsService,
+    processProfiles: null as unknown as ProcessProfilesService,
     engine: null as unknown as EngineManager,
     slicing: null as unknown as SlicingService,
     notifications: null as unknown as NotificationService,
@@ -266,6 +270,8 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
   ctx.profiles = new ProfilesService(() => ctx.engine.profileSource());
   ctx.filamentPresets = new FilamentPresetsService(db, ctx.profiles, ctx.audit);
   ctx.profiles.setCustomFilaments(ctx.filamentPresets);
+  ctx.processProfiles = new ProcessProfilesService(db, ctx.profiles, ctx.audit);
+  ctx.profiles.setCustomProcesses(ctx.processProfiles);
   ctx.projects = new ProjectsService(ctx.files, ctx.profiles, () => ctx.engine.appVersion());
   ctx.slicing = new SlicingService({
     appdataRoot: config.appdataRoot,
