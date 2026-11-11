@@ -2,16 +2,16 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
-  <img src="docs/logo.svg" alt="SliceDock" width="344" height="100">
+  <img src="docs/logo.svg" alt="PrintYard" width="344" height="100">
 </picture>
 
-# SliceDock
+# PrintYard
 
 **Self-hosted web panel and slicer for your 3D printer — slice, print and monitor from any browser.**
 
 </div>
 
-> SliceDock is a community project. It is compatible with Creality printers but is **not affiliated with or endorsed by Creality**.
+> PrintYard is a community project. It is compatible with Creality printers but is **not affiliated with or endorsed by Creality**.
 
 > Early development. Expect breaking changes until the first release.
 
@@ -36,30 +36,30 @@ New printers are added as drivers — contributions welcome.
 
 ## Running it
 
-SliceDock runs as **one container** (x86_64).
+PrintYard runs as **one container** (x86_64).
 
 ```sh
 docker run -d \
-  --name slicedock \
+  --name printyard \
   --restart unless-stopped \
   --memory 2g \
   -p 3000:3000 \
   -e PUID=99 -e PGID=100 -e TZ=America/New_York \
   -v /path/to/appdata:/appdata \
   -v /path/to/data:/data \
-  ghcr.io/pixlgalaxy/slicedock:latest
+  ghcr.io/pixlgalaxy/printyard:latest
 ```
 
 Then open `http://<server-lan-ip>:3000` **from your local network** to run the setup wizard.
 
-> **Finish the setup wizard before exposing SliceDock to the internet.** Until an admin account exists, whoever reaches the setup page first can create it. SliceDock blocks setup requests that come through Cloudflare or a reverse proxy that sends `X-Forwarded-*` headers, but a plain TCP tunnel or a proxy that strips those headers cannot be told apart from a local visitor. Do not publish the port, tunnel or proxy host until setup is complete.
+> **Finish the setup wizard before exposing PrintYard to the internet.** Until an admin account exists, whoever reaches the setup page first can create it. PrintYard blocks setup requests that come through Cloudflare or a reverse proxy that sends `X-Forwarded-*` headers, but a plain TCP tunnel or a proxy that strips those headers cannot be told apart from a local visitor. Do not publish the port, tunnel or proxy host until setup is complete.
 
 ### Dynamic printer IP (find by MAC)
 
-If your printer does not have a static IP, SliceDock can find it by its MAC address. That requires host networking so the container can see your LAN:
+If your printer does not have a static IP, PrintYard can find it by its MAC address. That requires host networking so the container can see your LAN:
 
 ```sh
-docker run -d --name slicedock --network host -e PORT=3000 ... ghcr.io/pixlgalaxy/slicedock:latest
+docker run -d --name printyard --network host -e PORT=3000 ... ghcr.io/pixlgalaxy/printyard:latest
 ```
 
 ### Volumes
@@ -73,15 +73,24 @@ docker run -d --name slicedock --network host -e PORT=3000 ... ghcr.io/pixlgalax
 
 The panel idles at around 150 MB, but slicing needs much more while it runs. **Give the container more than 1 GB** (`--memory 2g` recommended; large models with tree supports may need 3–4 GB). The admin panel warns you if the limit is too low.
 
+### Upgrading from SliceDock
+
+PrintYard was called SliceDock before. Existing installs keep working with no manual steps:
+
+- Switch the image to `ghcr.io/pixlgalaxy/printyard` and keep the same `/appdata` and `/data` volumes. On first start, `appdata/slicedock.db` is renamed to `printyard.db`.
+- Environment variables are now `PRINTYARD_*`. The old `SLICEDOCK_*` names are still read, but they are deprecated.
+- Webhooks send `X-PrintYard-Event` and `X-PrintYard-Signature`. For now they also send the old `X-SliceDock-Event` and `X-SliceDock-Signature` headers with the same values. Those are deprecated, so update your receivers.
+- Projects saved by SliceDock (3MF) and profile backups stored on the printer still open.
+
 ## Exposing it to the internet
 
-Always use **HTTPS** from the outside (push notifications on iOS require it). The setup wizard asks how SliceDock is exposed so it can read the real client IP:
+Always use **HTTPS** from the outside (push notifications on iOS require it). The setup wizard asks how PrintYard is exposed so it can read the real client IP:
 
 - **Cloudflare Tunnel** — uses `CF-Connecting-IP`.
 - **Nginx / Nginx Proxy Manager** — uses `X-Real-IP` / `X-Forwarded-For`. Enable *Websockets Support* in NPM.
 - **Other** — configure your trusted proxies in the admin panel.
 
-**Never expose the printer's own ports** (80, 4408, 7125, 9999) to the internet: they have no authentication. SliceDock proxies everything with auth.
+**Never expose the printer's own ports** (80, 4408, 7125, 9999) to the internet: they have no authentication. PrintYard proxies everything with auth.
 
 ## Development
 
@@ -92,7 +101,7 @@ cd frontend && npm install && npm run dev    # UI on http://localhost:5173 (prox
 
 ## Credits
 
-SliceDock stands on the shoulders of open-source slicers:
+PrintYard stands on the shoulders of open-source slicers:
 [Creality Print](https://github.com/CrealityOfficial/CrealityPrint) ·
 [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) ·
 [Bambu Studio](https://github.com/bambulab/BambuStudio) ·
@@ -102,4 +111,4 @@ Thanks to the Creality Print team and the whole community.
 
 ## License
 
-[AGPL-3.0](LICENSE). If you run a modified SliceDock for other people, you must share your changes.
+[AGPL-3.0](LICENSE). If you run a modified PrintYard for other people, you must share your changes.

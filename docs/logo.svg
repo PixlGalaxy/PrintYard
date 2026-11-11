@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 344 100" width="344" height="100">
-  <title>SliceDock 04a Sliced S (horizontal)</title>
+  <title>PrintYard 04a Sliced S (horizontal)</title>
   <g transform="translate(8 14) scale(.72)" style="color:#0ea5e9">
   <path d="M12 24a12 12 0 0 1 12-12h18L12 42z" fill="currentColor"/>
   <path d="M58 4 4 58" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
@@ -11,5 +11,5 @@
   </defs>
   <g clip-path="url(#sd4a-half)"><g mask="url(#sd4a-s)" fill="currentColor" opacity=".86"><rect x="0" y="12.00" width="100" height="6.44"/><rect x="0" y="21.94" width="100" height="6.44"/><rect x="0" y="31.88" width="100" height="6.44"/><rect x="0" y="41.81" width="100" height="6.44"/><rect x="0" y="51.75" width="100" height="6.44"/><rect x="0" y="61.69" width="100" height="6.44"/><rect x="0" y="71.62" width="100" height="6.44"/><rect x="0" y="81.56" width="100" height="6.44"/></g></g>
   </g>
-  <text x="96" y="65" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="700" letter-spacing="-1.2"><tspan style="fill:#0f172a">Slice</tspan><tspan style="fill:#0ea5e9">Dock</tspan></text>
+  <text x="96" y="65" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="700" letter-spacing="-1.2"><tspan style="fill:#0f172a">Print</tspan><tspan style="fill:#0ea5e9">Yard</tspan></text>
 </svg>
