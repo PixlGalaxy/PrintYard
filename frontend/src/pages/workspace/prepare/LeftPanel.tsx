@@ -19,6 +19,7 @@ import { useUploads } from '../../files/uploads/UploadContext'
 import { formatBytes } from '../../../validation'
 import { Section, Tip } from './bits'
 import { menuCls, menuItemCls, useDismiss } from './styles'
+import { UNKNOWN_FILAMENT_COLOR } from '../../../workspace/filamentColor'
 
 
 const STATE_TONE: Partial<Record<PrinterState, string>> = {
@@ -369,7 +370,7 @@ function ObjectRow({
         title={slot ? `${String(slot.slot).padStart(2, '0')} · ${shortPresetName(slot.presetId)}` : undefined}
         onClick={() => setMenu(menu === 'slot' ? null : 'slot')}
         className="flex size-5 shrink-0 items-center justify-center rounded-md text-[9px] font-bold text-black/60 ring-1 ring-black/10 ring-inset"
-        style={{ background: slot?.color ?? '#9ca3af' }}
+        style={{ background: slot?.color ?? UNKNOWN_FILAMENT_COLOR }}
       >
         {obj.filamentSlot}
       </button>

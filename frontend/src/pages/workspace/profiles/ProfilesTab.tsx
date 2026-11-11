@@ -20,6 +20,7 @@ import { IMPORT_ACCEPT, MAX_IMPORT_BYTES, readAsBase64, saveExport } from './fil
 import ImportReportDialog from './ImportReportDialog'
 import ProcessProfileDialog, { type ProcessDialogMode } from './ProcessProfileDialog'
 import ProfileEditor, { type EditorProfile } from './ProfileEditor'
+import { UNKNOWN_FILAMENT_COLOR } from '../../../workspace/filamentColor'
 
 const MODEL: PrinterModel = 'creality-k2se'
 
@@ -405,7 +406,7 @@ function ProfileRow({
       )}
       <button type="button" onClick={onSelect} aria-current={active} className="min-w-0 flex-1 text-left">
         <span className="flex items-center gap-1.5">
-          {row.kind === 'filament' && <span className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15" style={{ background: row.color ?? 'transparent' }} />}
+          {row.kind === 'filament' && <span className="size-2.5 shrink-0 rounded-full ring-1 ring-black/20 dark:ring-white/20" style={{ background: row.color ?? UNKNOWN_FILAMENT_COLOR }} />}
           <span className={`truncate text-sm ${active ? 'font-semibold' : 'font-medium'}`}>{name}</span>
         </span>
         <span className="block truncate text-[11px] text-muted">

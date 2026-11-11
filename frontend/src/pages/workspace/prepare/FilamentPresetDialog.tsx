@@ -12,6 +12,7 @@ import { useI18n } from '../../../i18n/I18nContext'
 import type { FilamentPreset, FilamentPresetScope, PresetSummary, ProfileBundle } from '../../../types'
 import { isCustomPresetId } from '../../../workspace/filamentPresets'
 import { invalidateCustomFilaments, shortPresetName } from '../../../workspace/profiles'
+import { UNKNOWN_FILAMENT_COLOR } from '../../../workspace/filamentColor'
 
 /** Starting point for a new preset */
 export interface PresetDraft {
@@ -54,7 +55,7 @@ export default function FilamentPresetDialog({
   const [base, setBase] = useState(startBase)
   const [name, setName] = useState(preset?.name ?? draft?.name ?? '')
   const [type, setType] = useState(preset?.filamentType ?? draft?.filamentType ?? startSummary?.filamentType ?? '')
-  const [color, setColor] = useState((preset?.color ?? draft?.color ?? startSummary?.color ?? '#7DD3FC').toUpperCase())
+  const [color, setColor] = useState((preset?.color ?? draft?.color ?? startSummary?.color ?? UNKNOWN_FILAMENT_COLOR).toUpperCase())
   const [vendor, setVendor] = useState(preset?.vendor ?? draft?.vendor ?? '')
   const [scope, setScope] = useState<FilamentPresetScope>(preset?.scope ?? 'private')
   const [busy, setBusy] = useState(false)

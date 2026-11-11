@@ -19,6 +19,7 @@ import { Section, Tip } from './bits'
 import FilamentPresetDialog, { type PresetDraft } from './FilamentPresetDialog'
 import FilamentSettings from './FilamentSettings'
 import { menuCls, menuItemCls, useDismiss } from './styles'
+import { UNKNOWN_FILAMENT_COLOR } from '../../../workspace/filamentColor'
 
 const MAX_SLOTS = 16
 
@@ -40,7 +41,7 @@ async function slotFromSpool(model: PrinterModel, bundle: ProfileBundle | null, 
   return {
     slot,
     presetId: preset.id,
-    color: (spool.color ?? preset.color ?? prev?.color ?? '#7DD3FC').toUpperCase(),
+    color: (spool.color ?? preset.color ?? prev?.color ?? UNKNOWN_FILAMENT_COLOR).toUpperCase(),
     cfs: { box: spool.box, slot: spool.slot },
     ...(Object.keys(overrides).length ? { overrides } : {}),
   }
@@ -137,7 +138,7 @@ export default function FilamentPanel({ bundle }: { bundle: ProfileBundle | null
   const add = () => {
     const def = list.find((p) => p.isDefault) ?? list[0]
     if (!def) return
-    workspace.update((d) => ({ ...d, filaments: [...d.filaments, { slot: d.filaments.length + 1, presetId: def.id, color: def.color ?? '#7DD3FC' }] }))
+    workspace.update((d) => ({ ...d, filaments: [...d.filaments, { slot: d.filaments.length + 1, presetId: def.id, color: def.color ?? UNKNOWN_FILAMENT_COLOR }] }))
   }
   const remove = (slot: number) =>
     workspace.update((d) => ({

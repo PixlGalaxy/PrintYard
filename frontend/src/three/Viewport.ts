@@ -39,6 +39,7 @@ import type { Tool } from '../workspace/store'
 import { BED_THEMES, buildPlate, disposeGroup } from './bed'
 import { CameraRig, type CubeCamera } from './cameraRig'
 import { bindUserNavigation, type NavHandle } from './navigation'
+import { UNKNOWN_FILAMENT_COLOR } from '../workspace/filamentColor'
 
 /**
  * Closest hit distance (world units) of a ray against a non-indexed mesh, double-sided. A tight Möller–Trumbore
@@ -351,7 +352,7 @@ export class Viewport implements CubeCamera {
         const local = node.box.clone().translate(new Vector3(-ox, -oy, 0))
         node.outside = isOutside(local, bed)
       }
-      node.color = slotColor.get(o.filamentSlot) ?? '#9ca3af'
+      node.color = slotColor.get(o.filamentSlot) ?? UNKNOWN_FILAMENT_COLOR
       node.group.visible = !hidden.has(o.id)
       this.paint(node, selected.has(o.id))
     }

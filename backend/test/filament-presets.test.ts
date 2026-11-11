@@ -158,6 +158,28 @@ describe('custom filament presets', () => {
     assert.equal((await t.alice.delete(`/api/filament-presets/${dup.body.id}`)).status, 204);
   });
 
+  it('gives system filaments with an empty colour their official colour (Generic PLA is white, not grey)', async () => {
+    const bundle = (await t.alice.get('/api/profiles/creality-k2se')).body as { filament: { id: string; color?: string; custom?: boolean }[] };
+    const color = (id: string) => bundle.filament.find((f) => f.id === id)?.color;
+    // Every bundled K2 SE filament ships default_filament_colour "" (Creality Print 7.3.1).
+    for (const f of bundle.filament.filter((x) => !x.custom)) assert.match(f.color ?? '', /^#[0-9A-F]{6}$/, f.id);
+    assert.equal(color('Generic PLA @Creality K2 SE 0.4 nozzle'), '#FFFFFF');
+    assert.equal(color('Generic PETG @Creality K2 SE 0.4 nozzle'), '#FFFFFF');
+    assert.equal(color(BASE), '#C12E1F');
+    // The flattened values carry the same colour (what the 3MF's filament settings get).
+    const preset = await t.alice.get(`/api/profiles/creality-k2se/preset/filament/${encodeURIComponent('Generic PLA @Creality K2 SE 0.4 nozzle')}`);
+    assert.equal(preset.body.values.default_filament_colour, '#FFFFFF');
+    // A custom "Generic PLA" created without a colour shows the base's white, not a fallback grey.
+    const mine = await create(t.alice, { name: 'Generic PLA', basePresetId: 'Generic PLA @Creality K2 SE 0.4 nozzle', color: null });
+    assert.equal(mine.status, 201, JSON.stringify(mine.body));
+    const again = (await t.alice.get('/api/profiles/creality-k2se')).body as typeof bundle;
+    assert.equal(again.filament.find((f) => f.id === mine.body.presetId)?.color, '#FFFFFF');
+    const resolved = await t.alice.get(`/api/profiles/creality-k2se/preset/filament/${encodeURIComponent(mine.body.presetId)}`);
+    assert.equal(resolved.body.values.default_filament_colour, '#FFFFFF');
+    assert.deepEqual(resolved.body.customKeys, []);
+    await t.alice.delete(`/api/filament-presets/${mine.body.id}`);
+  });
+
   it('hands presets over when a user is deleted', async () => {
     const carol = await t.admin.post('/api/admin/users').send({ username: 'carol', password: 'carol-password-1', role: 'admin' });
     const carolId = carol.body.id as number;

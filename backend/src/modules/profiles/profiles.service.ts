@@ -3,6 +3,7 @@ import { join, resolve, sep } from 'node:path';
 import { AppError, notFound } from '../../errors.js';
 import { resourcesDir } from '../../lib/resources.js';
 import { logger } from '../../logger.js';
+import { defaultFilamentColour, hexColour } from './filament-colours.js';
 import { localizeOptions, optionText } from './i18n.js';
 import type {
   FilamentPresetScope,
@@ -190,7 +191,13 @@ export function loadPrinterProfiles(source: ProfileSource, printerModel: Printer
       if (raw.instantiation !== 'true') continue;
       const compatible = Array.isArray(raw.compatible_printers) ? raw.compatible_printers : [];
       if (!compatible.some((p) => machineNames.has(p))) continue;
-      flatten(name);
+      const merged = flatten(name);
+      // Official filaments ship an empty colour: give them their first official colour (filament-colours.ts) so the
+      // preset list, new slots, new custom filaments and the 3MF all agree.
+      if (kind === 'filament' && !hexColour(firstValue(merged.default_filament_colour))) {
+        const colour = defaultFilamentColour(name);
+        merged.default_filament_colour = Array.isArray(merged.default_filament_colour) ? [colour] : colour;
+      }
       result[kind].push({ name, kind, raw });
     }
   }

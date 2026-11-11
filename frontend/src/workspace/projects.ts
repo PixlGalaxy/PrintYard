@@ -5,6 +5,7 @@ import { meshes } from './meshes'
 import { env } from './ops'
 import type { PresetDefaults } from './profiles'
 import { emptyDoc, workspace } from './store'
+import { UNKNOWN_FILAMENT_COLOR } from './filamentColor'
 
 export class ProjectError extends Error {}
 
@@ -53,7 +54,7 @@ export function newProject(defaults: PresetDefaults = {}, bundle?: ProfileBundle
   const { doc } = workspace.state
   const process = defaults.process && bundle?.process.some((p) => p.id === defaults.process) ? defaults.process : doc.processPresetId
   const fil = defaults.filament ? bundle?.filament.find((p) => p.id === defaults.filament) : undefined
-  const filaments = fil ? [{ slot: 1, presetId: fil.id, color: fil.color ?? doc.filaments[0]?.color ?? '#7DD3FC' }] : doc.filaments.slice(0, 1)
+  const filaments = fil ? [{ slot: 1, presetId: fil.id, color: fil.color ?? doc.filaments[0]?.color ?? UNKNOWN_FILAMENT_COLOR }] : doc.filaments.slice(0, 1)
   workspace.load(
     { ...emptyDoc(), machinePresetId: doc.machinePresetId, processPresetId: process, filaments, printerModel: doc.printerModel },
     { fileId: null, name: '' },

@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { api } from '../api'
 import type { PresetSummary, PrinterModel, ProfileBundle, ResolvedPreset, SceneDoc } from '../types'
 import { workspace } from './store'
+import { UNKNOWN_FILAMENT_COLOR } from './filamentColor'
 
 const bundles = new Map<string, Promise<ProfileBundle>>()
 const presets = new Map<string, Promise<ResolvedPreset>>()
@@ -173,7 +174,7 @@ export function applyBundleDefaults(bundle: ProfileBundle, defaults: PresetDefau
       const filaments = d.filaments.length
         ? d.filaments.map((f) => (has(bundle.filament, f.presetId) || !defFilament ? f : { ...f, presetId: replace('filament', bundle.filament, f.presetId, defFilament.id) }))
         : defFilament
-          ? [{ slot: 1, presetId: defFilament.id, color: defFilament.color ?? '#7DD3FC' }]
+          ? [{ slot: 1, presetId: defFilament.id, color: defFilament.color ?? UNKNOWN_FILAMENT_COLOR }]
           : []
       const changed =
         machinePresetId !== d.machinePresetId ||

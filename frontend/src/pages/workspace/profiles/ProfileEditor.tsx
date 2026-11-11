@@ -19,6 +19,7 @@ import { FILAMENT_PAGE_KEYS, isBedGroup, OVERRIDE_PAGE, PROCESS_PAGE_KEYS, PROCE
 import SearchBox from '../prepare/settings/SearchBox'
 import { usePageSpy } from '../prepare/settings/usePageSpy'
 import { usePrepareLevel } from '../prepare/settings/usePrepareLevel'
+import { UNKNOWN_FILAMENT_COLOR } from '../../../workspace/filamentColor'
 
 export interface EditorProfile {
   kind: 'process' | 'filament'
@@ -128,7 +129,7 @@ export default function ProfileEditor({
         <div className="flex flex-wrap items-start gap-2">
           <div className="min-w-0 flex-1">
             <h2 className="flex min-w-0 items-center gap-2 font-semibold">
-              {kind === 'filament' && <span className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15" style={{ background: profile.color ?? 'transparent' }} />}
+              {kind === 'filament' && <span className="size-3.5 shrink-0 rounded-full ring-1 ring-black/20 dark:ring-white/20" style={{ background: profile.color ?? UNKNOWN_FILAMENT_COLOR }} />}
               <span className="truncate">{profile.system ? shortPresetName(profile.name) : profile.name}</span>
               {profile.system ? (
                 <Badge>{t('profiles.systemBadge')}</Badge>

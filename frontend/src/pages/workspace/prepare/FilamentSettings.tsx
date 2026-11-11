@@ -26,6 +26,7 @@ import { FILAMENT_PAGE_KEYS, isBedGroup, OVERRIDE_PAGE } from './settings/pages'
 import SearchBox from './settings/SearchBox'
 import { usePageSpy } from './settings/usePageSpy'
 import FilamentPresetDialog, { type PresetDraft } from './FilamentPresetDialog'
+import { UNKNOWN_FILAMENT_COLOR } from '../../../workspace/filamentColor'
 
 const PAGE_KEYS = FILAMENT_PAGE_KEYS
 type Mode = 'simple' | 'pro'
@@ -147,7 +148,7 @@ export default function FilamentSettings({ bundle, slot, preset: custom, onClose
     isBedGroup(opts) ? <BedTempTable opts={opts} value={value} changed={changed} setValue={setValue} bedType={bedType} /> : null
 
   const presetName = slot ? (summary?.name ?? slot.presetId) : custom.name
-  const color = slot ? slot.color : (custom.color ?? '#7DD3FC')
+  const color = slot ? slot.color : (custom.color ?? UNKNOWN_FILAMENT_COLOR)
   return (
     <Modal
       size="lg"
