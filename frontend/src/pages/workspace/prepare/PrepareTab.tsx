@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Focus, Home, Library,PanelLeftOpen, PanelRightOpen, Upload, X, ZoomIn, ZoomOut } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../../api'
 import { ErrorState } from '../../../components/ui'
@@ -50,6 +50,12 @@ import ViewportView from './ViewportView'
 const edgeTabCls = (pos: string) =>
   `absolute top-1/2 hidden h-12 w-5 -translate-y-1/2 items-center justify-center border border-line bg-surface text-muted shadow-sm transition-colors hover:bg-surface-2 hover:text-fg xl:inline-flex ${pos}`
 
+/** Right (settings) panel width in px, user-resizable from lg up. */
+const RIGHT_DEFAULT = 344
+const RIGHT_MIN = 300
+const RIGHT_MAX = 720
+const clampRight = (w: number) => (Number.isFinite(w) ? Math.round(Math.min(RIGHT_MAX, Math.max(RIGHT_MIN, w))) : RIGHT_DEFAULT)
+
 const VIEW_KEYS: Record<string, ViewName> = { '0': 'iso', '1': 'top', '2': 'bottom', '3': 'front', '4': 'back', '5': 'left', '6': 'right' }
 
 export default function PrepareTab({ active }: { active: boolean }) {
@@ -63,6 +69,8 @@ export default function PrepareTab({ active }: { active: boolean }) {
   const cube = useRef<ViewCubeHandle>(null)
   const [drawer, setDrawer] = useState<'left' | 'right' | null>(null)
   const [leftCollapsed, setLeftCollapsed] = useStoredState<boolean>('sd:ws:leftCollapsed', false)
+  const [storedRightW, setRightW] = useStoredState<number>('sd:ws:rightWidth', RIGHT_DEFAULT)
+  const rightW = clampRight(storedRightW)
   const [dragging, setDragging] = useState(false)
   const [scopeObject, setScopeObject] = useState<string | null>(null)
   const dragDepth = useRef(0)
@@ -431,10 +439,52 @@ export default function PrepareTab({ active }: { active: boolean }) {
 
       {/* Right panel (drawer below lg) */}
       <aside
-        className={`z-30 w-[344px] shrink-0 border-l border-line bg-surface max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:max-w-[92vw] max-lg:shadow-2xl max-lg:transition-transform max-lg:duration-200 ${
+        style={{ '--rp-w': `${rightW}px` } as CSSProperties}
+        className={`relative z-30 w-[344px] shrink-0 border-l border-line bg-surface max-lg:absolute max-lg:inset-y-0 max-lg:right-0 max-lg:max-w-[92vw] max-lg:shadow-2xl max-lg:transition-transform max-lg:duration-200 lg:w-[var(--rp-w)] lg:max-w-[50vw] ${
           drawer === 'right' ? 'max-lg:translate-x-0' : 'max-lg:translate-x-full max-lg:shadow-none'
         }`}
       >
+        {/* Drag the left edge to widen/narrow the panel (docked from lg up); double-click resets */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('workspace.panels.resize')}
+          aria-valuemin={RIGHT_MIN}
+          aria-valuemax={RIGHT_MAX}
+          aria-valuenow={rightW}
+          tabIndex={0}
+          title={t('workspace.panels.resize')}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.preventDefault()
+            const el = e.currentTarget
+            el.setPointerCapture(e.pointerId)
+            const startX = e.clientX
+            const startW = rightW
+            const move = (ev: PointerEvent) => setRightW(clampRight(startW + startX - ev.clientX))
+            const up = () => {
+              el.removeEventListener('pointermove', move)
+              el.removeEventListener('pointerup', up)
+              el.removeEventListener('pointercancel', up)
+              document.body.style.cursor = ''
+            }
+            document.body.style.cursor = 'col-resize'
+            el.addEventListener('pointermove', move)
+            el.addEventListener('pointerup', up)
+            el.addEventListener('pointercancel', up)
+          }}
+          onDoubleClick={() => setRightW(RIGHT_DEFAULT)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') setRightW(clampRight(rightW + 16))
+            else if (e.key === 'ArrowRight') setRightW(clampRight(rightW - 16))
+            else return
+            e.preventDefault()
+          }}
+          className="group absolute inset-y-0 -left-1.5 z-10 hidden w-3 cursor-col-resize lg:block"
+        >
+          <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-transparent transition-colors group-hover:bg-accent-500/60 group-focus-visible:bg-accent-500 group-active:bg-accent-500" />
+          <span className="absolute top-1/2 left-1/2 h-10 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-line bg-surface shadow-sm transition-colors group-hover:border-accent-500 group-hover:bg-accent-500" />
+        </div>
         {bundleError ? <ErrorState error={bundleError} onRetry={retry} /> : <RightPanel bundle={bundle} scopeObject={scope} setScopeObject={setScopeObject} />}
       </aside>
 

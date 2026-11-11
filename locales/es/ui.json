@@ -870,6 +870,7 @@
   "workspace.panels.right": "Filamento y proceso",
   "workspace.panels.collapse": "Ocultar panel",
   "workspace.panels.expand": "Mostrar impresora y objetos",
+  "workspace.panels.resize": "Arrastra para cambiar el ancho del panel (doble clic para restablecer)",
   "workspace.empty.title": "Suelta aquí archivos STL/3MF/OBJ",
   "workspace.empty.body": "O elígelos desde tu equipo. Se guardan automáticamente en tu biblioteca privada.",
   "workspace.empty.browse": "Buscar archivos",

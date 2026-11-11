@@ -870,6 +870,7 @@
   "workspace.panels.right": "Filament and process",
   "workspace.panels.collapse": "Hide panel",
   "workspace.panels.expand": "Show printer and objects",
+  "workspace.panels.resize": "Drag to resize the panel (double-click to reset)",
   "workspace.empty.title": "Drop STL/3MF/OBJ files here",
   "workspace.empty.body": "Or pick files from your computer. They are saved to your private library automatically.",
   "workspace.empty.browse": "Browse files",
