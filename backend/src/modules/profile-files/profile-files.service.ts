@@ -1,4 +1,4 @@
-// PROFILES: import user process/filament presets from Creality Print / OrcaSlicer files, and export SliceDock profiles
+// PROFILES: import user process/filament presets from Creality Print / OrcaSlicer files, and export PrintYard profiles
 // in the formats Creality Print imports. Everything is read in memory (no entry name is ever used as a path) and every
 // imported value goes through the same screening as scene overrides before it is stored.
 import { zipSync, type Zippable } from 'fflate';
@@ -56,7 +56,7 @@ export interface ExportFile {
 
 type Viewer = ProfileViewer & { username: string };
 
-/** One preset JSON object to import (a Creality/Orca user preset, or a SliceDock backup entry in the same shape). */
+/** One preset JSON object to import (a Creality/Orca user preset, or a PrintYard backup entry in the same shape). */
 export interface ImportItem {
   kind: ProfileFileKind;
   /** Label in the report (archive entry, file name, backup entry). */
@@ -221,7 +221,7 @@ export class ProfileFilesService {
     return { parent, values: ok, meta };
   }
 
-  /** A name free for the viewer: "Name", else "Name (2)", "Name (3)"… (Creality asks to overwrite; SliceDock never does). */
+  /** A name free for the viewer: "Name", else "Name (2)", "Name (3)"… (Creality asks to overwrite; PrintYard never does). */
   freeName(kind: ProfileFileKind, name: string, viewer: Pick<Viewer, 'id'>, scope: 'private' | 'shared' = 'private', taken: Set<string> = new Set()): string | null {
     const free = (n: string) =>
       !taken.has(n.toLowerCase()) &&
@@ -244,7 +244,7 @@ export class ProfileFilesService {
     for (const { entry, obj, hint } of entries) {
       const kind = classifyPreset(entry, obj, hint, isSystem);
       if (kind === 'printer') {
-        // SliceDock slices with the official K2 SE machine profiles: printer presets are never imported.
+        // PrintYard slices with the official K2 SE machine profiles: printer presets are never imported.
         push(report.skipped, { entry, reason: 'printer_preset' });
         continue;
       }

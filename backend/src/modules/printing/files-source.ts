@@ -18,14 +18,14 @@ export interface PrintableFile {
   /** sha256 recorded when the file was added (null/absent: unknown). */
   sha256?: string | null;
   size?: number;
-  /** Sliced by SliceDock (meta.trusted): its slicer summary may be used for limits. */
+  /** Sliced by PrintYard (meta.trusted): its slicer summary may be used for limits. */
   trusted?: boolean;
 }
 
 export interface PrintFileSource {
   get(fileId: number): PrintableFile | null;
   /**
-   * The usage estimate limits may rely on: the stored summary when it is server-trusted (sliced by SliceDock, or
+   * The usage estimate limits may rely on: the stored summary when it is server-trusted (sliced by PrintYard, or
    * computed from the moves at upload), else computed now from the file (legacy rows) and persisted. Sources
    * without it (unit-test stubs) use `file.gcode` as is.
    */

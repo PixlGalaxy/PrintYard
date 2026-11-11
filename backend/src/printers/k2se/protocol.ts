@@ -421,7 +421,7 @@ export function safePrinterFileName(name: string): string {
 }
 
 /**
- * Printer-side name of a SliceDock upload: the sanitised name plus the print id (`Cube_p12.gcode`), so two library
+ * Printer-side name of a PrintYard upload: the sanitised name plus the print id (`Cube_p12.gcode`), so two library
  * files that sanitise to the same name (`a b` / `a_b`, CJK names) never overwrite each other or a touchscreen file.
  * `extra` is appended when that name is still taken on the printer.
  */

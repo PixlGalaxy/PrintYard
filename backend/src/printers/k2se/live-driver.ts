@@ -8,7 +8,7 @@ import { logger } from '../../logger.js';
 import type { LiveJob, PrinterStatus } from '../../types.js';
 import { JobRetention } from './job-retention.js';
 import { formatHostForUrl, getJson, isRecord, normalizeMac, readCapped } from '../drivers/http.js';
-import { SLICEDOCK_CONFIG_FILE, type ControlTelemetry, type CurrentJobFile, type EtaHints, type PrinterDriver, type PrinterEndpoint, type PrinterIdentity, type UploadResult } from '../drivers/types.js';
+import { PRINTYARD_CONFIG_FILE, PRINTYARD_CONFIG_READ_FILE, type ControlTelemetry, type CurrentJobFile, type EtaHints, type PrinterDriver, type PrinterEndpoint, type PrinterIdentity, type UploadResult } from '../drivers/types.js';
 import { assertWritable } from '../read-only.js';
 import { postMultipartFile, type UploadProgress } from '../drivers/upload.js';
 import { CrealityConnection, type SocketFactory } from './connection.js';
@@ -407,7 +407,7 @@ export class K2SELiveDriver implements PrinterDriver {
   }
 
   /**
-   * Runs G-code built by SliceDock itself (control builder, `EXCLUDE_OBJECT`) through the Creality WS `gcodeCmd`,
+   * Runs G-code built by PrintYard itself (control builder, `EXCLUDE_OBJECT`) through the Creality WS `gcodeCmd`,
    * the transport Creality Print uses for its console/fan controls. Never called with client-supplied text.
    */
   async sendGcode(script: string): Promise<void> {
@@ -521,12 +521,12 @@ export class K2SELiveDriver implements PrinterDriver {
   }
 
   /**
-   * Moonraker `POST /server/files/upload` with `root=config`: a plain file write under `slicedock/` (never printer.cfg,
+   * Moonraker `POST /server/files/upload` with `root=config`: a plain file write under `printyard/` (never printer.cfg,
    * no firmware restart), safe while printing.
    */
   async writeConfigFile(relPath: string, data: Buffer): Promise<void> {
     assertWritable();
-    if (!SLICEDOCK_CONFIG_FILE.test(relPath)) throw new AppError(400, 'printers.invalid_path', 'Invalid printer config path');
+    if (!PRINTYARD_CONFIG_FILE.test(relPath)) throw new AppError(400, 'printers.invalid_path', 'Invalid printer config path');
     const ep = this.endpoint;
     if (!this.online || !ep || this.opts.moonraker === false) throw printerOffline();
     const slash = relPath.lastIndexOf('/');
@@ -544,9 +544,9 @@ export class K2SELiveDriver implements PrinterDriver {
     if (res.status < 200 || res.status >= 300) throw uploadFailed(`The printer refused the file (HTTP ${res.status})`);
   }
 
-  /** `GET /server/files/config/slicedock/<name>.json` (read-only), capped at `maxBytes`. */
+  /** `GET /server/files/config/printyard/<name>.json` (read-only), capped at `maxBytes`. */
   async readConfigFile(relPath: string, maxBytes: number): Promise<Buffer | null> {
-    if (!SLICEDOCK_CONFIG_FILE.test(relPath)) throw new AppError(400, 'printers.invalid_path', 'Invalid printer config path');
+    if (!PRINTYARD_CONFIG_READ_FILE.test(relPath)) throw new AppError(400, 'printers.invalid_path', 'Invalid printer config path');
     const ep = this.endpoint;
     if (!this.online || !ep || this.opts.moonraker === false) throw printerOffline();
     const url = `http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}/server/files/config/${relPath.split('/').map(encodeURIComponent).join('/')}`;

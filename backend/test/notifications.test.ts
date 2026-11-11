@@ -113,7 +113,7 @@ describe('notifications: payload builders', () => {
     assert.equal(r.headers.Authorization, 'Bearer tk_secret');
     assert.equal(r.headers.Click, 'https://print.example.com/');
     assert.match(r.headers.Title!, /^=\?UTF-8\?B\?/);
-    assert.equal(Buffer.from(r.headers.Title!.slice(10, -2), 'base64').toString('utf8'), 'SliceDock: La impresión falló');
+    assert.equal(Buffer.from(r.headers.Title!.slice(10, -2), 'base64').toString('utf8'), 'PrintYard: La impresión falló');
     assert.equal(headerSafe('plain'), 'plain');
     // Private destinations only for a server explicitly marked as on the LAN (review 3A #4).
     assert.equal(r.allowHttpPrivate, false);
@@ -124,11 +124,15 @@ describe('notifications: payload builders', () => {
     const r = webhookRequest({ url: 'https://hooks.example.com/x', secret: 's3cret' }, msg, { data: { printId: 7 }, at: 0 });
     const expected = `sha256=${createHmac('sha256', 's3cret').update(r.body).digest('hex')}`;
     assert.equal(r.headers[SIGNATURE_HEADER], expected);
+    assert.equal(r.headers['X-PrintYard-Event'], 'print.finished');
+    // Deprecated pre-rename headers are still sent with the same values (existing receivers keep verifying).
+    assert.equal(r.headers['X-SliceDock-Signature'], expected);
     assert.equal(r.headers['X-SliceDock-Event'], 'print.finished');
     const body = JSON.parse(r.body);
     assert.equal(body.event, 'print.finished');
     assert.equal(body.data.printId, 7);
     assert.equal(webhookRequest({ url: 'https://hooks.example.com/x', secret: null }, msg, { data: {}, at: 0 }).headers[SIGNATURE_HEADER], undefined);
+    assert.equal(webhookRequest({ url: 'https://hooks.example.com/x', secret: null }, msg, { data: {}, at: 0 }).headers['X-SliceDock-Signature'], undefined);
   });
 });
 

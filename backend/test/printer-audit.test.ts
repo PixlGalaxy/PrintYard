@@ -134,7 +134,7 @@ describe('printer control and job tracking (simulator)', () => {
     resetRate();
     await waitFor(() => t.ctx.printing.currentOwner(printerId) === null && status().state !== 'printing', 10_000);
     t.ctx.printers.markBedCleared(printerId);
-    // As after a SliceDock restart: Bob's print is still "printing" in the DB and tracked again by attach(),
+    // As after a PrintYard restart: Bob's print is still "printing" in the DB and tracked again by attach(),
     // but meanwhile it ended and somebody started another file on the touchscreen.
     const row = t.ctx.db.prepare('SELECT id, printer_path, started_at FROM prints WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(bobId) as {
       id: number;

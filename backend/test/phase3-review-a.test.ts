@@ -15,7 +15,7 @@ import { filamentOptionDefs, processOptionDefs } from '../src/modules/profiles/p
 import { sliceOutputName } from '../src/modules/slicing/slicing.service.js';
 import { boxStl, createB1App, sceneFor, upload, type B1App } from './b1-helpers.js';
 
-process.env.SLICEDOCK_FAKE_ENGINE_MS = '100';
+process.env.PRINTYARD_FAKE_ENGINE_MS = '100';
 
 function scan(text: string) {
   const s = new GcodeScanner(DEFAULT_SCAN_LIMITS);
@@ -152,7 +152,7 @@ describe('#2 override and preset values are range-checked; sliced output is scan
     model = (await upload(t.alice, boxStl(20, 20, 20), 'cube.stl')).body.id;
   });
   after(() => {
-    delete process.env.SLICEDOCK_FAKE_ENGINE_UNSAFE;
+    delete process.env.PRINTYARD_FAKE_ENGINE_UNSAFE;
     t.ctx.slicing.stop();
     t.close();
   });
@@ -225,11 +225,11 @@ describe('#2 override and preset values are range-checked; sliced output is scan
     assert.equal(file.meta.trusted, true);
     assert.equal(file.meta.gcode.scan.ok, true);
 
-    process.env.SLICEDOCK_FAKE_ENGINE_UNSAFE = '1';
+    process.env.PRINTYARD_FAKE_ENGINE_UNSAFE = '1';
     const filesBefore = (t.ctx.db.prepare("SELECT COUNT(*) AS n FROM files WHERE kind = 'gcode'").get() as { n: number }).n;
     const bad = await t.alice.post('/api/slice').send({ scene: sceneFor([model]), plate: 0 });
     const failed = await waitFor(async () => (await t.alice.get(`/api/slice/${bad.body.id}`)).body, (j) => ['done', 'failed'].includes(j.state));
-    delete process.env.SLICEDOCK_FAKE_ENGINE_UNSAFE;
+    delete process.env.PRINTYARD_FAKE_ENGINE_UNSAFE;
     assert.equal(failed.state, 'failed');
     assert.equal(failed.error, 'slice.unsafe_output');
     assert.equal((t.ctx.db.prepare("SELECT COUNT(*) AS n FROM files WHERE kind = 'gcode'").get() as { n: number }).n, filesBefore);
@@ -242,8 +242,8 @@ describe('sliced G-code names', () => {
   it('<project or first object name>_plate<N>.gcode, never plate_plate1', () => {
     assert.equal(sliceOutputName(undefined, 'cube.stl', 0), 'cube_plate1.gcode');
     assert.equal(sliceOutputName('My Project', 'cube', 2), 'My Project_plate3.gcode');
-    assert.equal(sliceOutputName('plate', 'plate_1.gcode', 0), 'SliceDock_plate1.gcode');
-    assert.equal(sliceOutputName(undefined, 'plate_1', 0), 'SliceDock_plate1.gcode');
+    assert.equal(sliceOutputName('plate', 'plate_1.gcode', 0), 'PrintYard_plate1.gcode');
+    assert.equal(sliceOutputName(undefined, 'plate_1', 0), 'PrintYard_plate1.gcode');
     assert.equal(sliceOutputName('benchy_plate1', '', 0), 'benchy_plate1.gcode');
     assert.equal(sliceOutputName('a/b<c>:d', '', 0), 'a_b_c_d_plate1.gcode');
     const long = sliceOutputName('A'.repeat(200), '', 9);

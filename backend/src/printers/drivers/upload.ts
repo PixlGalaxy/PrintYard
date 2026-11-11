@@ -36,7 +36,7 @@ export interface MultipartUploadOptions {
  */
 export function postMultipartFile(o: MultipartUploadOptions): Promise<{ status: number; body: string }> {
   const total = statSync(o.localPath).size;
-  const boundary = `----SliceDock${randomBytes(12).toString('hex')}`;
+  const boundary = `----PrintYard${randomBytes(12).toString('hex')}`;
   const safeName = o.fileName.replace(/["\r\n\\]/g, '_');
   const head = Buffer.from(
     `--${boundary}\r\nContent-Disposition: form-data; name="${o.field}"; filename="${safeName}"\r\n` +

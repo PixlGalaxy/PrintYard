@@ -40,7 +40,7 @@ export interface LiveViewer {
 }
 
 /**
- * Live view of what is printing: the current job's G-code (from SliceDock's own library when the job came from
+ * Live view of what is printing: the current job's G-code (from PrintYard's own library when the job came from
  * here, else downloaded once from Moonraker and cached) and the printer's current preview image. Read-only.
  */
 export class LiveViewService {
@@ -55,9 +55,9 @@ export class LiveViewService {
   }
 
   /**
-   * Access (finding #8): a job SliceDock started from a private file is visible to the print's owner, the file's
+   * Access (finding #8): a job PrintYard started from a private file is visible to the print's owner, the file's
    * owner and admins only (others: 403 `printers.forbidden_job`; they still get status + thumbnail). Shared files
-   * and prints started outside SliceDock (touchscreen, other slicers) are visible to every signed-in user.
+   * and prints started outside PrintYard (touchscreen, other slicers) are visible to every signed-in user.
    */
   async currentGcode(printerId: number, viewer: LiveViewer): Promise<CurrentGcode> {
     const status = this.o.manager.status(printerId); // 404 for unknown printers

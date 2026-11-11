@@ -1,8 +1,8 @@
 {
-  "name": "slicedock-backend",
+  "name": "printyard-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "SliceDock backend: API, auth and printer bridge for a self-hosted Creality K2 SE panel",
+  "description": "PrintYard backend: API, auth and printer bridge for a self-hosted Creality K2 SE panel",
   "license": "AGPL-3.0-only",
   "type": "module",
   "engines": {

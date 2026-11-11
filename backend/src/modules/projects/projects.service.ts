@@ -10,10 +10,10 @@ import type { ProfilesService } from '../profiles/profiles.service.js';
 import { buildProjectConfig, sceneSchema } from './scene.js';
 import type { BuildProjectInput } from './threemf.js';
 
-import { MAX_PROJECT_BYTES, MAX_SCENE_TRIANGLES, SCENE_ENTRY, type BuildSource } from './build-core.js';
+import { LEGACY_SCENE_ENTRY, MAX_PROJECT_BYTES, MAX_SCENE_TRIANGLES, SCENE_ENTRIES, SCENE_ENTRY, type BuildSource } from './build-core.js';
 import { BuildPool, type BuildRunOptions } from './build-pool.js';
 
-export { MAX_PROJECT_BYTES, MAX_SCENE_TRIANGLES, SCENE_ENTRY };
+export { LEGACY_SCENE_ENTRY, MAX_PROJECT_BYTES, MAX_SCENE_TRIANGLES, SCENE_ENTRY };
 
 interface BuildOptions {
   onlyPlate?: number;
@@ -237,14 +237,15 @@ export class ProjectsService {
       raw = await readFile(`${abs}.scene.json`, 'utf8');
     } catch {
       try {
-        const zip = await readZipEntries(abs, (n) => n === SCENE_ENTRY, { maxEntryBytes: MAX_SCENE_JSON_BYTES, maxTotalBytes: MAX_SCENE_JSON_BYTES });
-        const entry = zip.get(SCENE_ENTRY);
+        const zip = await readZipEntries(abs, (n) => SCENE_ENTRIES.includes(n), { maxEntryBytes: MAX_SCENE_JSON_BYTES, maxTotalBytes: 2 * MAX_SCENE_JSON_BYTES });
+        // Pre-rename projects carry Metadata/slicedock_scene.json.
+        const entry = SCENE_ENTRIES.map((n) => zip.get(n)).find((e) => e !== undefined);
         if (entry) raw = new TextDecoder().decode(entry);
       } catch {
         /* not a zip we can read */
       }
     }
-    if (raw === null) throw new AppError(404, 'projects.no_scene', 'This 3MF was not saved by SliceDock');
+    if (raw === null) throw new AppError(404, 'projects.no_scene', 'This 3MF was not saved by PrintYard');
     let scene: SceneDoc;
     try {
       scene = sceneSchema.parse(JSON.parse(raw)) as SceneDoc;

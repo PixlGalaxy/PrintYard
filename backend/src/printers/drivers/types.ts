@@ -113,16 +113,18 @@ export interface PrinterDriver {
   /** The printer's material list (WS `get reqMaterials` → raw `retMaterials[]`, untrusted); null when offline / no answer. */
   requestMaterials?(timeoutMs?: number): Promise<unknown[] | null>;
   /**
-   * Writes a SliceDock file into Moonraker's `config` root (only `slicedock/<name>.json`, never printer.cfg): a plain
+   * Writes a PrintYard file into Moonraker's `config` root (only `printyard/<name>.json`, never printer.cfg): a plain
    * file upload, no restart, safe while printing. Throws when offline / refused.
    */
   writeConfigFile?(relPath: string, data: Buffer): Promise<void>;
-  /** Reads `slicedock/<name>.json` back from the `config` root; null when missing; 413 above `maxBytes`. */
+  /** Reads `printyard/<name>.json` (or the pre-rename `slicedock/<name>.json`) back from the `config` root; null when missing; 413 above `maxBytes`. */
   readConfigFile?(relPath: string, maxBytes: number): Promise<Buffer | null>;
 }
 
-/** The only files SliceDock writes to / reads from the printer's Moonraker `config` root. */
-export const SLICEDOCK_CONFIG_FILE = /^slicedock\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.json$/;
+/** The only files PrintYard writes to / reads from the printer's Moonraker `config` root. */
+export const PRINTYARD_CONFIG_FILE = /^printyard\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.json$/;
+/** Readable as well: the pre-rename `slicedock/` folder (restore fallback for older backups; never written). */
+export const PRINTYARD_CONFIG_READ_FILE = /^(?:printyard|slicedock)\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.json$/;
 
 export interface CurrentJobFile {
   fileName: string;

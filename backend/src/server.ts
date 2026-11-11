@@ -2,7 +2,7 @@ import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createContext } from './context.js';
-import { openDb } from './db/client.js';
+import { adoptLegacyDbFile, openDb } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
 import { memoryStatus } from './lib/memory.js';
 import { hostNetworkLikely } from './lib/network.js';
@@ -13,19 +13,20 @@ import { isReadOnly } from './printers/read-only.js';
 function main(): void {
   const config = loadConfig();
   setLogLevel(config.logLevel);
-  logger.info(`SliceDock ${config.version} starting (Node ${process.version})`);
+  logger.info(`PrintYard ${config.version} starting (Node ${process.version})`);
 
   if (isReadOnly()) {
-    logger.warn('READ-ONLY MODE (SLICEDOCK_READ_ONLY=1): printer control is disabled; only status reads are sent to printers');
+    logger.warn('READ-ONLY MODE (PRINTYARD_READ_ONLY=1): printer control is disabled; only status reads are sent to printers');
   }
 
+  if (adoptLegacyDbFile(config.dbPath)) logger.info('Renamed the database slicedock.db to printyard.db (pre-rename install)');
   const db = openDb(config.dbPath);
   runMigrations(db);
   const ctx = createContext(config, db);
 
   const mem = memoryStatus();
   if (!mem.ok) {
-    logger.warn(`Container memory limit is ${mem.limitBytes} bytes; SliceDock needs more than 1 GiB (2 GiB recommended)`);
+    logger.warn(`Container memory limit is ${mem.limitBytes} bytes; PrintYard needs more than 1 GiB (2 GiB recommended)`);
   }
 
   const runHousekeeping = () => {

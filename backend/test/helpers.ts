@@ -11,7 +11,7 @@ import { runMigrations } from '../src/db/migrate.js';
 import type { LoginGuardOptions } from '../src/modules/auth/login-guard.js';
 import type { ProbeFn } from '../src/printers/drivers/registry.js';
 
-process.env.SLICEDOCK_SILENT_LOGS = '1';
+process.env.PRINTYARD_SILENT_LOGS = '1';
 
 export const ADMIN = { username: 'admin', email: 'admin@example.com', password: 'correct-horse-battery' };
 
@@ -28,13 +28,13 @@ export interface TestApp {
 }
 
 export function createTestApp(opts: { loginGuard?: LoginGuardOptions; context?: ContextOptions } = {}): TestApp {
-  const dir = mkdtempSync(join(tmpdir(), 'slicedock-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'printyard-test-'));
   const config: Config = {
     port: 0,
     host: '127.0.0.1',
     appdataRoot: dir,
     dataRoot: dir,
-    dbPath: join(dir, 'slicedock.db'),
+    dbPath: join(dir, 'printyard.db'),
     logLevel: 'error',
     version: 'test',
     isProduction: false,

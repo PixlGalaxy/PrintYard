@@ -65,7 +65,7 @@ export const SETTING_DEFS = {
   'slicing.timeoutMinutes': def(z.number().int().min(1).max(240), 15),
   /** 0 = automatic (75 % of the container memory limit, or 4096 MB without one). */
   'slicing.maxMemoryMb': def(z.number().int().min(0).max(1_048_576), 0),
-  // Printer-side retention: after each upload keep only the newest N files SliceDock uploaded to that printer.
+  // Printer-side retention: after each upload keep only the newest N files PrintYard uploaded to that printer.
   'printers.retention.enabled': def(z.boolean(), true),
   'printers.retention.keep': def(z.number().int().min(1).max(1000), 10),
   // Idle heater safety: no print running and a heater target > 0 for this long without a control action → heaters off (0 = disabled).

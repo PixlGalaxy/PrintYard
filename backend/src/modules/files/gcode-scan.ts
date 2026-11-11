@@ -5,7 +5,7 @@ import type { GcodeScan, GcodeScanFinding, GcodeScanReason } from '../../types.j
 import { analyzeGcodeFile, type GcodeCommand, type GcodeHook } from './gcode-analyzer.js';
 
 /**
- * Dangerous-command scanner for G-code SliceDock did not slice (security review finding #3). Plugs into the
+ * Dangerous-command scanner for G-code PrintYard did not slice (security review finding #3). Plugs into the
  * analyzer's `hooks`, so it sees exactly the commands Klipper would run (same tokenizer, comments stripped).
  *
  * Policy: an allowlist. Everything Creality Print's own K2 SE output uses (start/end macros, EXCLUDE_OBJECT_*,

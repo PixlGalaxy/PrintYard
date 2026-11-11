@@ -1,7 +1,7 @@
 // PRINTER-PRESETS: the printer's own filament list (Creality WS `get reqMaterials` → `retMaterials[]`). The K2 SE only
-// holds Creality's factory filaments there (no user filaments, no process presets): SliceDock shows them read-only,
+// holds Creality's factory filaments there (no user filaments, no process presets): PrintYard shows them read-only,
 // mapped onto its system presets, with the settings that differ. Off unless the viewer turned "Show printer
-// filaments" on: while nobody has, SliceDock never asks the printer for them.
+// filaments" on: while nobody has, PrintYard never asks the printer for them.
 import { CONTROL_CHARS } from '../../lib/sanitize.js';
 import { logger } from '../../logger.js';
 import type { PrinterManager } from '../../printers/manager.js';
@@ -61,7 +61,7 @@ export function parseMaterials(raw: unknown, profiles: ProfilesService, profileF
         const mine = parentText('filament', parent, key);
         if (mine !== undefined && normValue(mine) === normValue(value)) continue;
         if (differs.length >= MATERIAL_LIMITS.differs) break;
-        differs.push({ key, printer: value.slice(0, 200), slicedock: mine?.slice(0, 200) ?? null, kept: key in values });
+        differs.push({ key, printer: value.slice(0, 200), printyard: mine?.slice(0, 200) ?? null, kept: key in values });
       }
     } catch (err) {
       logger.printer.debug(`printer material "${name}": no matching system preset (${(err as Error).message})`);

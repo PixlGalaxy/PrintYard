@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import { CrealityConnection, type SocketLike } from '../src/printers/k2se/connection.js';
 
-process.env.SLICEDOCK_SILENT_LOGS = '1';
+process.env.PRINTYARD_SILENT_LOGS = '1';
 
 class FakeSocket extends EventEmitter implements SocketLike {
   sent: string[] = [];

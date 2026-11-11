@@ -20,7 +20,7 @@ const profileSchema = z
     /** null = use the admin default */
     themeMode: z.enum(['system', 'light', 'dark']).nullable().optional(),
     skin: z.enum(SKINS).nullable().optional(),
-    /** null = SliceDock defaults */
+    /** null = PrintYard defaults */
     nav3d: nav3dSchema.nullable().optional(),
     /** Prepare tab settings level; null = use the admin default */
     prepareLevel: z.enum(PREPARE_LEVELS).nullable().optional(),

@@ -1,5 +1,5 @@
 // Creality Print / OrcaSlicer user preset files: what a user preset JSON looks like, the archives Creality Print's
-// "Export presets" dialog writes, and the pure parse/build helpers SliceDock's import and export use.
+// "Export presets" dialog writes, and the pure parse/build helpers PrintYard's import and export use.
 //
 // Formats (Creality Print src/slic3r/GUI/CreatePresetsDialog.cpp, ExportConfigsDialog; Preset::save):
 // - A user preset is saved as a diff against its system parent by `DynamicConfig::save_to_json`: `name`, `from:
@@ -12,7 +12,7 @@
 //   filament_path: [...] }] }`.
 // - "Printer config bundle (.creality_printer)": `printer/…json`, `filament/…json`, `process/…json` plus
 //   `bundle_structure.json` `{ bundle_type: "printer config bundle", printer_preset_name, printer_config,
-//   filament_config, process_config }`. SliceDock imports its process and filament presets only.
+//   filament_config, process_config }`. PrintYard imports its process and filament presets only.
 import { CONTROL_CHARS } from '../../lib/sanitize.js';
 import { cleanName } from '../files/files.service.js';
 import { isVectorOption, META_KEYS, firstValue, serializeValue, type RawPreset, type RawValue } from '../profiles/profiles.service.js';
@@ -29,7 +29,7 @@ export const IMPORT_LIMITS = {
   maxJsonBytes: 1024 * 1024,
 } as const;
 
-/** Upload file types SliceDock accepts (extension, lower case). */
+/** Upload file types PrintYard accepts (extension, lower case). */
 export const IMPORT_TYPES = ['json', 'zip', 'creality_filament', 'creality_printer'] as const;
 export type ImportType = (typeof IMPORT_TYPES)[number];
 
@@ -67,7 +67,7 @@ const IMPORT_META = new Set([
   'bundle_type',
 ]);
 
-/** Values of a filament preset that SliceDock keeps as profile metadata (type, brand, colour). */
+/** Values of a filament preset that PrintYard keeps as profile metadata (type, brand, colour). */
 export const FILAMENT_META_KEYS = ['filament_type', 'filament_vendor', 'default_filament_colour'] as const;
 
 /** Canonical form for comparing with the parent: "0.20" = "0.2", "15.0%" = "15%", quotes stripped. */
@@ -146,7 +146,7 @@ export function readPreset(kind: 'process' | 'filament', entry: string, obj: Rec
         invalid.push(key);
         continue;
       }
-      // Filament options are per filament: SliceDock edits one filament, so the first entry is the value.
+      // Filament options are per filament: PrintYard edits one filament, so the first entry is the value.
       values[key] = kind === 'filament' ? parts[0]! : parts.join(',');
     } else {
       const s = scalarText(v);

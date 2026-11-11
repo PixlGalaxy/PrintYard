@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds SliceDock's option texts and translations from a Creality Print source checkout (AGPL-3.0).
+ * Builds PrintYard's option texts and translations from a Creality Print source checkout (AGPL-3.0).
  *
  *   node scripts/build-i18n.mjs <path to CrealityPrint clone> [lang ...]     (default langs: es)
  *
@@ -9,7 +9,7 @@
  *   - localization/i18n/<lang>/CrealityPrint_<lang>.po: gettext catalog (msgid = the English string)
  * Writes:
  *   - ../locales/en/slicer.json: { options: { key: { tooltip?, enumLabels? } } } (English)
- *   - ../locales/<lang>/slicer.json: { messages: { english: translated } } restricted to the strings SliceDock shows
+ *   - ../locales/<lang>/slicer.json: { messages: { english: translated } } restricted to the strings PrintYard shows
  *     (option labels, tooltips, enum labels, categories, page and group names). Empty and fuzzy entries are skipped.
  * The clone is only read; nothing in it is built or executed.
  */
@@ -90,7 +90,7 @@ writeFileSync(
   JSON.stringify({ source: 'CrealityPrint v7.3.1 src/libslic3r/PrintConfig.cpp (AGPL-3.0)', options }, null, 1) + '\n',
 );
 
-// Strings SliceDock shows.
+// Strings PrintYard shows.
 const wanted = new Set();
 for (const o of optionModes.options) {
   for (const s of [o.label, o.category]) if (s) wanted.add(s.trim());

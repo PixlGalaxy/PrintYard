@@ -1,6 +1,6 @@
 /**
  * Regression tests for the phase-3 review B findings (status/phase3-review-b.md, exploits X1–X8) and review A #6
- * (printer retention must never delete a printer file SliceDock did not upload). Simulator on loopback only.
+ * (printer retention must never delete a printer file PrintYard did not upload). Simulator on loopback only.
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -326,7 +326,7 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
   });
   after(() => closeWorld(w));
 
-  it('review A #6: an upload named like a printer file never overwrites it, and retention deletes only verified SliceDock uploads', async () => {
+  it('review A #6: an upload named like a printer file never overwrites it, and retention deletes only verified PrintYard uploads', async () => {
     w.t.ctx.settings.patch({ 'printers.retention.keep': 1 });
     const original = w.sim.fileSize('calibration_cube.gcode');
     assert.ok(original);
@@ -455,7 +455,7 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
       assert.equal(r.status, 201, JSON.stringify(r.body));
       return r.body.id as number;
     };
-    /** A finished SliceDock print of library file `fileId` whose G-code is on the printer. */
+    /** A finished PrintYard print of library file `fileId` whose G-code is on the printer. */
     const copyOnPrinter = async (fileId: number, base: string) => {
       const printId = Number(
         w.t.ctx.db
@@ -492,11 +492,11 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
     assert.deepEqual(r.body.printer.map((x: { result: string; reason?: string }) => [x.result, x.reason]), [['skipped', 'unverified']]);
     assert.ok(w.sim.fileNames().includes(bName));
 
-    process.env.SLICEDOCK_READ_ONLY = '1';
+    process.env.PRINTYARD_READ_ONLY = '1';
     try {
       r = await w.t.agent.delete(`/api/files/${c}?printer=1`).set('Sec-Fetch-Site', 'same-origin');
     } finally {
-      delete process.env.SLICEDOCK_READ_ONLY;
+      delete process.env.PRINTYARD_READ_ONLY;
     }
     assert.equal(r.status, 200, JSON.stringify(r.body)); // the library delete itself works in read-only mode
     assert.deepEqual(r.body.printer.map((x: { result: string; reason?: string }) => [x.result, x.reason]), [['skipped', 'read_only']]);

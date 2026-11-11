@@ -1,18 +1,19 @@
+import { appEnvFlag } from '../lib/env.js';
 import { AppError } from '../errors.js';
 
 /**
- * Hard read-only mode (`SLICEDOCK_READ_ONLY=1`): watch a real printer with zero risk. Enforced at the lowest
+ * Hard read-only mode (`PRINTYARD_READ_ONLY=1`): watch a real printer with zero risk. Enforced at the lowest
  * layer (WS transport, HTTP upload, Moonraker JSON-RPC) and again at the API routes. Read on every call.
  *
  * Allowed: the stock heart_beat and its "ok" reply, WS `get` queries, Moonraker `printer.objects.query|subscribe`,
  * and HTTP GETs (identity, G-code download, thumbnail).
  */
 export function isReadOnly(): boolean {
-  return process.env.SLICEDOCK_READ_ONLY === '1';
+  return appEnvFlag('READ_ONLY');
 }
 
 export const readOnlyError = () =>
-  new AppError(423, 'printers.read_only', 'SliceDock is in read-only mode: printer control is disabled');
+  new AppError(423, 'printers.read_only', 'PrintYard is in read-only mode: printer control is disabled');
 
 export function assertWritable(): void {
   if (isReadOnly()) throw readOnlyError();

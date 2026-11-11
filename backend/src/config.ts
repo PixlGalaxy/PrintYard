@@ -60,7 +60,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     host: env.HOST || '0.0.0.0',
     appdataRoot,
     dataRoot,
-    dbPath: join(appdataRoot, 'slicedock.db'),
+    dbPath: join(appdataRoot, 'printyard.db'),
     logLevel: LOG_LEVELS.includes(level) ? level : 'info',
     version: env.APP_VERSION || 'dev',
     isProduction,

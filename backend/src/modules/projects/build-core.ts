@@ -5,8 +5,12 @@ import type { RawPreset } from '../profiles/profiles.service.js';
 import { prepareObjects, printableArea } from './scene.js';
 import { writeProject3mf, type BuildProjectInput } from './threemf.js';
 
-/** Scene JSON embedded in every SliceDock 3MF so a downloaded project reopens exactly. */
-export const SCENE_ENTRY = 'Metadata/slicedock_scene.json';
+/** Scene JSON embedded in every PrintYard 3MF so a downloaded project reopens exactly. */
+export const SCENE_ENTRY = 'Metadata/printyard_scene.json';
+/** Name of the scene entry in 3MF projects saved before the SliceDock → PrintYard rename (still read, never written). */
+export const LEGACY_SCENE_ENTRY = 'Metadata/slicedock_scene.json';
+/** Every scene entry name a project may carry, preferred first. */
+export const SCENE_ENTRIES: readonly string[] = [SCENE_ENTRY, LEGACY_SCENE_ENTRY];
 /** Triangles written into one project/slice (sum over objects: 500 copies of a mesh count 500 times). */
 export const MAX_SCENE_TRIANGLES = MAX_MESH_TRIANGLES;
 /** Largest project 3MF a build may write. */

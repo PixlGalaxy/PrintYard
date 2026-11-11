@@ -14,7 +14,7 @@ export function requestContext(ctx: AppContext): RequestHandler {
     const exposure = ctx.exposure();
     if (exposure.mode === 'none' && !ctx.flags.proxyHeadersSeen && hasForwardingHeaders(req.headers)) {
       ctx.flags.proxyHeadersSeen = true;
-      logger.warn('Forwarding headers (X-Forwarded-For etc.) received while exposure.mode is "none": if SliceDock is behind a proxy or tunnel, set the exposure mode in Admin → Settings');
+      logger.warn('Forwarding headers (X-Forwarded-For etc.) received while exposure.mode is "none": if PrintYard is behind a proxy or tunnel, set the exposure mode in Admin → Settings');
     }
     req.clientIp = resolveClientIp(req, exposure, exposure.matcher);
     req.isHttps = isHttpsRequest(req, exposure, exposure.matcher);

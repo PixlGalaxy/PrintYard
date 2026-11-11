@@ -16,7 +16,7 @@ export function publicRoutes(ctx: AppContext): Router {
 
   router.get('/config', (_req, res) => {
     const body: AppConfig = {
-      appName: 'SliceDock',
+      appName: 'PrintYard',
       version: ctx.config.version,
       setupComplete: ctx.users.adminExists(),
       readOnly: isReadOnly(),

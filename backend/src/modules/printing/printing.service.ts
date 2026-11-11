@@ -57,7 +57,7 @@ interface Tracking {
   pendingEnd?: { since: number; timer: NodeJS.Timeout | null } | null;
 }
 
-/** Klipper `print_stats.state` values that agree with each SliceDock end state. */
+/** Klipper `print_stats.state` values that agree with each PrintYard end state. */
 const MOON_AGREES: Record<'done' | 'failed' | 'cancelled', ReadonlySet<string>> = {
   done: new Set(['complete', 'standby']),
   failed: new Set(['error', 'cancelled', 'standby']),
@@ -73,7 +73,7 @@ export interface PrintingDeps {
   hub: RealtimeHub;
   manager: PrinterManager;
   files: PrintFileSource;
-  /** Printer-side retention of SliceDock uploads (optional in unit tests). */
+  /** Printer-side retention of PrintYard uploads (optional in unit tests). */
   retention?: PrinterRetentionService;
   /** A started job that never shows up as active on the printer is failed after this long. */
   startGraceMs?: number;
@@ -95,10 +95,10 @@ const invalidState = (message: string) => new AppError(409, 'prints.invalid_stat
 export const fileChanged = () =>
   new AppError(409, 'prints.file_changed', 'The file changed or was removed after the print was requested');
 export const untrustedGcode = () =>
-  new AppError(403, 'prints.untrusted_gcode', 'Only G-code sliced in SliceDock can be printed (ask an admin for the permission)');
+  new AppError(403, 'prints.untrusted_gcode', 'Only G-code sliced in PrintYard can be printed (ask an admin for the permission)');
 /** `details.findings`: the first 20 (`details.total` = all). */
 export const dangerousGcode = (scan: GcodeScan) =>
-  new AppError(403, 'prints.dangerous_gcode', 'The G-code contains commands SliceDock does not allow', {
+  new AppError(403, 'prints.dangerous_gcode', 'The G-code contains commands PrintYard does not allow', {
     total: scan.total,
     findings: scan.findings.slice(0, 20),
     limits: scan.limits,
@@ -148,7 +148,7 @@ export class PrintingService {
     const printer = this.d.printers.get(input.printerId);
     const first = this.readableFile(actor, input.fileId);
     const isAdmin = actor.role === 'admin';
-    // Uploaded-G-code policy (finding #3): without the permission only SliceDock-sliced files (sha256 verified below).
+    // Uploaded-G-code policy (finding #3): without the permission only PrintYard-sliced files (sha256 verified below).
     const mayUpload = isAdmin || this.d.users.canPrintUploadedGcode(actor.id);
     const refuse = (err: AppError): never => {
       this.d.audit.log('print.refused', auditActor(actor), first.name, { code: err.code, printerId: printer.id, fileId: first.id });
@@ -335,7 +335,7 @@ export class PrintingService {
 
   // ---------------------------------------------------------------- queries
 
-  /** The library file behind the print SliceDock is tracking on this printer (printer-side name → file id). */
+  /** The library file behind the print PrintYard is tracking on this printer (printer-side name → file id). */
   currentLibraryFile(printerId: number): { fileId: number; printerFileName: string | null; userId: number | null; printId: number } | null {
     const t = this.tracking.get(printerId);
     if (!t) return null;
@@ -350,7 +350,7 @@ export class PrintingService {
     return this.dispatching.has(printerId) ? (this.dispatching.get(printerId) ?? null) : undefined;
   }
 
-  /** Owner of the print SliceDock is tracking on the printer (null: none, or started elsewhere). */
+  /** Owner of the print PrintYard is tracking on the printer (null: none, or started elsewhere). */
   currentOwner(printerId: number): number | null {
     return this.tracking.get(printerId)?.userId ?? null;
   }
@@ -592,13 +592,13 @@ export class PrintingService {
       throw new AppError(502, 'prints.upload_failed', 'Upload to the printer failed');
     } finally {
       this.dispatching.delete(printerId);
-      // After a successful upload, trim older SliceDock uploads on that printer (background, never throws).
+      // After a successful upload, trim older PrintYard uploads on that printer (background, never throws).
       if (uploaded && this.d.retention) this.lastRetention = this.d.retention.run(printerId);
     }
   }
 
   /**
-   * Files → On the printer: start the printer's own file (no upload, no retention record: SliceDock did not put it
+   * Files → On the printer: start the printer's own file (no upload, no retention record: PrintYard did not put it
    * there). The printer must still list the exact path with the size of the content that was scanned and hashed.
    */
   private async startExisting(jobId: number, row: PrintRow, list: { name: string; path: string; size: number | null }[]): Promise<PrintJob> {
@@ -735,7 +735,7 @@ export class PrintingService {
       )
       .get(s.printerId, Date.now() - 30 * 60_000) as PrintRow | undefined;
     if (!row || basename(row.printer_path) !== s.fileName) return;
-    if (row.reason && row.reason.startsWith('cancelled_by:')) return; // cancelled from SliceDock: really cancelled
+    if (row.reason && row.reason.startsWith('cancelled_by:')) return; // cancelled from PrintYard: really cancelled
     const sinceStart = (Date.now() - row.started_at!) / 1000;
     if (s.elapsedSec === null || s.elapsedSec < sinceStart - 120) return; // a new job of the same file
     this.d.db.prepare(`UPDATE prints SET state = 'printing', reason = NULL, actual_grams = NULL, ended_at = NULL WHERE id = ?`).run(row.id);
@@ -816,7 +816,7 @@ export class PrintingService {
   }
 }
 
-/** Sliced by SliceDock and the content is still exactly what was sliced (recorded sha256 = this sha256). */
+/** Sliced by PrintYard and the content is still exactly what was sliced (recorded sha256 = this sha256). */
 function isTrustedContent(file: PrintableFile, sha256: string | null): boolean {
   return file.trusted === true && !!file.sha256 && !!sha256 && file.sha256 === sha256;
 }

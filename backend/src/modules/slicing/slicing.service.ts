@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { appEnvFlag } from '../../lib/env.js';
 import type { SettingsService } from '../../db/settings.js';
 import { AppError, notFound } from '../../errors.js';
 import { readMemoryLimit } from '../../lib/memory.js';
@@ -91,7 +92,7 @@ export function sliceOutputName(projectName: string | undefined, firstObjectName
       .replace(/(?:^|[_ -])plate[_ -]?\d+$/i, '')
       .replace(/^[\s._-]+|[\s._-]+$/g, '');
   const usable = (v: string) => v !== '' && !/^plate$/i.test(v);
-  const base = [clean(projectName), clean(firstObjectName)].find(usable) ?? 'SliceDock';
+  const base = [clean(projectName), clean(firstObjectName)].find(usable) ?? 'PrintYard';
   const suffix = `_plate${plate + 1}.gcode`;
   return `${Array.from(base).slice(0, MAX_OUTPUT_NAME - suffix.length).join('').replace(/[\s._-]+$/, '')}${suffix}`;
 }
@@ -377,7 +378,7 @@ export class SlicingService {
           findings: scan.findings.slice(0, 10),
         });
       }
-      // Server-trusted: SliceDock produced this file (overrides are CR/LF-free and range-checked, G-code templates
+      // Server-trusted: PrintYard produced this file (overrides are CR/LF-free and range-checked, G-code templates
       // refused, output scanned), so its own summary is used for limits. sha256 is re-checked before printing.
       const parsed = await parseGcodeSummary(finalTmp);
       const filamentGrams = limitGrams(parsed.filamentGrams, moves.filamentMm, this.baseDensities(job));
@@ -417,7 +418,7 @@ export class SlicingService {
     } finally {
       if (ticker) clearInterval(ticker);
       release();
-      if (process.env.SLICEDOCK_KEEP_JOBS !== '1') await rm(jobDir, { recursive: true, force: true }).catch(() => undefined);
+      if (!appEnvFlag('KEEP_JOBS')) await rm(jobDir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 

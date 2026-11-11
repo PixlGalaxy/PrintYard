@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { unzipSync } from 'fflate';
 
-process.env.SLICEDOCK_FAKE_ENGINE_MS = '200';
+process.env.PRINTYARD_FAKE_ENGINE_MS = '200';
 
 const enc = new TextEncoder();
 

@@ -9,7 +9,7 @@ import { PrinterSimulator } from '../src/printers/sim/simulator.js';
 import { ADMIN, createTestApp, setupBody, type TestApp } from './helpers.js';
 import { api, loginCookie, startServer, waitFor, type LiveServer } from './live-helpers.js';
 
-const GCODE = ['; SliceDock calibration test', 'G28', ';LAYER_CHANGE', 'G1 X10 Y10 E1', ';LAYER_CHANGE', 'G1 X20 Y20 E1', '; estimated printing time (normal mode) = 10m 0s', ''].join('\n');
+const GCODE = ['; PrintYard calibration test', 'G28', ';LAYER_CHANGE', 'G1 X10 Y10 E1', ';LAYER_CHANGE', 'G1 X20 Y20 E1', '; estimated printing time (normal mode) = 10m 0s', ''].join('\n');
 
 describe('print calibration (enableSelfTest) and live estimate, against the simulator', () => {
   let t: TestApp;
@@ -32,7 +32,7 @@ describe('print calibration (enableSelfTest) and live estimate, against the simu
   };
 
   before(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'slicedock-cal-'));
+    dir = mkdtempSync(join(tmpdir(), 'printyard-cal-'));
     const gpath = join(dir, 'cube.gcode');
     writeFileSync(gpath, GCODE);
     const sha = createHash('sha256').update(GCODE).digest('hex');

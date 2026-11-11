@@ -1,3 +1,4 @@
+import { appEnvFlag } from './lib/env.js';
 import { CONTROL_CHARS } from './lib/sanitize.js';
 import { logBuffer, type LogLevelName } from './log-buffer.js';
 
@@ -27,7 +28,7 @@ function write(channel: string, level: LogLevelName, rawMessage: string, detail?
   }
   const ts = Date.now();
   logBuffer.push({ ts, level, channel, msg });
-  if (process.env.SLICEDOCK_SILENT_LOGS === '1') return;
+  if (appEnvFlag('SILENT_LOGS')) return;
   const line = `${new Date(ts).toISOString()} ${level.toUpperCase().padEnd(5)} [${channel}] ${msg}`;
   const stream = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
   stream(line);

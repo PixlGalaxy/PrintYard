@@ -92,7 +92,7 @@ export function printingRoutes(ctx: AppContext): Router {
     const g = last ? await ctx.liveView.lastGcode(idParam(req), viewer) : await ctx.liveView.currentGcode(idParam(req), viewer);
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(g.fileName)}`);
-    res.setHeader('X-SliceDock-Source', g.source);
+    res.setHeader('X-PrintYard-Source', g.source);
     res.setHeader('Cache-Control', 'private, no-cache');
     res.sendFile(g.path, { dotfiles: 'allow', headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   });

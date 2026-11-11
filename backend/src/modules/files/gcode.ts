@@ -83,7 +83,7 @@ export async function parseGcodeSummary(path: string): Promise<GcodeSummary> {
 }
 
 /**
- * Summary for G-code SliceDock did not slice (uploads): the comments are only kept as `declared` (display); the
+ * Summary for G-code PrintYard did not slice (uploads): the comments are only kept as `declared` (display); the
  * numbers used for limits are computed from the moves (`estimateSource: 'computed'`).
  */
 export async function computeGcodeSummary(path: string, opts: AnalyzeOptions = {}): Promise<GcodeSummary> {

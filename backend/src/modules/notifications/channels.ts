@@ -5,8 +5,14 @@ import type { NotifyEventData } from './events.js';
 import { postOutbound, type OutboundDeps, type OutboundRequest } from './outbound.js';
 import type { ChannelName } from './settings.js';
 
-export const APP_NAME = 'SliceDock';
-export const SIGNATURE_HEADER = 'X-SliceDock-Signature';
+export const APP_NAME = 'PrintYard';
+export const SIGNATURE_HEADER = 'X-PrintYard-Signature';
+/**
+ * Deprecated pre-rename (SliceDock) webhook headers, still sent next to the X-PrintYard-* ones with the same values so
+ * existing receivers keep verifying. To be dropped in a later release.
+ */
+export const LEGACY_SIGNATURE_HEADER = 'X-SliceDock-Signature';
+export const LEGACY_EVENT_HEADER = 'X-SliceDock-Event';
 
 export interface DiscordConfig {
   enabled: boolean;
@@ -127,9 +133,10 @@ export function webhookRequest(cfg: Pick<WebhookConfig, 'url' | 'secret'>, msg: 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'User-Agent': APP_NAME,
-    'X-SliceDock-Event': msg.event,
+    'X-PrintYard-Event': msg.event,
+    [LEGACY_EVENT_HEADER]: msg.event,
   };
-  if (cfg.secret) headers[SIGNATURE_HEADER] = signBody(cfg.secret, body);
+  if (cfg.secret) headers[SIGNATURE_HEADER] = headers[LEGACY_SIGNATURE_HEADER] = signBody(cfg.secret, body);
   return { url: cfg.url ?? '', body, headers };
 }
 

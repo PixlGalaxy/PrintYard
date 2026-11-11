@@ -159,7 +159,7 @@ describe('ETA: slicer comments in the G-code', () => {
   });
 
   it('reads head and tail of a file on disk', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'slicedock-eta-'));
+    const dir = mkdtempSync(join(tmpdir(), 'printyard-eta-'));
     const p = join(dir, 'x.gcode');
     const body = 'G1 X1 E0.1\n'.repeat(40_000); // ~440 KB: tail is a separate read
     writeFileSync(p, `; estimated printing time (normal mode) = 10m 0s\nG28\n;LAYER_CHANGE\n${body}END_PRINT\n`);

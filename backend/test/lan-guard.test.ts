@@ -20,12 +20,12 @@ describe('isLanSetupRequest', () => {
 
   it('allows IPv6 ULA and link-local sockets', () => {
     assert.equal(isLanSetupRequest(fakeReq('fd12:3456:789a::10', { host: '[fd12:3456:789a::1]:3000' })), true);
-    assert.equal(isLanSetupRequest(fakeReq('fe80::1%eth0', { host: 'slicedock.local' })), true);
-    assert.equal(isLanSetupRequest(fakeReq('fc00::5', { host: 'slicedock:3000' })), true);
+    assert.equal(isLanSetupRequest(fakeReq('fe80::1%eth0', { host: 'printyard.local' })), true);
+    assert.equal(isLanSetupRequest(fakeReq('fc00::5', { host: 'printyard:3000' })), true);
   });
 
   it('allows *.local, *.lan, *.home.arpa and single-label hostnames', () => {
-    for (const host of ['slicedock.local', 'printer.lan:3000', 'nas.home.arpa', 'slicedock', 'nas:8080']) {
+    for (const host of ['printyard.local', 'printer.lan:3000', 'nas.home.arpa', 'printyard', 'nas:8080']) {
       assert.equal(isLanSetupRequest(fakeReq('10.0.0.4', { host })), true, host);
     }
   });
@@ -99,7 +99,7 @@ describe('Host header parsing', () => {
     assert.equal(hostnameFromHostHeader('Example.COM:8080'), 'example.com');
     assert.equal(hostnameFromHostHeader('[::1]:3000'), '::1');
     assert.equal(hostnameFromHostHeader('192.168.1.1'), '192.168.1.1');
-    assert.equal(hostnameFromHostHeader('slicedock.local.'), 'slicedock.local');
+    assert.equal(hostnameFromHostHeader('printyard.local.'), 'printyard.local');
     assert.equal(hostnameFromHostHeader(undefined), null);
   });
 

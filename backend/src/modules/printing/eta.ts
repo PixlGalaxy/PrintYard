@@ -37,7 +37,7 @@ export interface EtaInput {
   slicerSeconds: number | null;
   /** `elapsedSec` when the printing phase began (null until then). */
   printingSinceElapsed: number | null;
-  /** The job asked for the pre-print calibration (SliceDock jobs only). */
+  /** The job asked for the pre-print calibration (PrintYard jobs only). */
   calibrate?: boolean;
   now: number;
 }
@@ -235,7 +235,7 @@ export async function readGcodeTiming(path: string): Promise<GcodeTiming> {
 
 export interface EtaDeps {
   manager: PrinterManager;
-  /** Slicer seconds + calibration flag of the SliceDock job running on the printer (library G-code summary). */
+  /** Slicer seconds + calibration flag of the PrintYard job running on the printer (library G-code summary). */
   tracked: (printerId: number) => { slicerSeconds: number | null; calibrate: boolean } | null;
   /** Local path of the current job's G-code (library file or cached printer download). */
   gcodePath: (printerId: number) => Promise<string>;

@@ -69,7 +69,7 @@ export async function downloadEngineAsset(
   let url = new URL(assetUrl);
   let res: Response | null = null;
   for (let hop = 0; hop <= 5; hop++) {
-    const r = await fetchImpl(url.href, { headers: { 'User-Agent': 'SliceDock-engine-manager' }, redirect: 'manual', signal: AbortSignal.timeout(30 * 60_000) });
+    const r = await fetchImpl(url.href, { headers: { 'User-Agent': 'PrintYard-engine-manager' }, redirect: 'manual', signal: AbortSignal.timeout(30 * 60_000) });
     if (r.status >= 300 && r.status < 400) {
       const loc = r.headers.get('location');
       await r.body?.cancel().catch(() => undefined);
@@ -169,7 +169,7 @@ export interface EngineManagerOptions {
   settings: SettingsService;
   audit: AuditService;
   publish: (progress: { state: EngineState; progress: number; message?: string }) => void;
-  /** Use the fake engine (no AppImage): `SLICEDOCK_FAKE_ENGINE=1`. */
+  /** Use the fake engine (no AppImage): `PRINTYARD_FAKE_ENGINE=1`. */
   fake?: boolean;
   fetchImpl?: typeof fetch;
 }
@@ -305,7 +305,7 @@ export class EngineManager {
   }
 
   private headers(): Record<string, string> {
-    const h: Record<string, string> = { Accept: 'application/vnd.github+json', 'User-Agent': 'SliceDock-engine-manager' };
+    const h: Record<string, string> = { Accept: 'application/vnd.github+json', 'User-Agent': 'PrintYard-engine-manager' };
     if (process.env.GITHUB_TOKEN) h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
     return h;
   }

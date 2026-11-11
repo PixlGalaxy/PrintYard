@@ -35,7 +35,7 @@ export interface PrinterRetentionResult {
 
 const SYSTEM_ACTOR = { userId: null, username: 'system', ip: null };
 
-/** A printer-side copy SliceDock uploaded for a library file (one `printer_uploads` row). */
+/** A printer-side copy PrintYard uploaded for a library file (one `printer_uploads` row). */
 export interface PrinterCopy {
   uploadId: number;
   printerId: number;
@@ -48,7 +48,7 @@ export interface PrinterCopy {
 
 /**
  * Outcome per copy: `deleted`; `missing` (already gone, record dropped); skipped: `in_use` (printing/paused/open
- * print), `unverified` (name/size/upload id do not match what SliceDock recorded), `offline` (printer not connected:
+ * print), `unverified` (name/size/upload id do not match what PrintYard recorded), `offline` (printer not connected:
  * not queued, the record stays and printer retention removes it later), `read_only`, `not_confirmed`, or an error code.
  */
 export interface PrinterCopyResult extends PrinterCopy {
@@ -64,10 +64,10 @@ export interface ManualDeleteResult {
 }
 
 /**
- * Printer-side file retention. SliceDock records every file it uploads (`printer_uploads`); after a successful
+ * Printer-side file retention. PrintYard records every file it uploads (`printer_uploads`); after a successful
  * upload it deletes the oldest of *those* beyond `printers.retention.keep` (Creality WS `deleteprt:<path>`).
- * Never touched: files SliceDock did not upload, the file being printed/paused, and files of pending/approved/
- * printing SliceDock prints on that printer. No-op in read-only mode.
+ * Never touched: files PrintYard did not upload, the file being printed/paused, and files of pending/approved/
+ * printing PrintYard prints on that printer. No-op in read-only mode.
  */
 export class PrinterRetentionService {
   private readonly chains = new Map<number, Promise<unknown>>();
@@ -112,7 +112,7 @@ export class PrinterRetentionService {
     return next;
   }
 
-  /** Printer copies SliceDock uploaded for these library files (still on the printer as far as it knows). */
+  /** Printer copies PrintYard uploaded for these library files (still on the printer as far as it knows). */
   copiesOfFiles(fileIds: number[]): Map<number, PrinterCopy[]> {
     const out = new Map<number, PrinterCopy[]>();
     const stmt = this.d.db.prepare(
@@ -184,7 +184,7 @@ export class PrinterRetentionService {
   }
 
   /**
-   * Files → On the printer → Delete (an explicit user action, so files SliceDock did not upload are allowed too).
+   * Files → On the printer → Delete (an explicit user action, so files PrintYard did not upload are allowed too).
    * Each name must be in the printer's own fresh list (its path comes from there, never from the client); never
    * the printing/paused file or a file of a pending/approved/printing print. Serialised with retention per printer.
    * Matching `printer_uploads` rows are marked deleted. Never throws for a single file (per-name result).
@@ -242,7 +242,7 @@ export class PrinterRetentionService {
           path: entry.path,
           size: entry.size,
           manual: true,
-          uploadedBySliceDock: !!upload,
+          uploadedByPrintYard: !!upload,
           printId: upload?.print_id ?? null,
         });
         out.push({ name, result: 'deleted' });
@@ -257,7 +257,7 @@ export class PrinterRetentionService {
 
   /**
    * The one delete path for printer files: never a protected name (active job / open prints), never a file whose
-   * name, size or upload id differ from SliceDock's record; confirmed by the printer's file list.
+   * name, size or upload id differ from PrintYard's record; confirmed by the printer's file list.
    */
   private async verifiedDelete(
     printerId: number,
@@ -274,7 +274,7 @@ export class PrinterRetentionService {
       this.markDeleted(row.id, 'missing');
       return { ok: false, reason: 'missing' };
     }
-    // Only the exact file SliceDock uploaded: same name, the recorded size, and (for print uploads) the print id
+    // Only the exact file PrintYard uploaded: same name, the recorded size, and (for print uploads) the print id
     // in the name. Anything else (overwritten on the touchscreen, legacy record without a size) is left alone.
     const idOk = row.print_id === null || row.remote_name.includes(`_p${row.print_id}`);
     if (entry.name !== row.remote_name || row.size === null || entry.size !== row.size || !idOk) {
@@ -293,7 +293,7 @@ export class PrinterRetentionService {
     }
   }
 
-  /** Active (still on the printer, as far as SliceDock knows) uploads, newest first. */
+  /** Active (still on the printer, as far as PrintYard knows) uploads, newest first. */
   activeUploads(printerId: number): UploadRow[] {
     return this.d.db
       .prepare(
@@ -335,7 +335,7 @@ export class PrinterRetentionService {
     return result;
   }
 
-  /** Printer-side names that must stay: the active job's file and files of open SliceDock prints. */
+  /** Printer-side names that must stay: the active job's file and files of open PrintYard prints. */
   protectedNames(printerId: number): Set<string> {
     const names = new Set<string>();
     const status = this.d.manager.status(printerId);

@@ -9,7 +9,7 @@ import { logger } from '../../logger.js';
 import { parsePipeLine } from '../slicing/progress.js';
 import { EngineError, type EngineSliceRequest, type EngineSliceResult, type SlicerEngine } from './engine.types.js';
 
-/** CLI return codes (src/libslic3r/Utils.hpp) → SliceDock error codes. */
+/** CLI return codes (src/libslic3r/Utils.hpp) → PrintYard error codes. */
 const CLI_ERRORS: Record<number, string> = {
   [-2]: 'slice.engine_invalid_params',
   [-3]: 'slice.engine_file_not_found',

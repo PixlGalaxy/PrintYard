@@ -1,6 +1,6 @@
 // Default colours of the official filament presets. Creality's K2 SE filament JSON ship `default_filament_colour: ""`
 // (every one of them in Creality Print 7.3.1), so a slot, a new custom filament or the preset list had no colour and
-// each screen fell back to its own grey/blue. SliceDock fills the empty value with the first official colour the
+// each screen fell back to its own grey/blue. PrintYard fills the empty value with the first official colour the
 // printer lists for that filament (`retMaterials[].base.colors[0]`, K2 SE firmware 2.3.6.57), else white.
 
 /** Colour used when a filament's colour is unknown (also the frontend's fallback). */

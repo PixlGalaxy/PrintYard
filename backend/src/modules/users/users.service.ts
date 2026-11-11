@@ -20,7 +20,7 @@ export interface UserRow {
   created_at: number;
   updated_at: number;
   last_login_at: number | null;
-  /** 0008: may print uploaded (not SliceDock-sliced) G-code. */
+  /** 0008: may print uploaded (not PrintYard-sliced) G-code. */
   can_print_uploaded_gcode?: number;
   /** 0009: may use the printer jog/temperature/fan controls. */
   can_control_printer?: number;
@@ -300,7 +300,7 @@ export class UsersService {
     this.db.prepare(`UPDATE users SET ${update.sql} WHERE id = ?`).run(...update.values, id);
   }
 
-  /** true when at least one active user wants the printer's filament list (else SliceDock never asks for it). */
+  /** true when at least one active user wants the printer's filament list (else PrintYard never asks for it). */
   anyShowsPrinterFilaments(): boolean {
     return !!this.db.prepare('SELECT 1 FROM users WHERE show_printer_filaments = 1 AND is_active = 1 LIMIT 1').get();
   }

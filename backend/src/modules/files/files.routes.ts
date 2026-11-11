@@ -179,7 +179,7 @@ export function filesRoutes(ctx: AppContext): Router {
     res.json(ctx.files.list(viewerOf(req), q.scope, q.kind));
   });
 
-  /** Printer copies SliceDock uploaded for these files (`?ids=1,2,3`): what the delete dialog offers to remove too. */
+  /** Printer copies PrintYard uploaded for these files (`?ids=1,2,3`): what the delete dialog offers to remove too. */
   router.get('/printer-copies', (req, res) => {
     const ids = String(req.query.ids ?? '')
       .split(',')
@@ -246,7 +246,7 @@ export function filesRoutes(ctx: AppContext): Router {
   });
 
   /**
-   * Deletes a library file. `?printer=1` also deletes the copies SliceDock uploaded to printers (verified exact
+   * Deletes a library file. `?printer=1` also deletes the copies PrintYard uploaded to printers (verified exact
    * name + size + upload id; never the file being printed/paused or of an open print; offline/read-only → skipped).
    * 200 `{ printer: PrinterCopyResult[] }` with `?printer=1`, else 204.
    */

@@ -8,7 +8,7 @@ import { PrinterSimulator } from '../src/printers/sim/simulator.js';
 import { createTestApp, setupBody, type TestApp } from './helpers.js';
 import { waitFor } from './live-helpers.js';
 
-const GCODE = ['; SliceDock retention test', ';LAYER_CHANGE', 'G1 X10 Y10 E1', '; estimated printing time (normal mode) = 10m 0s', ''].join('\n');
+const GCODE = ['; PrintYard retention test', ';LAYER_CHANGE', 'G1 X10 Y10 E1', '; estimated printing time (normal mode) = 10m 0s', ''].join('\n');
 const DIR = '/usr/data/printer_data/gcodes';
 
 describe('printer file retention (simulator)', () => {
@@ -26,7 +26,7 @@ describe('printer file retention (simulator)', () => {
   };
 
   before(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'slicedock-retention-'));
+    dir = mkdtempSync(join(tmpdir(), 'printyard-retention-'));
     gpath = join(dir, 'cube.gcode');
     writeFileSync(gpath, GCODE);
     // Slow simulated print (1 sim second per tick) so the job stays active during the test.
@@ -48,7 +48,7 @@ describe('printer file retention (simulator)', () => {
   });
 
   after(async () => {
-    delete process.env.SLICEDOCK_READ_ONLY;
+    delete process.env.PRINTYARD_READ_ONLY;
     t?.close();
     await sim?.stop();
     rmSync(dir, { recursive: true, force: true });
@@ -65,7 +65,7 @@ describe('printer file retention (simulator)', () => {
     assert.equal(ok.body['printers.retention.keep'], 2);
   });
 
-  it('deletes only the oldest SliceDock uploads beyond N, never foreign files', async () => {
+  it('deletes only the oldest PrintYard uploads beyond N, never foreign files', async () => {
     for (const n of ['a.gcode', 'b.gcode', 'c.gcode', 'd.gcode']) await upload(n);
     const r = await t.ctx.printerRetention.run(printerId);
     assert.deepEqual(r.deleted, [`${DIR}/a.gcode`, `${DIR}/b.gcode`]);
@@ -110,12 +110,12 @@ describe('printer file retention (simulator)', () => {
     const before = sim.deletes.length;
     assert.equal((await t.ctx.printerRetention.run(printerId)).skipped, 'disabled');
     t.ctx.settings.patch({ 'printers.retention.enabled': true });
-    process.env.SLICEDOCK_READ_ONLY = '1';
+    process.env.PRINTYARD_READ_ONLY = '1';
     try {
       assert.equal((await t.ctx.printerRetention.run(printerId)).skipped, 'read_only');
       await assert.rejects(t.ctx.printerManager.driver(printerId).deleteFile(`${DIR}/f.gcode`), (e: { code?: string }) => e.code === 'printers.read_only');
     } finally {
-      delete process.env.SLICEDOCK_READ_ONLY;
+      delete process.env.PRINTYARD_READ_ONLY;
     }
     assert.equal(sim.deletes.length, before);
     // Simulate a delete on the touchscreen: the record is dropped without sending anything.

@@ -151,7 +151,7 @@ describe('exclude-object parsing', () => {
   });
 
   it('reads definitions from a file and merges them with Klipper status (upper-cased names)', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'slicedock-objs-'));
+    const dir = mkdtempSync(join(tmpdir(), 'printyard-objs-'));
     try {
       const p = join(dir, 'two.gcode');
       writeFileSync(p, twoObjectGcode(3));
@@ -318,7 +318,7 @@ describe('printer controls + exclude object end-to-end (simulator)', () => {
     assert.equal(objs[0]!.polygon.length, 4);
 
     const ex = (cookie: string, name: unknown) => api(live.base, cookie, 'POST', `/api/printers/${printerId}/exclude-object`, { name });
-    // started on the "touchscreen" (not a SliceDock print): admin only
+    // started on the "touchscreen" (not a PrintYard print): admin only
     r = await ex(alice, 'Object_1_id_0_copy_0');
     assert.equal(r.status, 403);
     assert.equal(r.body.error.code, 'prints.not_owner');

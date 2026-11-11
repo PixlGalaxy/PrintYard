@@ -23,7 +23,7 @@ describe('setup → login → me → logout', () => {
     assert.deepEqual(health.body, { ok: true, version: 'test' });
 
     const config = await t.request.get('/api/config');
-    assert.deepEqual(config.body, { appName: 'SliceDock', version: 'test', setupComplete: false, languages: ['en', 'es'], defaultLanguage: 'en', appearance: { defaultMode: 'system', defaultSkin: 'sky' }, workspace: { defaultLevel: 'basic' }, readOnly: false, files: { retentionEnabled: true, retentionKeep: 10 }, printing: { calibrateByDefault: false } });
+    assert.deepEqual(config.body, { appName: 'PrintYard', version: 'test', setupComplete: false, languages: ['en', 'es'], defaultLanguage: 'en', appearance: { defaultMode: 'system', defaultSkin: 'sky' }, workspace: { defaultLevel: 'basic' }, readOnly: false, files: { retentionEnabled: true, retentionKeep: 10 }, printing: { calibrateByDefault: false } });
 
     const status = await t.request.get('/api/setup/status');
     assert.equal(status.body.setupComplete, false);

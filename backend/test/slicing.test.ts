@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
 import { boxStl, createB1App, makePng, sceneFor, upload, type B1App } from './b1-helpers.js';
 
-process.env.SLICEDOCK_FAKE_ENGINE_MS = '300';
+process.env.PRINTYARD_FAKE_ENGINE_MS = '300';
 
 async function waitFor<T>(fn: () => Promise<T>, ok: (v: T) => boolean, ms = 10_000): Promise<T> {
   const end = Date.now() + ms;
@@ -53,7 +53,7 @@ describe('projects (3MF builder)', () => {
     assert.deepEqual(cfg.filament_colour, ['#38BDF8']);
     assert.equal(cfg.from, 'project');
     assert.match(text('Metadata/model_settings.config'), /<metadata key="plater_id" value="2"\/>/);
-    assert.deepEqual(JSON.parse(text('Metadata/slicedock_scene.json')), scene);
+    assert.deepEqual(JSON.parse(text('Metadata/printyard_scene.json')), scene);
 
     const got = await t.alice.get(`/api/projects/${res.body.id}`);
     assert.equal(got.status, 200);
@@ -65,6 +65,21 @@ describe('projects (3MF builder)', () => {
     assert.equal(put.body.name, 'Renamed.3mf');
     assert.deepEqual((await t.alice.get(`/api/projects/${res.body.id}`)).body.scene.processOverrides, {});
     assert.equal((await t.bob.put(`/api/projects/${res.body.id}`).send({ name: 'x', scene })).status, 404);
+  });
+
+  it('reopens a pre-rename 3MF that only carries Metadata/slicedock_scene.json', async () => {
+    const scene = sceneFor([model]);
+    const res = await t.alice.post('/api/projects').send({ name: 'Old project', scene });
+    assert.equal(res.status, 201, JSON.stringify(res.body));
+    const abs = t.ctx.files.absolutePath(t.ctx.files.getRow(res.body.id)!);
+    const zip = unzipSync(new Uint8Array(readFileSync(abs)));
+    zip['Metadata/slicedock_scene.json'] = zip['Metadata/printyard_scene.json']!;
+    delete zip['Metadata/printyard_scene.json'];
+    writeFileSync(abs, zipSync(zip));
+    rmSync(`${abs}.scene.json`, { force: true }); // only the copy inside the 3MF is left
+    const got = await t.alice.get(`/api/projects/${res.body.id}`);
+    assert.equal(got.status, 200, JSON.stringify(got.body));
+    assert.deepEqual(got.body.scene, scene);
   });
 
   it('writes per-slot filament overrides (nozzle temperature) into the project config', async () => {
@@ -134,7 +149,7 @@ describe('slicing jobs (fake engine)', () => {
     const file = (await t.alice.get(`/api/files/${done.result.fileId}`)).body;
     assert.equal(file.kind, 'gcode');
     assert.equal(file.name, 'obj0_plate1.gcode');
-    // Sliced by SliceDock: summary trusted for limits (review finding #1), content hash recorded.
+    // Sliced by PrintYard: summary trusted for limits (review finding #1), content hash recorded.
     assert.equal(file.meta.trusted, true);
     assert.equal(file.meta.gcode.estimateSource, 'slicer');
     assert.match(t.ctx.files.getRow(file.id)!.sha256 ?? '', /^[0-9a-f]{64}$/);
@@ -148,7 +163,7 @@ describe('slicing jobs (fake engine)', () => {
   });
 
   it('publishes smooth progress with stage ids at most ~4 per second', async () => {
-    process.env.SLICEDOCK_FAKE_ENGINE_MS = '2500';
+    process.env.PRINTYARD_FAKE_ENGINE_MS = '2500';
     const sent: { at: number; state: string; progress: number; stage?: string }[] = [];
     const orig = t.ctx.hub.publish.bind(t.ctx.hub);
     t.ctx.hub.publish = ((topic: string, data: unknown, filter?: unknown) => {
@@ -173,7 +188,7 @@ describe('slicing jobs (fake engine)', () => {
       assert.ok(mine.length <= Math.ceil(spanS * 4) + 6, `${mine.length} messages in ${spanS.toFixed(1)} s`);
     } finally {
       t.ctx.hub.publish = orig;
-      process.env.SLICEDOCK_FAKE_ENGINE_MS = '300';
+      process.env.PRINTYARD_FAKE_ENGINE_MS = '300';
     }
   });
 

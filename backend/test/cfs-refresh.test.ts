@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, it, mock } from 'node:test';
 import type { SocketLike } from '../src/printers/k2se/connection.js';
 import { K2SELiveDriver } from '../src/printers/k2se/live-driver.js';
 
-process.env.SLICEDOCK_SILENT_LOGS = '1';
+process.env.PRINTYARD_SILENT_LOGS = '1';
 
 class FakeSocket extends EventEmitter implements SocketLike {
   sent: string[] = [];

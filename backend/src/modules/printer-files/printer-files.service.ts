@@ -15,7 +15,7 @@ import type { Actor } from '../printing/types.js';
 import type { PrintersService } from '../printers/printers.service.js';
 import type { UsersService } from '../users/users.service.js';
 
-/** Largest printer file SliceDock downloads (import / print from the printer). */
+/** Largest printer file PrintYard downloads (import / print from the printer). */
 export const MAX_PRINTER_FILE_BYTES = 200 * 1024 * 1024;
 const LIST_TTL_MS = 10_000;
 const THUMB_TTL_MS = 10 * 60_000;
@@ -96,7 +96,7 @@ export class PrinterFilesService {
           thumbnailUrl: d?.thumbnail
             ? `/api/printers/${printerId}/files/thumbnail?name=${encodeURIComponent(f.name)}&v=${createdAt ?? f.size ?? 0}`
             : null,
-          uploadedBySliceDock: !!up,
+          uploadedByPrintYard: !!up,
           libraryFileId: up?.fileId ?? null,
           inUse: protectedNames.has(f.name),
         };
@@ -156,7 +156,7 @@ export class PrinterFilesService {
       this.d.audit.log('print.refused', auditActor(actor), entry.name, { code: err.code, printerId: printer.id, printerFile: entry.path });
       throw err;
     };
-    // Without the permission only a SliceDock upload of a readable library file can qualify (sha256 checked below).
+    // Without the permission only a PrintYard upload of a readable library file can qualify (sha256 checked below).
     if (!mayUpload && linked === null) refuse();
     const dl = await this.download(printerId, entry);
     let fileId: number | null = null;
@@ -270,7 +270,7 @@ export class PrinterFilesService {
   }
 
   /**
-   * A library file the actor may print whose content is exactly the downloaded bytes: the library file SliceDock
+   * A library file the actor may print whose content is exactly the downloaded bytes: the library file PrintYard
    * uploaded it from (if readable), else one of the actor's own G-code files with the same sha256 (trusted first).
    */
   private reusableFile(actor: Actor, sha256: string, linked: number | null): number | null {
@@ -289,7 +289,7 @@ export class PrinterFilesService {
     return own?.id ?? null;
   }
 
-  /** Active SliceDock uploads on the printer: printer path → library file (null when it is gone). */
+  /** Active PrintYard uploads on the printer: printer path → library file (null when it is gone). */
   private uploadsOf(printerId: number): Map<string, { fileId: number | null }> {
     const rows = this.d.db
       .prepare(

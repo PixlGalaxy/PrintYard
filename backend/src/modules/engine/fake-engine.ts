@@ -1,5 +1,6 @@
 import { appendFile, copyFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { appEnv, appEnvFlag } from '../../lib/env.js';
 import { resourcesDir } from '../../lib/resources.js';
 import { EngineError, type EngineSliceRequest, type EngineSliceResult, type SlicerEngine } from './engine.types.js';
 
@@ -24,10 +25,10 @@ const STEPS: [number, number, string][] = [
 ];
 
 /**
- * Development engine (`SLICEDOCK_FAKE_ENGINE=1`, e.g. on Windows): emits progress like the real CLI and returns a
+ * Development engine (`PRINTYARD_FAKE_ENGINE=1`, e.g. on Windows): emits progress like the real CLI and returns a
  * real Creality Print 7.3.1 K2 SE G-code (a 20 mm cube) so the UI can be built without the AppImage.
- * `SLICEDOCK_FAKE_ENGINE_MS` sets the duration (default 4000 ms); `SLICEDOCK_FAKE_ENGINE_FAIL=1` makes every job
- * fail like an engine error, to test the error UI; `SLICEDOCK_FAKE_ENGINE_UNSAFE=1` appends `M104 S350`.
+ * `PRINTYARD_FAKE_ENGINE_MS` sets the duration (default 4000 ms); `PRINTYARD_FAKE_ENGINE_FAIL=1` makes every job
+ * fail like an engine error, to test the error UI; `PRINTYARD_FAKE_ENGINE_UNSAFE=1` appends `M104 S350`.
  */
 export class FakeEngine implements SlicerEngine {
   readonly id = 'fake' as const;
@@ -35,7 +36,7 @@ export class FakeEngine implements SlicerEngine {
 
   constructor(
     readonly version = '7.3.1.6378-fake',
-    private readonly durationMs = Number(process.env.SLICEDOCK_FAKE_ENGINE_MS) || 4000,
+    private readonly durationMs = Number(appEnv('FAKE_ENGINE_MS')) || 4000,
   ) {}
 
   async slice(req: EngineSliceRequest): Promise<EngineSliceResult> {
@@ -60,11 +61,11 @@ export class FakeEngine implements SlicerEngine {
       req.onProgress({ totalPercent: total, platePercent: null, message });
     }
     if (req.signal.aborted) throw new EngineError('slice.cancelled', 'Cancelled');
-    if (process.env.SLICEDOCK_FAKE_ENGINE_FAIL === '1') throw new EngineError('slice.engine_error', 'Simulated engine failure');
+    if (appEnvFlag('FAKE_ENGINE_FAIL')) throw new EngineError('slice.engine_error', 'Simulated engine failure');
     const gcodePath = join(req.outDir, 'plate_1.gcode');
     await copyFile(join(resourcesDir(), 'fake-engine', 'plate_1.gcode'), gcodePath);
     // Tests of the post-slice scan (review 3A #2): an engine emitting an out-of-range temperature.
-    if (process.env.SLICEDOCK_FAKE_ENGINE_UNSAFE === '1') await appendFile(gcodePath, 'M104 S350\n');
+    if (appEnvFlag('FAKE_ENGINE_UNSAFE')) await appendFile(gcodePath, 'M104 S350\n');
     return { gcodePath, warnings: [] };
   }
 }

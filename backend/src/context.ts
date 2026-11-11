@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { appEnvFlag } from './lib/env.js';
 import type { Config } from './config.js';
 import type { Db } from './db/client.js';
 import { SettingsService } from './db/settings.js';
@@ -59,7 +60,7 @@ export interface AppContext {
   printerManager: PrinterManager;
   /** Print requests, limits, approvals, control, usage. */
   printing: PrintingService;
-  /** Printer-side retention of the files SliceDock uploaded (settings printers.retention.*). */
+  /** Printer-side retention of the files PrintYard uploaded (settings printers.retention.*). */
   printerRetention: PrinterRetentionService;
   /** Library files as printing sees them (B1's `files` table). */
   printFiles: PrintFileSource;
@@ -78,7 +79,7 @@ export interface AppContext {
   files: FilesService;
   /** B1: official printer profiles (installed engine's, else the bundled snapshot). */
   profiles: ProfilesService;
-  /** B1: SliceDock projects (3MF + scene sidecar). */
+  /** B1: PrintYard projects (3MF + scene sidecar). */
   projects: ProjectsService;
   /** FILAMENTS: custom filament presets (`custom:<id>` in scenes), merged into the profile bundle. */
   filamentPresets: FilamentPresetsService;
@@ -114,7 +115,7 @@ export interface ContextOptions {
   loginGuard?: LoginGuardOptions;
   probe?: ProbeFn;
   printFiles?: PrintFileSource;
-  /** B1: fake slicing engine (default: SLICEDOCK_FAKE_ENGINE=1) and a fetch stub for the engine manager. */
+  /** B1: fake slicing engine (default: PRINTYARD_FAKE_ENGINE=1) and a fetch stub for the engine manager. */
   engine?: { fake?: boolean; fetchImpl?: typeof fetch };
   printerManager?: Partial<Omit<PrinterManagerOptions, 'printers' | 'hub'>>;
   /** Printing: how long a terminal printer state must stay before a print is finalised (tests). */
@@ -202,7 +203,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
   ctx.printerManager = new PrinterManager({
     printers: ctx.printers,
     hub: ctx.hub,
-    simulateAll: process.env.SLICEDOCK_SIM_PRINTER === '1',
+    simulateAll: appEnvFlag('SIM_PRINTER'),
     ...opts.printerManager,
   });
   ctx.printFiles = opts.printFiles ?? sqlFileSource(db, config.dataRoot);
@@ -278,7 +279,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     settings,
     audit: ctx.audit,
     publish: (p) => ctx.hub.publish('engine.progress', p, (c) => c.role === 'admin'),
-    fake: opts.engine?.fake ?? process.env.SLICEDOCK_FAKE_ENGINE === '1',
+    fake: opts.engine?.fake ?? appEnvFlag('FAKE_ENGINE'),
     ...(opts.engine?.fetchImpl && { fetchImpl: opts.engine.fetchImpl }),
   });
   ctx.profiles = new ProfilesService(() => ctx.engine.profileSource());

@@ -57,7 +57,7 @@ describe('Moonraker live job parsing (real K2 SE capture)', () => {
 describe('LiveViewService cache', () => {
   let dir: string;
   before(() => {
-    dir = mkdtempSync(join(tmpdir(), 'slicedock-gcache-'));
+    dir = mkdtempSync(join(tmpdir(), 'printyard-gcache-'));
   });
   after(() => rmSync(dir, { recursive: true, force: true }));
 

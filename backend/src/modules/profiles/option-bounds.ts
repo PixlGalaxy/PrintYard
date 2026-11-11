@@ -7,7 +7,7 @@ import { k2seScanLimits } from '../files/gcode-scan.js';
  * Typed bounds for engine option values (process / per-object / filament slot overrides and custom filament
  * presets). Phase 3 review A #2: sliced G-code used to be trusted without a scan while any value reached the engine,
  * so `nozzle_temperature_initial_layer: 999` became `M104 S999`. Every numeric value is now checked against its
- * type plus hard safety caps that match the dangerous-command scanner (so SliceDock's own output always passes it).
+ * type plus hard safety caps that match the dangerous-command scanner (so PrintYard's own output always passes it).
  */
 
 export interface SafetyCaps {

@@ -27,7 +27,8 @@ export function runMigrations(db: Db, dir = MIGRATIONS_DIR): number {
     const sql = readFileSync(join(dir, file), 'utf8');
     // Table rebuilds (SQLite "12-step" ALTER) must run with foreign keys off, or DROP TABLE would cascade into the
     // children. The pragma cannot change inside a transaction, so it is toggled around it and checked before commit.
-    const fkOff = /^--\s*slicedock:foreign-keys=off\b/m.test(sql);
+    // Applied migrations are never edited, so the pre-rename `slicedock:` spelling of the directive stays valid.
+    const fkOff = /^--\s*(?:printyard|slicedock):foreign-keys=off\b/m.test(sql);
     const fkWasOn = fkOff && (db.pragma('foreign_keys', { simple: true }) as number) === 1;
     if (fkWasOn) db.pragma('foreign_keys = OFF');
     try {

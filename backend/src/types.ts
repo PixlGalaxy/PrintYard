@@ -39,6 +39,7 @@ export const PREPARE_LEVELS = ['basic', 'advanced', 'expert'] as const;
 export type PrepareLevel = (typeof PREPARE_LEVELS)[number];
 
 /** 3D viewport navigation (PREP-UX). Keep in sync with frontend/src/types.ts + frontend/src/three/navigation.ts. */
+// `slicedock` is the default (PrintYard) scheme: kept as the stored id from before the rename (user prefs JSON).
 export const NAV3D_PRESETS = ['slicedock', 'tinkercad', 'repetier', 'cad', 'blender', 'custom'] as const;
 export type Nav3dPreset = (typeof NAV3D_PRESETS)[number];
 export const NAV3D_BUTTONS = ['left', 'middle', 'right'] as const;
@@ -94,7 +95,7 @@ export interface User {
   lastLoginAt: number | null;
   /** May use the printer motion/temperature/fan controls (admins always). */
   canControlPrinter: boolean;
-  /** 3D navigation preferences; null = SliceDock defaults. */
+  /** 3D navigation preferences; null = PrintYard defaults. */
   nav3d: Nav3dPrefs | null;
   /** Prepare tab settings level; null = use the admin default (`workspace.defaultLevel`). */
   prepareLevel: PrepareLevel | null;
@@ -116,7 +117,7 @@ export interface UserLimits {
 
 export interface AdminUser extends User {
   limits: UserLimits;
-  /** May print G-code SliceDock did not slice (uploads). Admins are always allowed; this stays as stored. */
+  /** May print G-code PrintYard did not slice (uploads). Admins are always allowed; this stays as stored. */
   canPrintUploadedGcode: boolean;
 }
 
@@ -180,13 +181,13 @@ export interface SetupStatus {
 }
 
 export interface AppConfig {
-  /** `SLICEDOCK_READ_ONLY=1`: printer control (print/pause/resume/cancel/approve/bed-cleared) is disabled. */
+  /** `PRINTYARD_READ_ONLY=1`: printer control (print/pause/resume/cancel/approve/bed-cleared) is disabled. */
   readOnly: boolean;
   /** Retention policy of the private library (settings `files.retention.*`). */
   files: { retentionEnabled: boolean; retentionKeep: number };
   /** Default of the print dialog's "Print calibration" toggle (setting `printing.calibrateByDefault`). */
   printing?: { calibrateByDefault: boolean };
-  appName: 'SliceDock';
+  appName: 'PrintYard';
   version: string;
   setupComplete: boolean;
   languages: Language[];
@@ -294,12 +295,12 @@ export interface PrinterStatus {
   maxBedTemp: number | null;
   /** Chamber/LED light (Creality WS `lightSw`); null when unknown. */
   lightOn: boolean | null;
-  /** Speed (feedrate) factor in % (Moonraker `gcode_move.speed_factor`, else Creality `curFeedratePct`, else the last value SliceDock set); null when unknown. */
+  /** Speed (feedrate) factor in % (Moonraker `gcode_move.speed_factor`, else Creality `curFeedratePct`, else the last value PrintYard set); null when unknown. */
   speedFactor: number | null;
   /** Flow (extrusion) factor in % (`gcode_move.extrude_factor` / `curFlowratePct` / last set); null when unknown. */
   flowFactor: number | null;
   /**
-   * SliceDock's time estimate for the active job (null when nothing runs). Use this instead of `remainingSec`,
+   * PrintYard's time estimate for the active job (null when nothing runs). Use this instead of `remainingSec`,
    * which the printer reports as 0 / implausible values while heating, homing and leveling.
    */
   estimate?: PrintEta | null;
@@ -337,7 +338,7 @@ export interface JobObject {
   /** Footprint polygon in bed coordinates (mm). */
   polygon: [number, number][];
   excluded: boolean;
-  /** Byte offset of the job when SliceDock first saw the object excluded (moves before it were printed). */
+  /** Byte offset of the job when PrintYard first saw the object excluded (moves before it were printed). */
   excludedAt: number | null;
   /** Currently being printed. */
   current: boolean;
@@ -352,7 +353,7 @@ export interface LastJob extends LiveJob {
   progress: number | null;
   elapsedSec: number | null;
   totalLayers: number | null;
-  /** SliceDock print id (null for prints started elsewhere). */
+  /** PrintYard print id (null for prints started elsewhere). */
   printId: number | null;
 }
 
@@ -387,7 +388,7 @@ export type PrinterControlCommand =
 
 /**
  * `uploading` (additive): the G-code is being sent to the printer (between `approved` and `printing`). It is not
- * stored: the row stays `approved` in the DB while SliceDock streams the file, and API/WS views report `uploading`.
+ * stored: the row stays `approved` in the DB while PrintYard streams the file, and API/WS views report `uploading`.
  */
 export type PrintRequestState = 'pending' | 'approved' | 'uploading' | 'rejected' | 'printing' | 'done' | 'failed' | 'cancelled';
 
@@ -451,7 +452,7 @@ export interface GcodeSummary {
   printerModel: string | null;
   slicer: string | null;
   /**
-   * Where printSeconds/filamentGrams/layers come from: `slicer` = SliceDock sliced the file (summary stored at slice
+   * Where printSeconds/filamentGrams/layers come from: `slicer` = PrintYard sliced the file (summary stored at slice
    * time, file immutable); `computed` = parsed from the moves server-side (uploads). Absent on legacy rows.
    */
   estimateSource?: 'slicer' | 'computed';
@@ -508,8 +509,8 @@ export interface PrinterStoredFile {
   software: string | null;
   /** `/api/printers/:id/files/thumbnail?name=…` or null. */
   thumbnailUrl: string | null;
-  /** SliceDock uploaded it (a `printer_uploads` record that is still active). */
-  uploadedBySliceDock: boolean;
+  /** PrintYard uploaded it (a `printer_uploads` record that is still active). */
+  uploadedByPrintYard: boolean;
   /** Library file it was uploaded from (still in the library), when known. */
   libraryFileId: number | null;
   /** Printing/paused file or file of an open print (cannot be deleted). */
@@ -531,7 +532,7 @@ export interface FileMeta {
   bbox?: [number, number, number];
   gcode?: GcodeSummary;
   project?: { plates: number; objects: number };
-  /** G-code sliced by SliceDock itself (its summary is trusted; content verified by sha256 before printing). */
+  /** G-code sliced by PrintYard itself (its summary is trusted; content verified by sha256 before printing). */
   trusted?: boolean;
 }
 
@@ -706,7 +707,7 @@ export interface ProfileImportReport {
 
 // ---- printer-side presets ----
 
-/** One filament of the printer's own material list (WS `retMaterials`), mapped onto SliceDock's system presets. */
+/** One filament of the printer's own material list (WS `retMaterials`), mapped onto PrintYard's system presets. */
 export interface PrinterMaterial {
   /** Creality material id (`base.id`, e.g. "01001"). */
   id: string;
@@ -725,10 +726,10 @@ export interface PrinterMaterial {
   bedTemp: number | null;
   /** `kvParam.inherits` as the printer sends it. */
   inherits: string;
-  /** The SliceDock system preset it maps to (exact `inherits`, else same family / material); null when none. */
+  /** The PrintYard system preset it maps to (exact `inherits`, else same family / material); null when none. */
   systemPresetId: string | null;
-  /** Settings that differ from that system preset (printer value, SliceDock value), at most 50. */
-  differs: { key: string; printer: string; slicedock: string | null; kept: boolean }[];
+  /** Settings that differ from that system preset (printer value, PrintYard value), at most 50. */
+  differs: { key: string; printer: string; printyard: string | null; kept: boolean }[];
   /** What "Duplicate as my filament" stores: the differing values that passed the same screening as an import. */
   values: Record<string, string>;
 }
@@ -769,13 +770,13 @@ export interface ProfilesBackupStatus {
 export interface ProfilesBackupPreview {
   printerId: number;
   createdAt: string;
-  slicedockVersion: string;
+  printyardVersion: string;
   counts: { process: number; filament: number; create: number; unchanged: number; renamed: number; ownerMapped: number };
   items: {
     kind: ProfileFileKind;
     name: string;
     owner: string;
-    /** The SliceDock user it will belong to (unknown owners → the restoring admin). */
+    /** The PrintYard user it will belong to (unknown owners → the restoring admin). */
     restoreOwner: string;
     ownerKnown: boolean;
     shared: boolean;

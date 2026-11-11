@@ -1,6 +1,6 @@
-// PRINTER-PRESETS: a copy of every user's process profiles and custom filaments on the printer itself, so a SliceDock
+// PRINTER-PRESETS: a copy of every user's process profiles and custom filaments on the printer itself, so a PrintYard
 // reinstall (lost /appdata) can get them back. The K2 SE has no place for user presets (Creality Print syncs them to
-// Creality Cloud), so SliceDock writes ONE JSON file into Moonraker's `config` root (`slicedock/profiles-backup.json`):
+// Creality Cloud), so PrintYard writes ONE JSON file into Moonraker's `config` root (`printyard/profiles-backup.json`):
 // a plain file upload, never printer.cfg, no restart, safe while printing. Debounced, fire-and-forget: a failure is
 // logged and shown in Admin → Printers, it never blocks a profile save. Restoring reads the file back as untrusted
 // input (size cap, shape validation) and imports it through the profile import path (same screening, "Name (2)").
@@ -17,8 +17,11 @@ import type { ProcessProfilesService } from '../process-profiles/process-profile
 import type { ImportItem, ProfileFilesService } from '../profile-files/profile-files.service.js';
 import type { UsersService } from '../users/users.service.js';
 
-export const BACKUP_PATH = 'slicedock/profiles-backup.json';
-export const BACKUP_FORMAT = 'slicedock-profiles-backup';
+export const BACKUP_PATH = 'printyard/profiles-backup.json';
+export const BACKUP_FORMAT = 'printyard-profiles-backup';
+/** Pre-rename location and format id (SliceDock): restore still reads them, they are never written. */
+export const LEGACY_BACKUP_PATH = 'slicedock/profiles-backup.json';
+export const LEGACY_BACKUP_FORMAT = 'slicedock-profiles-backup';
 const MODEL: PrinterModel = 'creality-k2se';
 /** Largest backup file read back from the printer (400 profiles × 500 keys stays far below). */
 export const MAX_BACKUP_BYTES = 4 * 1024 * 1024;
@@ -36,16 +39,28 @@ const filamentItem = processItem.extend({
 });
 
 /** Shape of the backup file (versioned; unknown extra fields are ignored). */
-export const backupSchema = z.object({
+const backupShape = z.object({
   format: z.literal(BACKUP_FORMAT),
   version: z.literal(1),
-  slicedockVersion: z.string().max(64),
+  printyardVersion: z.string().max(64),
   createdAt: z.string().max(40),
   printerModel: z.string().max(64),
   process: z.array(processItem).max(MAX_ITEMS),
   filament: z.array(filamentItem).max(MAX_ITEMS),
 });
-export type ProfilesBackup = z.infer<typeof backupSchema>;
+export type ProfilesBackup = z.infer<typeof backupShape>;
+
+/** A pre-rename file (`slicedock-profiles-backup`, `slicedockVersion`) read as the current shape. */
+function upgradeLegacyBackup(v: unknown): unknown {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return v;
+  const o = v as Record<string, unknown>;
+  if (o.format !== LEGACY_BACKUP_FORMAT) return v;
+  const { slicedockVersion, ...rest } = o;
+  return { ...rest, format: BACKUP_FORMAT, printyardVersion: rest.printyardVersion ?? slicedockVersion };
+}
+
+/** Validates a backup file, current or pre-rename. */
+export const backupSchema = z.preprocess(upgradeLegacyBackup, backupShape);
 
 interface PrinterState {
   lastBackupAt: number | null;
@@ -161,7 +176,7 @@ export class ProfilesBackupService {
     return {
       format: BACKUP_FORMAT,
       version: 1,
-      slicedockVersion: this.deps.version.slice(0, 64),
+      printyardVersion: this.deps.version.slice(0, 64),
       createdAt: new Date().toISOString(),
       printerModel: MODEL,
       process: this.deps.processProfiles
@@ -260,8 +275,9 @@ export class ProfilesBackupService {
     }
     const driver = this.deps.manager.driver(printerId);
     if (!driver.readConfigFile) throw new AppError(409, 'profiles_backup.unsupported', 'This printer cannot hold a backup');
-    const buf = await driver.readConfigFile(BACKUP_PATH, MAX_BACKUP_BYTES);
-    if (!buf) throw new AppError(404, 'profiles_backup.not_found', 'There is no SliceDock backup on this printer');
+    // Backups written before the rename live in `slicedock/`: read there when the new file is missing.
+    const buf = (await driver.readConfigFile(BACKUP_PATH, MAX_BACKUP_BYTES)) ?? (await driver.readConfigFile(LEGACY_BACKUP_PATH, MAX_BACKUP_BYTES));
+    if (!buf) throw new AppError(404, 'profiles_backup.not_found', 'There is no PrintYard backup on this printer');
     let json: unknown;
     try {
       json = JSON.parse(buf.toString('utf8').replace(/^﻿/, ''));
@@ -270,7 +286,7 @@ export class ProfilesBackupService {
     }
     const parsed = backupSchema.safeParse(json);
     if (!parsed.success) {
-      throw new AppError(422, 'profiles_backup.invalid', 'The backup file on the printer is not a SliceDock profiles backup', {
+      throw new AppError(422, 'profiles_backup.invalid', 'The backup file on the printer is not a PrintYard profiles backup', {
         issues: parsed.error.issues.slice(0, 5).map((i) => ({ path: i.path.join('.').slice(0, 80), message: i.message.slice(0, 120) })),
       });
     }
@@ -335,7 +351,7 @@ export class ProfilesBackupService {
     return {
       printerId,
       createdAt: doc.createdAt,
-      slicedockVersion: doc.slicedockVersion,
+      printyardVersion: doc.printyardVersion,
       counts: {
         process: doc.process.length,
         filament: doc.filament.length,

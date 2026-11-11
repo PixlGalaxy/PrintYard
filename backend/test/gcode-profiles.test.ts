@@ -18,7 +18,7 @@ import { compareVersions, pickAppImage } from '../src/modules/engine/engine.serv
 import { makePng } from './b1-helpers.js';
 
 const FIXTURE = new URL('./fixtures/k2se-cube.gcode', import.meta.url);
-const dir = mkdtempSync(join(tmpdir(), 'slicedock-gcode-'));
+const dir = mkdtempSync(join(tmpdir(), 'printyard-gcode-'));
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 describe('G-code summary', () => {

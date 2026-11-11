@@ -12,7 +12,7 @@
 
 export type SliceStage =
   | 'queued'
-  | 'building' // SliceDock writes the 3MF
+  | 'building' // PrintYard writes the 3MF
   | 'loading' // engine loads the project and presets (silent)
   | 'slicing' // mesh slicing
   | 'walls'
@@ -20,7 +20,7 @@ export type SliceStage =
   | 'supports'
   | 'toolpath' // overhang detection, toolpath optimisation
   | 'gcode' // G-code generation + export (partly silent)
-  | 'thumbnails' // SliceDock post-processing
+  | 'thumbnails' // PrintYard post-processing
   | 'saving'
   | 'done';
 

@@ -148,7 +148,7 @@ export class PushService {
   /** Upserts by endpoint: the browser belongs to whoever subscribed on it last. */
   subscribe(userId: number, input: { endpoint: string; p256dh: string; auth: string; userAgent: string | null }): { device: PushDevice; created: boolean } {
     if (!isAllowedPushEndpoint(input.endpoint)) {
-      throw badRequest('notify.push_endpoint_invalid', 'This browser uses a push service SliceDock does not know');
+      throw badRequest('notify.push_endpoint_invalid', 'This browser uses a push service PrintYard does not know');
     }
     this.vapid(); // never let a later first-time key generation wipe this subscription
     const existing = this.o.db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get(input.endpoint) as SubRow | undefined;

@@ -11,7 +11,7 @@ export type LookupFn = (host: string) => Promise<string[]>;
 export const OUTBOUND_TIMEOUT_MS = 10_000;
 export const MAX_REDIRECTS = 3;
 /** Headers that carry a secret and never follow a redirect to another origin (review 3A #5). */
-const SECRET_HEADERS = new Set(['authorization', 'proxy-authorization', 'cookie', 'x-slicedock-signature']);
+const SECRET_HEADERS = new Set(['authorization', 'proxy-authorization', 'cookie', 'x-printyard-signature', 'x-slicedock-signature']); // x-slicedock-*: deprecated pre-rename header
 /** Hosts whose error bodies are short API errors, worth a line in the server log (never returned to clients). */
 const API_HOSTS = /^(?:(?:ptb|canary)\.)?discord(?:app)?\.com$|^api\.telegram\.org$/i;
 

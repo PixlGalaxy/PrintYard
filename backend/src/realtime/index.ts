@@ -22,7 +22,7 @@ export const TOPICS = {
   sliceJob: 'slice.job',
   engineProgress: 'engine.progress',
   printUpdate: 'print.update',
-  /** G-code upload SliceDock → printer progress (`PrintUploadProgress`), owner + admins. */
+  /** G-code upload PrintYard → printer progress (`PrintUploadProgress`), owner + admins. */
   printUpload: 'print.upload',
   approvalPending: 'approval.pending',
   /** Global appearance defaults changed (Admin → Settings → Appearance); data = AppConfig['appearance']. */

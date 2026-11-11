@@ -25,6 +25,6 @@ let dummyHash: Promise<string> | null = null;
 
 /** Burns the same time as a real verify, so unknown usernames cannot be told apart by latency. */
 export async function verifyAgainstDummy(password: string): Promise<void> {
-  dummyHash ??= hashPassword('slicedock-timing-equaliser');
+  dummyHash ??= hashPassword('printyard-timing-equaliser');
   await verifyPassword(await dummyHash, password);
 }

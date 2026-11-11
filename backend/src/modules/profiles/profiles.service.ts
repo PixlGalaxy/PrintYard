@@ -69,7 +69,7 @@ export function engineProfileSource(engineRoot: string, version: string): Profil
   return { indexFile, vendorDir: join(profiles, 'Creality'), engineVersion: version, fromEngine: true };
 }
 
-/** SliceDock printer model → vendor machine model name (`printer_model` in the machine presets). */
+/** PrintYard printer model → vendor machine model name (`printer_model` in the machine presets). */
 export const PRINTER_MODELS: Record<PrinterModel, { vendorModel: string }> = {
   'creality-k2se': { vendorModel: 'Creality K2 SE' },
 };

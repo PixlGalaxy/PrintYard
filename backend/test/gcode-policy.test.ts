@@ -143,7 +143,7 @@ describe('uploaded G-code policy (API, printer simulator)', () => {
     await grant(t.aliceId, false);
   });
 
-  it('without the permission only SliceDock-sliced G-code with a matching sha256 is printable', async () => {
+  it('without the permission only PrintYard-sliced G-code with a matching sha256 is printable', async () => {
     await approval(true);
     const up = await upload(t.alice, Buffer.from(CLEAN), 'mine.gcode');
     assert.equal(up.status, 201, JSON.stringify(up.body));

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
-import { BACKUP_PATH } from '../src/modules/profiles-backup/profiles-backup.service.js';
+import { BACKUP_PATH, LEGACY_BACKUP_PATH } from '../src/modules/profiles-backup/profiles-backup.service.js';
 import { PrinterSimulator } from '../src/printers/sim/simulator.js';
 import { createB1App, type B1App } from './b1-helpers.js';
 import { waitFor } from './live-helpers.js';
@@ -88,7 +88,7 @@ describe('printer-side presets (printer simulator)', () => {
     await t.bob.post('/api/filament-presets').send({ basePresetId: GENERIC_PLA, name: 'Bob PLA', color: '#112233', values: { nozzle_temperature: '215' } });
     await waitFor(() => sim.configFiles.has(BACKUP_PATH) && JSON.parse(sim.configFiles.get(BACKUP_PATH)!.toString()).filament.some((f: { name: string }) => f.name === 'Bob PLA'), 5000);
     const doc = JSON.parse(sim.configFiles.get(BACKUP_PATH)!.toString());
-    assert.equal(doc.format, 'slicedock-profiles-backup');
+    assert.equal(doc.format, 'printyard-profiles-backup');
     assert.equal(doc.version, 1);
     assert.equal(doc.printerModel, 'creality-k2se');
     assert.deepEqual(doc.process.map((p: { owner: string; name: string; shared: boolean }) => [p.owner, p.name, p.shared]), [['alice', 'Alice fast', true]]);
@@ -126,9 +126,9 @@ describe('printer-side presets (printer simulator)', () => {
 
   it('treats the backup file as untrusted: unknown owners → admin, name clashes renamed, bad values dropped', async () => {
     const hostile = {
-      format: 'slicedock-profiles-backup',
+      format: 'printyard-profiles-backup',
       version: 1,
-      slicedockVersion: 'x',
+      printyardVersion: 'x',
       createdAt: new Date().toISOString(),
       printerModel: 'creality-k2se',
       process: [{ owner: 'ghost', shared: false, name: 'Alice fast', inherits: '0.20mm Standard @Creality K2 SE 0.4 nozzle', values: { sparse_infill_density: '12%', machine_start_gcode: 'M104 S999' } }],
@@ -160,6 +160,35 @@ describe('printer-side presets (printer simulator)', () => {
     assert.equal((await t.admin.get(`/api/admin/profiles-backup/preview?printerId=${printerId}`)).status, 413);
     sim.configFiles.delete(BACKUP_PATH);
     assert.equal((await t.admin.get(`/api/admin/profiles-backup/preview?printerId=${printerId}`)).body.error.code, 'profiles_backup.not_found');
+  });
+
+  it('restores a pre-rename backup from slicedock/profiles-backup.json (old format id and version field)', async () => {
+    const legacy = {
+      format: 'slicedock-profiles-backup',
+      version: 1,
+      slicedockVersion: 'old-1',
+      createdAt: new Date().toISOString(),
+      printerModel: 'creality-k2se',
+      process: [{ owner: 'alice', shared: false, name: 'Legacy profile', inherits: '0.20mm Standard @Creality K2 SE 0.4 nozzle', values: { sparse_infill_density: '17%' } }],
+      filament: [],
+    };
+    sim.configFiles.delete(BACKUP_PATH);
+    sim.configFiles.set(LEGACY_BACKUP_PATH, Buffer.from(JSON.stringify(legacy)));
+    try {
+      const preview = await t.admin.get(`/api/admin/profiles-backup/preview?printerId=${printerId}`);
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.equal(preview.body.printyardVersion, 'old-1');
+      assert.deepEqual(preview.body.items.map((i: { name: string }) => i.name), ['Legacy profile']);
+      const res = await t.admin.post('/api/admin/profiles-backup/restore').send({ printerId });
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      assert.deepEqual(res.body.created.map((c: { name: string }) => c.name), ['Legacy profile']);
+      // A backup at the new path wins over the old one.
+      sim.configFiles.set(BACKUP_PATH, Buffer.from(JSON.stringify({ ...legacy, format: 'printyard-profiles-backup', slicedockVersion: undefined, printyardVersion: 'new-1' })));
+      assert.equal((await t.admin.get(`/api/admin/profiles-backup/preview?printerId=${printerId}`)).body.printyardVersion, 'new-1');
+    } finally {
+      sim.configFiles.delete(LEGACY_BACKUP_PATH);
+      sim.configFiles.delete(BACKUP_PATH);
+    }
   });
 
   it('reports a failed write without blocking saves, and can be turned off', async () => {

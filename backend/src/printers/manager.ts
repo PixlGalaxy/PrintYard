@@ -16,7 +16,7 @@ export type DriverFactory = (printer: Printer, resolveEndpoint: EndpointResolver
 export interface PrinterManagerOptions {
   printers: PrintersService;
   hub: RealtimeHub;
-  /** `SLICEDOCK_SIM_PRINTER=1`: route EVERY printer to the simulator (never contacts real hardware). */
+  /** `PRINTYARD_SIM_PRINTER=1`: route EVERY printer to the simulator (never contacts real hardware). */
   simulateAll?: boolean;
   createDriver?: DriverFactory;
   resolveEndpoint?: EndpointResolver;
@@ -62,7 +62,7 @@ export class PrinterManager {
   start(): void {
     if (this.started) return;
     this.started = true;
-    if (this.o.simulateAll) logger.printer.warn('SLICEDOCK_SIM_PRINTER=1: every printer is routed to the simulator');
+    if (this.o.simulateAll) logger.printer.warn('PRINTYARD_SIM_PRINTER=1: every printer is routed to the simulator');
     for (const p of this.o.printers.list()) this.add(p);
     this.unsubscribe = this.o.printers.onChange((c) => {
       if (c.kind === 'create') this.add(c.printer);

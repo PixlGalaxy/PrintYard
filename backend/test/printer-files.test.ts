@@ -78,7 +78,7 @@ describe('Files → On the printer (API, printer simulator)', () => {
     await approval(false);
   });
   after(async () => {
-    delete process.env.SLICEDOCK_READ_ONLY;
+    delete process.env.PRINTYARD_READ_ONLY;
     t?.close();
     await sim?.stop();
   });
@@ -96,7 +96,7 @@ describe('Files → On the printer (API, printer simulator)', () => {
     assert.equal(obj.estimatedSec, 13237);
     assert.equal(obj.createdAt, 1794175463000);
     assert.deepEqual(obj.colors, ['#56df3d']);
-    assert.equal(obj.uploadedBySliceDock, false);
+    assert.equal(obj.uploadedByPrintYard, false);
     assert.equal(obj.libraryFileId, null);
     assert.equal(obj.inUse, false);
     assert.match(obj.thumbnailUrl, /^\/api\/printers\/\d+\/files\/thumbnail\?name=Object_1_PLA_3h40m37s\.gcode&v=\d+$/);
@@ -110,11 +110,11 @@ describe('Files → On the printer (API, printer simulator)', () => {
     assert.equal((await t.alice.get('/api/printers/999/files')).status, 404);
   });
 
-  it('marks files SliceDock uploaded (active printer_uploads record)', async () => {
+  it('marks files PrintYard uploaded (active printer_uploads record)', async () => {
     t.ctx.printerRetention.recordUpload(printerId, '/usr/data/printer_data/gcodes/calibration_cube.gcode', null, sim.fileSize('calibration_cube.gcode'));
     const r = await t.alice.get(`${base()}?refresh=1`);
-    assert.equal(r.body.find((f: { name: string }) => f.name === 'calibration_cube.gcode').uploadedBySliceDock, true);
-    assert.equal(r.body.find((f: { name: string }) => f.name === 'Spatula_PLA_32m19s.gcode').uploadedBySliceDock, false);
+    assert.equal(r.body.find((f: { name: string }) => f.name === 'calibration_cube.gcode').uploadedByPrintYard, true);
+    assert.equal(r.body.find((f: { name: string }) => f.name === 'Spatula_PLA_32m19s.gcode').uploadedByPrintYard, false);
   });
 
   it('proxies thumbnails (PNG only, cached) and validates names against the printer list', async () => {
@@ -258,7 +258,7 @@ describe('Files → On the printer (API, printer simulator)', () => {
     assert.ok(!sim.fileNames().includes('Spatula_PLA_32m19s.gcode'));
     const a = audit('printer.file_delete').filter((e) => JSON.stringify(e.meta).includes('"manual":true'));
     assert.equal(a.length, 2);
-    assert.ok(JSON.stringify(a).includes('"uploadedBySliceDock":true')); // calibration_cube was recorded as ours
+    assert.ok(JSON.stringify(a).includes('"uploadedByPrintYard":true')); // calibration_cube was recorded as ours
     const row = t.ctx.db.prepare("SELECT delete_reason FROM printer_uploads WHERE remote_name = 'calibration_cube.gcode'").get() as { delete_reason: string };
     assert.equal(row.delete_reason, 'manual');
     const list = await t.bob.get(base());
@@ -268,14 +268,14 @@ describe('Files → On the printer (API, printer simulator)', () => {
   });
 
   it('read-only mode refuses print and delete, list still works', async () => {
-    process.env.SLICEDOCK_READ_ONLY = '1';
+    process.env.PRINTYARD_READ_ONLY = '1';
     try {
       assert.equal((await t.admin.delete(base()).send({ names: ['two_cubes.gcode'] })).status, 423);
       assert.equal((await t.admin.post(`${base()}/print`).send({ name: 'two_cubes.gcode' })).status, 423);
       assert.equal((await t.admin.get(base())).status, 200);
       assert.ok(sim.fileNames().includes('two_cubes.gcode'));
     } finally {
-      delete process.env.SLICEDOCK_READ_ONLY;
+      delete process.env.PRINTYARD_READ_ONLY;
     }
   });
 

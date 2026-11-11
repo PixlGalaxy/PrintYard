@@ -47,7 +47,7 @@ export interface BuildProjectInput {
   appVersion: string;
   /** printable width/depth for plate offsets */
   bed: { width: number; depth: number };
-  /** Extra files to embed (e.g. `Metadata/plate_1.png`, `Metadata/slicedock_scene.json`). */
+  /** Extra files to embed (e.g. `Metadata/plate_1.png`, `Metadata/printyard_scene.json`). */
   extras?: { path: string; data: Uint8Array; compress?: boolean }[];
   /** Abort with `projects.too_large` once the output exceeds this many bytes. */
   maxBytes?: number;
@@ -167,7 +167,7 @@ function* modelXmlChunks(input: BuildProjectInput): Generator<string> {
     ' <metadata name="BambuStudio:3mfVersion">1</metadata>\n' +
     ` <metadata name="CreationDate">${date}</metadata>\n` +
     ` <metadata name="ModificationDate">${date}</metadata>\n` +
-    ' <metadata name="Title">SliceDock project</metadata>\n' +
+    ' <metadata name="Title">PrintYard project</metadata>\n' +
     ' <resources>\n';
   const flushAt = 1 << 20;
   for (let i = 0; i < input.objects.length; i++) {

@@ -13,7 +13,7 @@ import { ADMIN, createTestApp, setupBody, type TestApp } from './helpers.js';
 import { api, loginCookie, startServer, waitFor, type LiveServer } from './live-helpers.js';
 
 // node --test runs each file in its own process, so this does not leak into other suites.
-process.env.SLICEDOCK_READ_ONLY = '1';
+process.env.PRINTYARD_READ_ONLY = '1';
 
 const isReadOnlyError = (e: { code?: string; status?: number }) => e.code === 'printers.read_only' && e.status === 423;
 const isWrite = (frame: string) => !isReadOnlyFrame(frame);
@@ -77,7 +77,7 @@ describe('read-only mode against the simulator', () => {
   before(async () => {
     sim = new PrinterSimulator({ tickMs: 25 });
     port = await sim.start();
-    dir = mkdtempSync(join(tmpdir(), 'slicedock-ro-'));
+    dir = mkdtempSync(join(tmpdir(), 'printyard-ro-'));
     gpath = join(dir, 'a.gcode');
     writeFileSync(gpath, 'G28\n');
   });

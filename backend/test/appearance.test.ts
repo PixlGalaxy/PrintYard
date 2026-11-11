@@ -91,7 +91,7 @@ describe('appearance: per-user mode/skin + admin defaults', () => {
 describe('0004_appearance migration', () => {
   it('keeps explicit light/dark, maps the old "system" default to inherit', () => {
     const migrations = fileURLToPath(new URL('../src/db/migrations', import.meta.url));
-    const before = mkdtempSync(join(tmpdir(), 'slicedock-mig-'));
+    const before = mkdtempSync(join(tmpdir(), 'printyard-mig-'));
     for (const f of readdirSync(migrations).filter((f) => /^000[1-3]_/.test(f))) copyFileSync(join(migrations, f), join(before, f));
     const db = openDb(':memory:');
     try {

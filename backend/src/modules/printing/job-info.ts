@@ -27,7 +27,7 @@ interface Snapshot {
 export interface JobInfoDeps {
   manager: PrinterManager;
   printers: PrintersService;
-  /** Library file + print behind the job SliceDock is tracking on the printer. */
+  /** Library file + print behind the job PrintYard is tracking on the printer. */
   tracked: (printerId: number) => { fileId: number; printerFileName: string | null; userId: number | null; printId: number } | null;
   /** Local path of the current job's G-code (library file or cached printer download). */
   gcodePath: (printerId: number) => Promise<string>;

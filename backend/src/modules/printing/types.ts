@@ -6,7 +6,7 @@ export interface GcodeSummaryLike {
   filamentGrams?: number[] | null;
   filamentMm?: number[] | null;
   layers?: number | null;
-  /** `slicer` (trusted, SliceDock sliced it) or `computed` (parsed from the moves); absent on legacy rows. */
+  /** `slicer` (trusted, PrintYard sliced it) or `computed` (parsed from the moves); absent on legacy rows. */
   estimateSource?: 'slicer' | 'computed';
   /** Uploads: dangerous-command scan (files/gcode-scan.ts). */
   scan?: GcodeScan;

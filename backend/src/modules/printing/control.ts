@@ -98,13 +98,13 @@ const refuse = (code: string, message: string, details?: Record<string, unknown>
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 
 /**
- * Turns a typed command into the G-code SliceDock sends. Pure (unit-tested): every bound and refusal lives here.
+ * Turns a typed command into the G-code PrintYard sends. Pure (unit-tested): every bound and refusal lives here.
  * The light is not G-code (Creality WS `lightSw`): see `PrinterControlService.control`.
  * - while a job is active only the "tuning" actions are accepted (fan, temperatures, speed/flow factor);
  *   motion, extrusion and motors off are refused (`printers.control_busy`);
  * - while the bed may hold the last print, home/jog/extrude are refused (`printers.bed_not_cleared`);
  * - jogs need the axis homed (`printers.not_homed`) and must stay inside the build volume (`printers.out_of_range`).
- *   `ctx.position` is the position SliceDock *expects* (see `PrinterControlService`), and the jog is sent as ONE
+ *   `ctx.position` is the position PrintYard *expects* (see `PrinterControlService`), and the jog is sent as ONE
  *   absolute move `G90\nG1 <axis><target> F<feed>`: the printer never leaves absolute mode, even when Klipper refuses
  *   the move (the old `G91 / G1 / G90` script left G91 on after an aborted G1);
  * - extrusion needs the nozzle at ≥ 170 °C (`printers.nozzle_cold`) and is sent as `G92 E0\nG1 E<len> F<f>\nG92 E0`:
@@ -210,9 +210,9 @@ export interface PrinterControlDeps {
   printers: PrintersService;
   users: UsersService;
   audit: AuditService;
-  /** Owner of the print SliceDock is tracking (exclude object, job tuning: owner or admin). */
+  /** Owner of the print PrintYard is tracking (exclude object, job tuning: owner or admin). */
   currentOwner: (printerId: number) => number | null;
-  /** While SliceDock uploads/starts a job on the printer: its owner (null = none); undefined when nothing is. */
+  /** While PrintYard uploads/starts a job on the printer: its owner (null = none); undefined when nothing is. */
   dispatchOwner?: (printerId: number) => number | null | undefined;
   /** `printers.idleHeaterOffMinutes` (idle heater safety); without it the watchdog is off. */
   settings?: Pick<SettingsService, 'get'>;
@@ -223,7 +223,7 @@ export interface PrinterControlDeps {
   now?: () => number;
 }
 
-/** What SliceDock expects the toolhead to do, per printer (see `PrinterControlService`). */
+/** What PrintYard expects the toolhead to do, per printer (see `PrinterControlService`). */
 interface MotionState {
   /** Position after every accepted command (null = unknown: resync from the printer when idle and confirmed). */
   expected: [number, number, number] | null;
@@ -259,7 +259,7 @@ const SYSTEM_ACTOR = { userId: null, username: 'system', ip: null };
 export class PrinterControlService {
   private readonly hits = new Map<string, number[]>();
   private readonly refusedHits = new Map<string, number[]>();
-  /** Last speed/flow factor SliceDock set per printer (fallback when the printer does not report them). */
+  /** Last speed/flow factor PrintYard set per printer (fallback when the printer does not report them). */
   private readonly factors = new Map<number, { speed: number | null; flow: number | null }>();
   private readonly motion = new Map<number, MotionState>();
   private readonly queues = new Map<number, Promise<unknown>>();

@@ -5,7 +5,7 @@ import { unzipSync } from 'fflate';
 import { validateFilamentValues } from '../src/modules/filament-presets/filament-presets.service.js';
 import { boxStl, createB1App, sceneFor, upload, type B1App } from './b1-helpers.js';
 
-process.env.SLICEDOCK_FAKE_ENGINE_MS = '200';
+process.env.PRINTYARD_FAKE_ENGINE_MS = '200';
 
 const BASE = 'Hyper PLA @Creality K2 SE 0.4 nozzle';
 const BASE_PETG = 'Hyper PETG @Creality K2 SE 0.4 nozzle';

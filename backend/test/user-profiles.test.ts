@@ -4,7 +4,7 @@ import { after, before, describe, it } from 'node:test';
 import { unzipSync } from 'fflate';
 import { boxStl, createB1App, sceneFor, upload, type B1App } from './b1-helpers.js';
 
-process.env.SLICEDOCK_FAKE_ENGINE_MS = '200';
+process.env.PRINTYARD_FAKE_ENGINE_MS = '200';
 
 const PROCESS = '0.20mm Standard @Creality K2 SE 0.4 nozzle';
 const PROCESS_016 = '0.16mm Standard @Creality K2 SE 0.4 nozzle';
