@@ -9,6 +9,7 @@ import { mockCore } from './mock'
 import { engineInstalledVersion, mockBlob, mockFiles, mockPublish, NOT_HANDLED } from './mockF2'
 import { generateSampleGcode } from './sampleGcode'
 import { customFilamentSummaries, handleFilaments, resolveCustomFilament } from './mockFilaments'
+import { customProcessSummaries, handleProfiles, resolveCustomProcess } from './mockProfiles'
 import { dependencySelfChecks } from '../workspace/settings/dependencies'
 
 // Dev-only: the option dependency rules check themselves once when the mock loads
@@ -63,7 +64,7 @@ function bundle(lang: string | null): ProfileBundle {
     engineVersion: DATA.engineVersion,
     printerModel: MODEL,
     machine: DATA.machine.map(summary),
-    process: DATA.process.map(summary),
+    process: [...DATA.process.map(summary), ...customProcessSummaries(DATA.process)],
     filament: [...DATA.filament.map(summary), ...customFilamentSummaries(DATA.filament)],
     options: es ? localize(DATA.options, DATA.es) : DATA.options,
     filamentOptions: es ? localize(DATA.filamentOptions, DATA.filamentEs) : DATA.filamentOptions,
@@ -291,6 +292,8 @@ async function build3mf(name: string, scene: SceneDoc, thumb?: string): Promise<
 export function handleF1(method: string, p: string, url: URL, b: Record<string, unknown>): unknown {
   const custom = handleFilaments(method, p, url, b, DATA.filament)
   if (custom !== NOT_HANDLED) return custom
+  const profiles = handleProfiles(method, p, url, b, DATA)
+  if (profiles !== NOT_HANDLED) return profiles
   // Profiles
   const pm = p.match(/^\/profiles\/([\w-]+)(?:\/preset\/(machine|process|filament)\/(.+))?$/)
   if (pm && method === 'GET') {
@@ -299,6 +302,7 @@ export function handleF1(method: string, p: string, url: URL, b: Record<string, 
     if (!pm[2]) return bundle(url.searchParams.get('lang'))
     const id = decodeURIComponent(pm[3])
     if (pm[2] === 'filament' && id.startsWith('custom:')) return resolveCustomFilament(id, DATA.filament)
+    if (pm[2] === 'process' && id.startsWith('custom:')) return resolveCustomProcess(id, DATA.process)
     const list = DATA[pm[2] as 'machine' | 'process' | 'filament']
     const preset = list.find((x) => x.id === id)
     if (!preset) throw new ApiError(404, 'common.not_found', 'Unknown preset')

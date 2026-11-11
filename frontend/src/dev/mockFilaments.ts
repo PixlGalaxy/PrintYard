@@ -1,5 +1,6 @@
 // Dev-only mock for custom filament presets (`/filament-presets`, `custom:<id>` in the profile bundle).
-// Mirrors the backend rules: private = owner only, shared = everyone (admins share), names unique per owner.
+// Mirrors the backend rules: private = owner only, shared = everyone (the owner or an admin shares), names unique per
+// owner. A first load seeds one filament that the second mock user (maria) shares.
 import { ApiError } from '../api'
 import type { FilamentPreset, FilamentPresetCreate, FilamentPresetPatch, PresetSummary, ResolvedPreset } from '../types'
 import { mockCore } from './mock'
@@ -15,11 +16,25 @@ interface SystemPreset {
 type Row = Omit<FilamentPreset, 'canEdit' | 'presetId' | 'ownerName'>
 
 const KEY = 'sd:mock:filaments'
+const SEED: Row = {
+  id: 1,
+  ownerId: 2,
+  scope: 'shared',
+  printerModel: 'creality-k2se',
+  name: 'Silk Gold (club)',
+  inherits: 'CR-Silk @Creality K2 SE 0.4 nozzle',
+  vendor: 'Creality',
+  filamentType: 'PLA',
+  color: '#D4AF37',
+  values: { nozzle_temperature: '225', fan_max_speed: '90' },
+  createdAt: Date.now() - 3 * 86_400_000,
+  updatedAt: Date.now() - 3 * 86_400_000,
+}
 const load = (): { next: number; rows: Row[] } => {
   try {
     return JSON.parse(localStorage.getItem(KEY) ?? '') as { next: number; rows: Row[] }
   } catch {
-    return { next: 1, rows: [] }
+    return { next: 2, rows: [SEED] }
   }
 }
 const db = load()
@@ -36,8 +51,8 @@ const view = (r: Row, me: { id: number; role: string }): FilamentPreset => ({
   ...r,
   presetId: `custom:${r.id}`,
   ownerName: usernameOf(r.ownerId),
-  // Shared presets: admins only (backend review 3A #7)
-  canEdit: me.role === 'admin' || (r.ownerId === me.id && r.scope !== 'shared'),
+  // Profiles are personal: owner or admin
+  canEdit: me.role === 'admin' || r.ownerId === me.id,
 })
 const usable = (r: Row, me: { id: number; role: string }) => r.scope === 'shared' || r.ownerId === me.id || me.role === 'admin'
 const BAD_VALUE = /^(nan|infinity)$/i
@@ -109,7 +124,6 @@ export function handleFilaments(method: string, p: string, url: URL, b: Record<s
   }
   if (p === '/filament-presets' && method === 'POST') {
     const body = b as unknown as FilamentPresetCreate
-    if (body.scope === 'shared' && me.role !== 'admin') throw new ApiError(403, 'filament_presets.share_admin_only', 'Admins only')
     let inherits = body.basePresetId
     let baseValues: Record<string, string> = {}
     const src = db.rows.find((r) => `custom:${r.id}` === body.basePresetId)
@@ -146,7 +160,7 @@ export function handleFilaments(method: string, p: string, url: URL, b: Record<s
   if (!row || !usable(row, me)) throw new ApiError(404, 'common.not_found', 'Not found')
   const writable = row.ownerId === me.id || me.role === 'admin'
   if (m[2] && method === 'POST') {
-    if (me.role !== 'admin') throw new ApiError(403, 'filament_presets.share_admin_only', 'Admins only')
+    if (!writable) throw new ApiError(403, 'filament_presets.forbidden', 'Owner or admin only')
     row.scope = (b.scope as Row['scope']) ?? 'shared'
     row.updatedAt = Date.now()
     persist()
@@ -154,9 +168,6 @@ export function handleFilaments(method: string, p: string, url: URL, b: Record<s
   }
   if (method === 'GET') return view(row, me)
   if (!writable) throw new ApiError(403, 'filament_presets.forbidden', 'Owner or admin only')
-  if (me.role !== 'admin' && row.scope === 'shared' && method !== 'POST') {
-    throw new ApiError(403, 'filament_presets.shared_read_only', 'Shared: only an admin can change it')
-  }
   if (method === 'PATCH') {
     const patch = b as FilamentPresetPatch
     if (patch.name !== undefined) assertName(patch.name, row.ownerId, system, row.id)
@@ -174,8 +185,10 @@ export function handleFilaments(method: string, p: string, url: URL, b: Record<s
     return view(row, me)
   }
   if (method === 'DELETE') {
+    for (const u of mockCore.state.users) if (u.defaultFilamentPreset === `custom:${row.id}`) u.defaultFilamentPreset = null
     db.rows.splice(db.rows.indexOf(row), 1)
     persist()
+    mockCore.save()
     return undefined
   }
   return NOT_HANDLED

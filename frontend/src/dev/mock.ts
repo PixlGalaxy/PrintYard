@@ -480,6 +480,9 @@ export const mockTransport: Transport = async (method, path, body) => {
         if (l !== null && !PREPARE_LEVELS.includes(l)) throw new ApiError(400, 'validation.failed', 'Invalid prepareLevel')
         u.prepareLevel = l
       }
+      // "Always used" presets (the real server checks the user may use them)
+      if ('defaultProcessPreset' in b) u.defaultProcessPreset = (b.defaultProcessPreset as string | null) ?? null
+      if ('defaultFilamentPreset' in b) u.defaultFilamentPreset = (b.defaultFilamentPreset as string | null) ?? null
       u.theme = u.themeMode ?? 'system'
       audit('account.update', null, Object.keys(b))
       return { user: selfUser(u) }
