@@ -6,7 +6,8 @@ import { inputCls, selectCls, textareaCls } from '../../components/styles'
 import { Callout, ErrorState, Field, Loading } from '../../components/ui'
 import { useI18n } from '../../i18n/I18nContext'
 import { LANGUAGE_NAMES, SUPPORTED_LANGUAGES } from '../../i18n/translations'
-import type { ExposureMode, Language } from '../../types'
+import { PREPARE_LEVELS, type ExposureMode, type Language, type PrepareLevel } from '../../types'
+import { LEVEL_DESC, LEVEL_LABEL } from '../workspace/prepare/settings/levels'
 import { isCidr, isEmail, isUrl, parseOptionalNumber } from '../../validation'
 import AppearanceSettingsPanel from './AppearanceSettingsPanel'
 import SaveBar from './SaveBar'
@@ -40,6 +41,7 @@ export default function SettingsSection() {
   const adminEmail = s.value('admin.email') ?? ''
   const cost = costText ?? (s.value('limits.costPerKg') == null ? '' : String(s.value('limits.costPerKg')))
   const currency = s.value('limits.currency') ?? 'USD'
+  const defaultLevel = s.value('workspace.defaultLevel') ?? 'basic'
 
   const proxyList = proxies.split(/[\n,]/).map((x) => x.trim()).filter(Boolean)
   const errors = {
@@ -150,6 +152,20 @@ export default function SettingsSection() {
             {SUPPORTED_LANGUAGES.map((l) => (
               <option key={l} value={l}>
                 {LANGUAGE_NAMES[l]}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+        <SettingRow label={t('settings.defaultLevel')} description={`${t('settings.defaultLevelHint')} ${t(LEVEL_DESC[defaultLevel])}`}>
+          <select
+            aria-label={t('settings.defaultLevel')}
+            className={`${selectCls} w-44!`}
+            value={defaultLevel}
+            onChange={(e) => s.set('workspace.defaultLevel', e.target.value as PrepareLevel)}
+          >
+            {PREPARE_LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {t(LEVEL_LABEL[l])}
               </option>
             ))}
           </select>

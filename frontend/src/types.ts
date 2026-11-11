@@ -67,6 +67,9 @@ export interface Nav3dPrefs {
 export const BED_SURFACES = ['Epoxy Resin Plate', 'Textured PEI Plate', 'High Temp Plate', 'Cool Plate', 'Engineering Plate', 'Customized Plate'] as const
 export type BedSurface = (typeof BED_SURFACES)[number]
 export const DEFAULT_BED_SURFACE: BedSurface = 'Epoxy Resin Plate'
+/** Prepare tab settings level (Basic / Advanced / Expert), keep in sync with backend/src/types.ts */
+export const PREPARE_LEVELS = ['basic', 'advanced', 'expert'] as const
+export type PrepareLevel = (typeof PREPARE_LEVELS)[number]
 export interface AppearanceDefaults {
   defaultMode: ThemeMode
   defaultSkin: Skin
@@ -98,6 +101,8 @@ export interface User {
   canControlPrinter?: boolean
   /** 3D navigation preferences; null = SliceDock defaults */
   nav3d?: Nav3dPrefs | null
+  /** Prepare tab settings level; null = admin default (`workspace.defaultLevel`) */
+  prepareLevel?: PrepareLevel | null
 }
 
 export interface UserLimits {
@@ -179,6 +184,8 @@ export interface AppConfig {
   files?: { retentionEnabled: boolean; retentionKeep: number; maxUploadMb?: number }
   /** Admin setting `printing.calibrateByDefault`: the print dialog's "Calibrate before printing" default */
   printing?: { calibrateByDefault?: boolean }
+  /** Admin setting `workspace.defaultLevel` (optional for older servers) */
+  workspace?: { defaultLevel?: PrepareLevel }
 }
 
 // ---------- Request bodies ----------
@@ -210,6 +217,8 @@ export interface SetupCompleteRequest {
   printer: PrinterInput
   exposure: { mode: ExposureMode; publicUrl: string | null }
   engine: { selected: EngineId; autoUpdate: boolean }
+  /** Optional: older servers ignore it, newer ones default to 'basic' */
+  workspace?: { defaultLevel: PrepareLevel }
 }
 
 export interface CreateUserRequest {
@@ -239,6 +248,8 @@ export interface AccountPatch {
   skin?: Skin | null
   /** null = SliceDock defaults */
   nav3d?: Nav3dPrefs | null
+  /** null = use the admin default */
+  prepareLevel?: PrepareLevel | null
 }
 
 /** GET /api/account/sessions (id is a public hash, not the token) */
@@ -259,6 +270,7 @@ export interface Settings {
   'app.defaultLanguage': Language
   'appearance.defaultMode': ThemeMode
   'appearance.defaultSkin': Skin
+  'workspace.defaultLevel': PrepareLevel
   'admin.email': string | null
   'exposure.mode': ExposureMode
   'exposure.trustedProxies': string[]

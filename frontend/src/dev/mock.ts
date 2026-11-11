@@ -6,7 +6,7 @@ import { ApiError, type BinarySender, type Transport } from '../api'
 import { handleF1 } from './mockF1'
 import { handleNotify, resetNotify } from './mockNotify'
 import { engineInstalledVersion, handleF2, mockFiles, mockPublish, NOT_HANDLED, resetF2 } from './mockF2'
-import { BED_SURFACES, DEFAULT_BED_SURFACE, NAV3D_PRESETS, type BedSurface, type Nav3dPrefs } from '../types'
+import { BED_SURFACES, DEFAULT_BED_SURFACE, NAV3D_PRESETS, PREPARE_LEVELS, type BedSurface, type Nav3dPrefs, type PrepareLevel } from '../types'
 import type {
   AdminUser,
   AuditEntry,
@@ -84,6 +84,7 @@ const DEFAULT_SETTINGS: Settings = {
   'app.defaultLanguage': 'en',
   'appearance.defaultMode': 'system',
   'appearance.defaultSkin': 'sky',
+  'workspace.defaultLevel': 'basic',
   'admin.email': null,
   'exposure.mode': 'none',
   'exposure.trustedProxies': [],
@@ -377,7 +378,7 @@ export const mockTransport: Transport = async (method, path, body) => {
     // ---------- public ----------
     if (p === '/health') return { ok: true, version: '0.1.0-mock' }
     if (p === '/config') {
-      return { appName: 'SliceDock', version: '0.1.0-mock', setupComplete: state.setupComplete, languages: ['en', 'es'], defaultLanguage: state.settings['app.defaultLanguage'], appearance: { defaultMode: state.settings['appearance.defaultMode'], defaultSkin: state.settings['appearance.defaultSkin'] }, readOnly: flags.readOnly, files: { retentionEnabled: state.settings['files.retention.enabled'], retentionKeep: state.settings['files.retention.keep'], maxUploadMb: state.settings['files.maxUploadMb'] }, printing: { calibrateByDefault: (state.settings as unknown as Record<string, unknown>)['printing.calibrateByDefault'] === true } }
+      return { appName: 'SliceDock', version: '0.1.0-mock', setupComplete: state.setupComplete, languages: ['en', 'es'], defaultLanguage: state.settings['app.defaultLanguage'], appearance: { defaultMode: state.settings['appearance.defaultMode'], defaultSkin: state.settings['appearance.defaultSkin'] }, workspace: { defaultLevel: state.settings['workspace.defaultLevel'] ?? 'basic' }, readOnly: flags.readOnly, files: { retentionEnabled: state.settings['files.retention.enabled'], retentionKeep: state.settings['files.retention.keep'], maxUploadMb: state.settings['files.maxUploadMb'] }, printing: { calibrateByDefault: (state.settings as unknown as Record<string, unknown>)['printing.calibrateByDefault'] === true } }
     }
     if (p === '/setup/status') {
       const admin = state.users.some((u) => u.id === state.sessionUserId && u.role === 'admin')
@@ -402,6 +403,8 @@ export const mockTransport: Transport = async (method, path, body) => {
         const printer = b.printer as Omit<Printer, 'id'> | null
         const exposure = b.exposure as { mode: Settings['exposure.mode']; publicUrl: string | null }
         const engine = b.engine as { selected: Settings['engine.selected']; autoUpdate: boolean }
+        const level = (b.workspace as { defaultLevel?: PrepareLevel } | undefined)?.defaultLevel ?? 'basic'
+        if (!PREPARE_LEVELS.includes(level)) throw new ApiError(400, 'validation.failed', 'Invalid workspace.defaultLevel')
         const u: MockUser = {
           id: state.nextId++,
           username: admin.username,
@@ -428,6 +431,7 @@ export const mockTransport: Transport = async (method, path, body) => {
           'exposure.publicUrl': exposure.publicUrl,
           'engine.selected': engine.selected,
           'engine.autoUpdate': engine.autoUpdate,
+          'workspace.defaultLevel': level,
           'admin.email': admin.email || null,
           'app.defaultLanguage': b.language,
         })
@@ -470,6 +474,11 @@ export const mockTransport: Transport = async (method, path, body) => {
         const n = b.nav3d as Nav3dPrefs | null
         if (n && (!NAV3D_PRESETS.includes(n.preset) || (n.preset === 'custom' && !n.custom))) throw new ApiError(400, 'validation.failed', 'Invalid nav3d')
         u.nav3d = n ?? null
+      }
+      if ('prepareLevel' in b) {
+        const l = b.prepareLevel as PrepareLevel | null
+        if (l !== null && !PREPARE_LEVELS.includes(l)) throw new ApiError(400, 'validation.failed', 'Invalid prepareLevel')
+        u.prepareLevel = l
       }
       u.theme = u.themeMode ?? 'system'
       audit('account.update', null, Object.keys(b))
@@ -605,6 +614,9 @@ export const mockTransport: Transport = async (method, path, body) => {
       }
       if (p === '/admin/settings' && method === 'GET') return state.settings
       if (p === '/admin/settings' && method === 'PATCH') {
+        if ('workspace.defaultLevel' in b && !PREPARE_LEVELS.includes(b['workspace.defaultLevel'] as PrepareLevel)) {
+          throw new ApiError(400, 'validation.failed', 'Invalid settings', { issues: [{ key: 'workspace.defaultLevel', message: 'Invalid option' }] })
+        }
         Object.assign(state.settings, b)
         audit('settings.update', null, Object.keys(b))
         if (Object.keys(b).some((k) => k.startsWith('appearance.'))) {

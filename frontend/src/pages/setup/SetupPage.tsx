@@ -30,7 +30,8 @@ import { useToast } from '../../context/ToastContext'
 import { printerModelName } from '../../format'
 import { useI18n } from '../../i18n/I18nContext'
 import { LANGUAGE_NAMES, SUPPORTED_LANGUAGES, type TranslationKey } from '../../i18n/translations'
-import type { EngineId, ExposureMode, PrinterModelInfo, SetupStatus } from '../../types'
+import { PREPARE_LEVELS, type EngineId, type ExposureMode, type PrepareLevel, type PrinterModelInfo, type SetupStatus } from '../../types'
+import { LEVEL_DESC, LEVEL_ICON, LEVEL_LABEL } from '../workspace/prepare/settings/levels'
 import {
   formatBytes,
   isEmail,
@@ -133,6 +134,7 @@ function Wizard({ status, models }: { status: SetupStatus; models: PrinterModelI
   const [tested, setTested] = useState(false)
   const [exposure, setExposure] = useState<{ mode: ExposureMode; publicUrl: string }>({ mode: 'none', publicUrl: '' })
   const [engine, setEngine] = useState<{ selected: EngineId; autoUpdate: boolean }>({ selected: 'creality', autoUpdate: true })
+  const [defaultLevel, setDefaultLevel] = useState<PrepareLevel>('basic')
   const [finishing, setFinishing] = useState(false)
 
   // ---------- Validation per step ----------
@@ -178,6 +180,7 @@ function Wizard({ status, models }: { status: SetupStatus; models: PrinterModelI
         printer: printerInput(printer),
         exposure: { mode: exposure.mode, publicUrl: exposure.publicUrl.trim() || null },
         engine,
+        workspace: { defaultLevel },
       })
       completeSetup(user)
       toast('success', t('setup.done'))
@@ -264,6 +267,26 @@ function Wizard({ status, models }: { status: SetupStatus; models: PrinterModelI
                   ))}
                 </div>
                 <p className="text-xs text-muted">{t('setup.welcome.languageHint')}</p>
+              </fieldset>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">{t('settings.defaultLevel')}</legend>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {PREPARE_LEVELS.map((l) => {
+                    const Icon = LEVEL_ICON[l]
+                    return (
+                      <RadioCard
+                        key={l}
+                        name="defaultLevel"
+                        checked={defaultLevel === l}
+                        onChange={() => setDefaultLevel(l)}
+                        icon={<Icon size={18} />}
+                        title={t(LEVEL_LABEL[l])}
+                        description={t(LEVEL_DESC[l])}
+                      />
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted">{t('setup.welcome.levelHint')}</p>
               </fieldset>
             </StepIntro>
           )}
@@ -411,6 +434,10 @@ function Wizard({ status, models }: { status: SetupStatus; models: PrinterModelI
               <dl className="divide-y divide-line overflow-hidden rounded-xl border border-line">
                 <SummaryRow label={t('summary.language')} onEdit={() => goTo(0)}>
                   {LANGUAGE_NAMES[language]}
+                  <span className="text-muted">
+                    {' '}
+                    · {t('workspace.level.label')}: {t(LEVEL_LABEL[defaultLevel])}
+                  </span>
                 </SummaryRow>
                 <SummaryRow label={t('summary.admin')} onEdit={() => goTo(1)}>
                   <span className="font-medium">{admin.username}</span>
