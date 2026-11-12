@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import cookieParser from 'cookie-parser';
-import express, { type Express } from 'express';
+import express, { type Express, type Request, type RequestHandler } from 'express';
 import type { AppContext } from './context.js';
+import { SESSION_COOKIE } from './modules/auth/sessions.service.js';
 import {
   apiNotFound,
   csrf,
@@ -38,6 +39,29 @@ import { projectsRoutes } from './modules/projects/projects.routes.js';
 import { slicingRoutes } from './modules/slicing/slicing.routes.js';
 import { accountNotificationRoutes, adminNotificationRoutes } from './modules/notifications/notifications.routes.js';
 
+const SKIP_BODY = Symbol('skipBody');
+/** `express.json` type test: JSON, unless signedInJson already decided not to read this body. */
+const jsonType = (req: unknown) => {
+  const r = req as Request & { [SKIP_BODY]?: boolean };
+  return !r[SKIP_BODY] && /^application\/json\s*(;|$)/i.test(r.headers['content-type'] ?? '');
+};
+
+/**
+ * The large JSON limits only for requests carrying a session cookie: every route behind them needs a login, so an
+ * anonymous multi-MB body is not parsed at all (marked as handled; the route answers 401). Whether the cookie is
+ * valid is checked later by loadSession/requireAuth, as for any request.
+ */
+function signedInJson(limit: string): RequestHandler {
+  const parse = express.json({ limit, type: jsonType });
+  return (req, res, next) => {
+    if (req.headers.cookie?.includes(`${SESSION_COOKIE}=`)) return parse(req, res, next);
+    // not read at all: the 1 MB parser below skips flagged requests (see jsonType)
+    (req as Request & { [SKIP_BODY]?: boolean })[SKIP_BODY] = true;
+    req.body = {};
+    next();
+  };
+}
+
 export function createApp(ctx: AppContext): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -56,10 +80,10 @@ export function createApp(ctx: AppContext): Express {
   api.use(requestLogger());
   api.use(ipBan(ctx));
   // Scenes + base64 thumbnails (B1) may exceed 1 MB; body-parser skips already-parsed bodies.
-  api.use(['/slice', '/projects'], express.json({ limit: '4mb' }));
+  api.use(['/slice', '/projects'], signedInJson('4mb'));
   // Profile imports carry the file as base64 (5 MB file → ~6.7 MB JSON); the service checks the decoded size.
-  api.use('/profile-files/import', express.json({ limit: '8mb' }));
-  api.use(express.json({ limit: '1mb' }));
+  api.use('/profile-files/import', signedInJson('8mb'));
+  api.use(express.json({ limit: '1mb', type: jsonType }));
   api.use(cookieParser());
   api.use(csrf(ctx));
   api.use(loadSession(ctx));
