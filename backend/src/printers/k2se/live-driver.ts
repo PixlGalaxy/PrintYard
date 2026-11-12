@@ -729,7 +729,7 @@ export class K2SELiveDriver implements PrinterDriver {
   private emitStatus(force: boolean): void {
     const s = this.getStatus();
     const objects = s.job?.objects.map((o) => `${o.name}:${o.excluded ? 1 : 0}${o.current ? 1 : 0}`).join(',');
-    const key = `${s.online}|${s.state}|${s.layer}|${s.progress}|${s.fileName}|${s.errorCode}|${s.nozzleTarget}|${s.bedTarget}|${JSON.stringify(s.cfs)}|${s.fanPart}|${s.lightOn}|${s.speedFactor}|${s.flowFactor}|${s.homedAxes}|${objects}`;
+    const key = `${s.online}|${s.state}|${s.layer}|${s.progress}|${s.fileName}|${s.errorCode}|${s.nozzleTarget}|${s.bedTarget}|${JSON.stringify(s.cfs)}|${s.fanPart}|${s.fanAux}|${s.fanCase}|${s.lightOn}|${s.speedFactor}|${s.flowFactor}|${s.homedAxes}|${objects}`;
     const important = force || key !== this.lastEmitKey;
     const now = Date.now();
     const gap = this.opts.statusThrottleMs ?? 1000;

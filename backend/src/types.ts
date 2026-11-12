@@ -377,7 +377,8 @@ export type PrinterControlCommand =
   | { action: 'jog'; axis: 'x' | 'y' | 'z'; distance: number; feedrate: number }
   | { action: 'extrude'; length: number; speed: number }
   | { action: 'temp'; heater: 'nozzle' | 'bed'; target: number }
-  | { action: 'fan'; percent: number }
+  /** `fan`: part (model, default), case (back) or aux (side). */
+  | { action: 'fan'; percent: number; fan?: 'part' | 'case' | 'aux' }
   /** Chamber light (Creality WS `lightSw`, not G-code). Allowed while printing, like the fan. */
   | { action: 'light'; on: boolean }
   /** Feedrate factor `M220 S<10-300>` (allowed while printing). */

@@ -68,7 +68,7 @@ export const controlSchema: z.ZodType<PrinterControlCommand> = z.discriminatedUn
     })
     .strict(),
   z.object({ action: z.literal('temp'), heater: z.enum(['nozzle', 'bed']), target: z.number().int().min(0).max(400) }).strict(),
-  z.object({ action: z.literal('fan'), percent: z.number().int().min(0).max(100) }).strict(),
+  z.object({ action: z.literal('fan'), percent: z.number().int().min(0).max(100), fan: z.enum(['part', 'case', 'aux']).optional() }).strict(),
   z.object({ action: z.literal('motors_off') }).strict(),
   z.object({ action: z.literal('light'), on: z.boolean() }).strict(),
   z
@@ -109,7 +109,8 @@ const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
  *   the move (the old `G91 / G1 / G90` script left G91 on after an aborted G1);
  * - extrusion needs the nozzle at ≥ 170 °C (`printers.nozzle_cold`) and is sent as `G92 E0\nG1 E<len> F<f>\nG92 E0`:
  *   no M82/M83 mode change at all (from E=0 the move is `len` mm in both absolute and relative extrusion mode);
- * - targets are bounded by the printer/profile maxima (`printers.temp_out_of_range`).
+ * - targets are bounded by the printer/profile maxima (`printers.temp_out_of_range`);
+ * - the nozzle cannot be turned off (target 0) while a job is active (`printers.nozzle_off_printing`).
  */
 export type GcodeControlCommand = Exclude<PrinterControlCommand, { action: 'light' }>;
 
@@ -174,6 +175,10 @@ export function buildControlGcode(c: GcodeControlCommand, ctx: ControlContext): 
     }
     case 'temp': {
       const max = c.heater === 'nozzle' ? ctx.maxNozzleTemp : ctx.maxBedTemp;
+      // Turning the hotend off mid-print ruins the job: only lowering it is allowed while a job is active.
+      if (c.heater === 'nozzle' && c.target === 0 && isActiveState(ctx.state)) {
+        throw refuse('printers.nozzle_off_printing', 'The nozzle cannot be turned off while a print is running');
+      }
       if (!Number.isInteger(c.target) || c.target < 0 || c.target > max) {
         throw new AppError(400, 'printers.temp_out_of_range', `Target must be between 0 and ${max} °C`, { heater: c.heater, max });
       }
@@ -181,8 +186,9 @@ export function buildControlGcode(c: GcodeControlCommand, ctx: ControlContext): 
     }
     case 'fan': {
       if (!Number.isInteger(c.percent) || c.percent < 0 || c.percent > 100) throw new AppError(400, 'printers.out_of_range', 'Fan out of range');
-      // Creality Print SetFanSpeed: `M106 P0 S<0-255>` (P0 = part-cooling fan).
-      return `M106 P0 S${Math.round((c.percent * 255) / 100)}`;
+      // Creality Print SetFanSpeed: `M106 P<n> S<0-255>` (P0 = part/model fan, P1 = case/back fan, P2 = auxiliary/side fan).
+      const p = c.fan === 'case' ? 1 : c.fan === 'aux' ? 2 : 0;
+      return `M106 P${p} S${Math.round((c.percent * 255) / 100)}`;
     }
     case 'speed_factor':
     case 'flow_factor': {

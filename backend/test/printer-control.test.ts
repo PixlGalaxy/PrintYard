@@ -43,6 +43,9 @@ describe('control G-code builder', () => {
     assert.equal(buildControlGcode({ action: 'temp', heater: 'bed', target: 0 }, idle), 'M140 S0');
     assert.equal(buildControlGcode({ action: 'fan', percent: 50 }, idle), 'M106 P0 S128');
     assert.equal(buildControlGcode({ action: 'fan', percent: 0 }, idle), 'M106 P0 S0');
+    assert.equal(buildControlGcode({ action: 'fan', percent: 100, fan: 'part' }, idle), 'M106 P0 S255');
+    assert.equal(buildControlGcode({ action: 'fan', percent: 50, fan: 'case' }, idle), 'M106 P1 S128');
+    assert.equal(buildControlGcode({ action: 'fan', percent: 20, fan: 'aux' }, idle), 'M106 P2 S51');
     assert.equal(buildControlGcode({ action: 'motors_off' }, idle), 'M84');
     assert.equal(buildControlGcode({ action: 'extrude', length: -5, speed: 5 }, { ...idle, nozzleTemp: 215 }), 'G92 E0\nG1 E-5 F300\nG92 E0');
   });
@@ -73,6 +76,9 @@ describe('control G-code builder', () => {
       // live tuning stays allowed: fan, temperatures, speed and flow factors
       assert.equal(buildControlGcode({ action: 'fan', percent: 100 }, { ...idle, state }), 'M106 P0 S255');
       assert.equal(buildControlGcode({ action: 'temp', heater: 'nozzle', target: 200 }, { ...idle, state }), 'M104 S200');
+      // the nozzle can be lowered but not turned off mid-job; the bed can
+      assert.equal(code(() => buildControlGcode({ action: 'temp', heater: 'nozzle', target: 0 }, { ...idle, state })), 'printers.nozzle_off_printing');
+      assert.equal(buildControlGcode({ action: 'temp', heater: 'bed', target: 0 }, { ...idle, state }), 'M140 S0');
       assert.equal(buildControlGcode({ action: 'speed_factor', percent: 150 }, { ...idle, state }), 'M220 S150');
       assert.equal(buildControlGcode({ action: 'flow_factor', percent: 95 }, { ...idle, state }), 'M221 S95');
     }
@@ -115,6 +121,8 @@ describe('control G-code builder', () => {
       { action: 'temp', heater: 'chamber', target: 40 },
       { action: 'temp', heater: 'nozzle', target: 200.5 },
       { action: 'fan', percent: 101 },
+      { action: 'fan', percent: 50, fan: 'P3' },
+      { action: 'fan', percent: 50, fan: '1\nM112' },
       { action: 'motors_off', all: true },
       { action: 'light', on: 1 },
       { action: 'light' },
@@ -273,6 +281,10 @@ describe('printer controls + exclude object end-to-end (simulator)', () => {
     assert.equal((await control(alice, { action: 'temp', heater: 'nozzle', target: 0 })).status, 200);
     assert.equal((await control(alice, { action: 'temp', heater: 'bed', target: 55 })).status, 200);
     assert.equal((await control(alice, { action: 'fan', percent: 40 })).status, 200);
+    assert.equal((await control(alice, { action: 'fan', percent: 30, fan: 'case' })).status, 200);
+    assert.equal((await control(alice, { action: 'fan', percent: 60, fan: 'aux' })).status, 200);
+    assert.equal((await control(alice, { action: 'fan', percent: 60, fan: 'chamber' })).status, 400);
+    await waitFor(() => status().fanCase === 30 && status().fanAux === 60);
     await waitFor(() => status().fanPart === 40 && status().bedTarget === 55);
     assert.equal((await control(alice, { action: 'light', on: false })).status, 200);
     await waitFor(() => status().lightOn === false);
