@@ -439,6 +439,7 @@
   "errors.files.too_large": "El archivo supera el límite de subida.",
   "errors.files.invalid_name": "Ese nombre de archivo no es válido.",
   "errors.files.not_found": "No se encontró el archivo.",
+  "errors.files.private": "Este archivo es privado de otro usuario: solo su propietario o un administrador puede copiarlo o imprimirlo.",
   "errors.engine.busy": "El motor ya se está actualizando.",
   "errors.engine.up_to_date": "El motor ya está actualizado.",
   "errors.engine.no_previous": "No hay una versión anterior a la que volver.",

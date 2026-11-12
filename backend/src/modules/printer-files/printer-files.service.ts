@@ -127,6 +127,7 @@ export class PrinterFilesService {
   async importFile(actor: Actor, printerId: number, name: string): Promise<LibraryFile> {
     this.d.printers.get(printerId);
     const entry = await this.resolve(printerId, name);
+    this.assertMayCopy(actor, this.uploadsOf(printerId).get(entry.path)?.fileId ?? null, entry.name);
     const dl = await this.download(printerId, entry);
     const file = await this.d.files.addUpload(
       { id: actor.id, username: actor.username },
@@ -158,6 +159,7 @@ export class PrinterFilesService {
     };
     // Without the permission only a PrintYard upload of a readable library file can qualify (sha256 checked below).
     if (!mayUpload && linked === null) refuse();
+    this.assertMayCopy(actor, linked, entry.name);
     const dl = await this.download(printerId, entry);
     let fileId: number | null = null;
     let imported = false;
@@ -266,6 +268,20 @@ export class PrinterFilesService {
       await rm(tmpPath, { force: true });
       if (err instanceof AppError && err.code === 'printers.gcode_too_large') throw tooLarge();
       throw err;
+    }
+  }
+
+  /**
+   * A printer file PrintYard uploaded from someone's private library file stays private: only its owner or an
+   * admin may copy it into a library (import, or print, which imports a copy). Shared files, files whose library
+   * copy is gone and files that did not come from PrintYard (Creality Print, USB…) are not restricted.
+   */
+  private assertMayCopy(actor: Actor, linked: number | null, name: string): void {
+    if (linked === null || actor.role === 'admin') return;
+    const row = this.d.db.prepare(`SELECT owner_id, visibility FROM files WHERE id = ?`).get(linked) as { owner_id: number; visibility: string } | undefined;
+    if (row && row.owner_id !== actor.id && row.visibility !== 'shared') {
+      this.d.audit.log('printer.file_import_refused', auditActor(actor), name, { fileId: linked });
+      throw forbidden('files.private', "This file is another user's private file");
     }
   }
 

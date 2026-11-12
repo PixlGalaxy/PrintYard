@@ -145,6 +145,34 @@ describe('Files → On the printer (API, printer simulator)', () => {
     assert.equal((await t.alice.post(`${base()}/import`).send({ name: '../x.gcode' })).status, 404);
   });
 
+  it("a printer copy of someone's private library file cannot be imported or printed by other users", async () => {
+    // the admin owns a private library file; PrintYard uploaded it to the printer as 3DBenchy_PLA_22m53s.gcode
+    const own = await t.admin.post(`${base()}/import`).send({ name: 'Spatula_PLA_32m19s.gcode' });
+    assert.equal(own.status, 201);
+    const path = '/usr/data/printer_data/gcodes/3DBenchy_PLA_22m53s.gcode';
+    const adminId = (t.ctx.db.prepare(`SELECT owner_id FROM files WHERE id = ?`).get(own.body.id) as { owner_id: number }).owner_id;
+    const printId = Number(
+      t.ctx.db
+        .prepare(`INSERT INTO prints (user_id, printer_id, file_id, file_name, state, created_at) VALUES (?, ?, ?, ?, 'done', ?)`)
+        .run(adminId, printerId, own.body.id, '3DBenchy_PLA_22m53s.gcode', Date.now()).lastInsertRowid,
+    );
+    t.ctx.printerRetention.recordUpload(printerId, path, printId, sim.fileSize('3DBenchy_PLA_22m53s.gcode'));
+    await t.alice.get(`${base()}?refresh=1`);
+    const dl = sim.gcodeDownloads;
+    const r = await t.alice.post(`${base()}/import`).send({ name: '3DBenchy_PLA_22m53s.gcode' });
+    assert.equal(r.status, 403, JSON.stringify(r.body));
+    assert.equal(r.body.error.code, 'files.private');
+    await grant(t.aliceId, { canPrintUploadedGcode: true });
+    const p = await t.alice.post(`${base()}/print`).send({ name: '3DBenchy_PLA_22m53s.gcode' });
+    assert.equal(p.status, 403, JSON.stringify(p.body));
+    assert.equal(p.body.error.code, 'files.private');
+    await grant(t.aliceId, { canPrintUploadedGcode: false });
+    assert.equal(sim.gcodeDownloads, dl); // refused before downloading
+    // once shared, anyone may copy it
+    await t.admin.patch(`/api/files/${own.body.id}`).send({ visibility: 'shared' });
+    assert.equal((await t.alice.post(`${base()}/import`).send({ name: '3DBenchy_PLA_22m53s.gcode' })).status, 201);
+  });
+
   it('import refuses files above the size cap', async () => {
     await t.admin.patch('/api/admin/settings').send({ 'files.maxUploadMb': 1 });
     sim.addStoredFile('huge.gcode', Buffer.concat([sampleGcode(10), Buffer.alloc(1100 * 1024, 0x3b)]));

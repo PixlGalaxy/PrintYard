@@ -439,6 +439,7 @@
   "errors.files.too_large": "The file is larger than the upload limit.",
   "errors.files.invalid_name": "That file name is not valid.",
   "errors.files.not_found": "File not found.",
+  "errors.files.private": "This file is another user's private file: only its owner or an admin can copy or print it.",
   "errors.engine.busy": "The engine is already being updated.",
   "errors.engine.up_to_date": "The engine is already up to date.",
   "errors.engine.no_previous": "There is no previous version to roll back to.",
