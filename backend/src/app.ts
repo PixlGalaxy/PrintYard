@@ -61,7 +61,7 @@ export function createApp(ctx: AppContext): Express {
   api.use('/profile-files/import', express.json({ limit: '8mb' }));
   api.use(express.json({ limit: '1mb' }));
   api.use(cookieParser());
-  api.use(csrf);
+  api.use(csrf(ctx));
   api.use(loadSession(ctx));
 
   api.use(publicRoutes(ctx));

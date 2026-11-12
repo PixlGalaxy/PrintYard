@@ -6,6 +6,7 @@ import { AppError, forbidden, unauthorized, validationFailed } from '../errors.j
 import { hasForwardingHeaders, isHttpsRequest, resolveClientIp } from '../lib/client-ip.js';
 import { normalizeIp } from '../lib/ip.js';
 import { logger } from '../logger.js';
+import { isSameOrigin } from '../realtime/hub.js';
 import { SESSION_COOKIE } from '../modules/auth/sessions.service.js';
 import { SettingsValidationError } from '../db/settings.js';
 
@@ -44,19 +45,29 @@ function hasBody(req: Request): boolean {
  * A body-less request (logout, DELETE) may omit Content-Type; if it sends one, it must still be JSON.
  * Cross-site forms can never produce application/json without a CORS preflight, which we never grant.
  */
-export const csrf: RequestHandler = (req, _res, next) => {
-  if (SAFE_METHODS.has(req.method)) return next();
-  const site = req.headers['sec-fetch-site'];
-  if (site !== undefined && site !== 'same-origin' && site !== 'none') {
-    return next(forbidden('auth.csrf', 'Cross-site request refused'));
-  }
-  const type = req.headers['content-type'];
-  const isJson = typeof type === 'string' && /^application\/json\s*(;|$)/i.test(type);
-  if (isJson) return next();
-  if (type === undefined && !hasBody(req)) return next();
-  if (typeof type === 'string' && isBinaryUpload(req, type) && provesSameOrigin(req)) return next();
-  next(new AppError(415, 'auth.csrf', 'Content-Type must be application/json'));
-};
+export function csrf(ctx: AppContext): RequestHandler {
+  return (req, _res, next) => {
+    if (SAFE_METHODS.has(req.method)) return next();
+    const site = req.headers['sec-fetch-site'];
+    if (site !== undefined && site !== 'same-origin' && site !== 'none') {
+      return next(forbidden('auth.csrf', 'Cross-site request refused'));
+    }
+    const type = req.headers['content-type'];
+    const isJson = typeof type === 'string' && /^application\/json\s*(;|$)/i.test(type);
+    if (isJson) return next();
+    if (type === undefined && !hasBody(req)) {
+      // A body-less write is a "simple" request any page can send (fetch no-cors). Browsers without
+      // Sec-Fetch-Site (Safari < 16.4) still send Origin on every POST/PUT/PATCH/DELETE: a foreign one is refused.
+      // No Origin at all = not a browser (scripts, tools): nothing to forge, allowed as before.
+      if (site === undefined && req.headers.origin !== undefined && !isSameOrigin(req, ctx.settings.get('exposure.publicUrl'))) {
+        return next(forbidden('auth.csrf', 'Cross-site request refused'));
+      }
+      return next();
+    }
+    if (typeof type === 'string' && isBinaryUpload(req, type) && provesSameOrigin(req)) return next();
+    next(new AppError(415, 'auth.csrf', 'Content-Type must be application/json'));
+  };
+}
 
 /**
  * The only non-JSON writes: file uploads (multipart) and client-rendered thumbnails (image/png). Multipart is a

@@ -139,6 +139,17 @@ describe('setup → login → me → logout', () => {
     assert.equal(ok.body.user.theme, 'dark');
   });
 
+  it('CSRF: a body-less write from a browser without Sec-Fetch-Site needs a same-origin Origin', async () => {
+    // old Safari: no Sec-Fetch-Site, but Origin on every POST. A foreign page's no-cors POST is refused…
+    const foreign = await t.agent.post('/api/auth/logout').set('Origin', 'http://192.168.1.10:8080');
+    assert.equal(foreign.status, 403);
+    assert.equal(foreign.body.error.code, 'auth.csrf');
+    assert.equal((await t.agent.get('/api/auth/me')).status, 200); // still signed in
+    // …our own origin passes (404 = past the CSRF check), and so do tools that send no Origin at all
+    assert.equal((await t.agent.post('/api/nope').set('Host', 'printyard.lan:3500').set('Origin', 'http://printyard.lan:3500')).status, 404);
+    assert.equal((await t.agent.post('/api/nope')).status, 404);
+  });
+
   it('password change revokes other sessions', async () => {
     const other = createAgentLogin(t);
     const otherAgent = await other;
