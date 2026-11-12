@@ -242,7 +242,7 @@ export function selectAllOnPlate() {
 }
 
 /** Applies `fn` to the plate-local matrix of each target object, then drops it to the bed. */
-function transformObjects(ids: string[], fn: (m: Matrix4, info: MeshInfo, o: SceneObject) => Matrix4 | null, drop = true) {
+function transformObjects(ids: string[], fn: (m: Matrix4, info: MeshInfo, o: SceneObject) => Matrix4 | null, drop = true, history = true) {
   const changes: Record<string, Partial<SceneObject>> = {}
   for (const id of ids) {
     const o = objOf(workspace.state.doc, id)
@@ -253,7 +253,7 @@ function transformObjects(ids: string[], fn: (m: Matrix4, info: MeshInfo, o: Sce
     if (drop) dropToBed(m, info.hull)
     changes[id] = { transform: fromMatrix(m) }
   }
-  if (Object.keys(changes).length) workspace.updateObjects(changes)
+  if (Object.keys(changes).length) workspace.updateObjects(changes, { history })
   return Object.keys(changes).length
 }
 
@@ -336,9 +336,10 @@ export function nudgeSelected(dx: number, dy: number) {
   transformObjects(workspace.state.selection, (m) => m.premultiply(new Matrix4().makeTranslation(dx, dy, 0)), false)
 }
 
-/** Numeric transform panel: set the full plate-local matrix of one object. */
-export function setObjectMatrix(id: string, m: Matrix4) {
-  transformObjects([id], () => m)
+/** Numeric transform panel: set the full plate-local matrix of one object. `history: false` while a slider is
+ *  being dragged (only the first step of a drag is undoable, so one drag = one undo). */
+export function setObjectMatrix(id: string, m: Matrix4, history = true) {
+  transformObjects([id], () => m, true, history)
 }
 
 /** Uniformly scales an object down (or up) so it fits the printable volume with a small margin. */
