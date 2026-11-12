@@ -182,17 +182,29 @@ export interface GcodeTiming {
 
 /** Slicer comments: Creality Print / Orca (`; estimated printing time (normal mode) = …`), Cura (`;TIME:`), PrusaSlicer. */
 export function parseGcodeTiming(head: string, tail: string, tailOffset: number): GcodeTiming {
-  const text = `${head}\n${tail}`;
+  // The time comments are matched one capped comment line at a time (linear on crafted files: a whole-text
+  // `[^=\n]*=` search is quadratic on a long line repeating "estimated printing time" without "=").
+  const lines: string[] = [];
+  for (const part of [head, tail]) {
+    for (const l of part.split('\n')) if (l.charCodeAt(0) === 59 /* ; */) lines.push(l.length > 512 ? l.slice(0, 512) : l);
+  }
+  const findLine = (re: RegExp) => {
+    for (const l of lines) {
+      const m = re.exec(l);
+      if (m?.[1]) return m[1];
+    }
+    return null;
+  };
   let seconds: number | null = null;
-  const est = /estimated printing time[^=\n]*=\s*([^\n]+)/i.exec(text);
-  if (est?.[1]) seconds = parseDuration(est[1]);
+  const est = findLine(/estimated printing time[^=]*=[ \t]*(.+)/i);
+  if (est) seconds = parseDuration(est);
   if (seconds === null) {
-    const cura = /^;(?:TIME|PRINT_TIME|print_time)\s*[:=]\s*(\d+)/m.exec(text);
-    if (cura?.[1]) seconds = Number(cura[1]) || null;
+    const cura = findLine(/^;(?:TIME|PRINT_TIME|print_time)[ \t]*[:=][ \t]*(\d+)/);
+    if (cura) seconds = Number(cura) || null;
   }
   if (seconds === null) {
-    const total = /;\s*(?:total )?(?:print(?:ing)? )?time\s*[:=]\s*([\dhms\s]+)$/im.exec(text);
-    if (total?.[1]) seconds = parseDuration(total[1]);
+    const total = findLine(/^;[ \t]*(?:total )?(?:print(?:ing)? )?time[ \t]*[:=][ \t]*([\dhms \t]+)\r?$/i);
+    if (total) seconds = parseDuration(total);
   }
   const first = /^;(?:LAYER_CHANGE|LAYER:\s*[01]\b)/m.exec(head);
   // head/tail are latin1-decoded: one char per byte, so string offsets are byte offsets.
