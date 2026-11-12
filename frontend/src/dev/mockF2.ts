@@ -479,6 +479,8 @@ interface Sim {
   lastPrintId: number | null
   lastJob: LastJob | null
   fanPart: number
+  fanAux: number
+  fanCase: number
   light: boolean
   speedFactor: number
   flowFactor: number
@@ -519,6 +521,8 @@ const sim: Sim = {
   lastPrintId: null,
   lastJob: null,
   fanPart: 0,
+  fanAux: 0,
+  fanCase: 0,
   light: true,
   speedFactor: 100,
   flowFactor: 100,
@@ -592,8 +596,8 @@ function status(): PrinterStatus {
     job: online && printing ? jobInfo() : null,
     lastJob: !printing && !sim.bedClear ? sim.lastJob : null,
     fanPart: online ? sim.fanPart : null,
-    fanAux: online ? (printing ? 30 : 0) : null,
-    fanCase: online ? (printing ? 50 : 0) : null,
+    fanAux: online ? sim.fanAux : null,
+    fanCase: online ? sim.fanCase : null,
     homedAxes: online ? sim.homed : null,
     position: online ? sim.pos : null,
     maxNozzleTemp: 300,
@@ -777,7 +781,7 @@ export function printerIdleSoon() {
     job.endedAt = now()
     save()
   }
-  Object.assign(sim, { state: 'idle', printId: null, fileName: null, progress: 0, nozzleTarget: 0, bedTarget: 0, fanPart: 0, bedClear: true, bedOccupiedSince: null, lastPrintId: null, lastJob: null })
+  Object.assign(sim, { state: 'idle', printId: null, fileName: null, progress: 0, nozzleTarget: 0, bedTarget: 0, fanPart: 0, fanAux: 0, fanCase: 0, bedClear: true, bedOccupiedSince: null, lastPrintId: null, lastJob: null })
   saveBed()
   mockPublish({ type: 'printer.status', data: status() })
 }
@@ -858,13 +862,18 @@ function mockControl(kind: 'control' | 'exclude-object', b: Record<string, unkno
       const target = Number(b.target)
       const lim = b.heater === 'bed' ? 100 : 300
       if (!Number.isInteger(target) || target < 0 || target > lim) throw new ApiError(400, 'printers.temp_out_of_range', 'Out of range')
+      if (b.heater === 'nozzle' && target === 0 && active) throw new ApiError(409, 'printers.nozzle_off_printing', 'Printing')
       if (b.heater === 'bed') sim.bedTarget = target
       else sim.nozzleTarget = target
       break
     }
-    case 'fan':
-      sim.fanPart = Math.max(0, Math.min(100, Math.round(Number(b.percent) || 0)))
+    case 'fan': {
+      const v = Math.max(0, Math.min(100, Math.round(Number(b.percent) || 0)))
+      if (b.fan === 'case') sim.fanCase = v
+      else if (b.fan === 'aux') sim.fanAux = v
+      else sim.fanPart = v
       break
+    }
     case 'motors_off':
       sim.homed = ''
       break

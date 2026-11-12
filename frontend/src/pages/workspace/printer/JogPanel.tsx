@@ -5,7 +5,7 @@
 //   Below it, an explicit extruder row: length (1–50 mm), speed (1–10 mm/s), Retract / Extrude buttons.
 // - Preheat: PLA/PETG/ABS/ASA/TPU (first-layer nozzle/bed temps of the bundled K2 SE "Generic" filament profiles,
 //   bounded by the printer's maxima) + Off; light switch.
-// - Sliders with a numeric input: speed % (M220), flow % (M221), part fan %, bed and nozzle temperature (gradient
+// - Sliders with a numeric input: speed % (M220), flow % (M221), part/back/side fan % (M106 P0/P1/P2), bed and nozzle temperature (gradient
 //   track blue → green → yellow → red, current temperature marker, thumb = target). Allowed WHILE printing.
 // Every control sends a TYPED command; the server builds the G-code. Disabled in read-only mode, offline, or
 // without the "control the printer" permission (the reason is shown once, on top). Mirrors the server's safety rules:
@@ -40,31 +40,41 @@ const PREHEAT = [
   { id: 'asa', nozzle: 260, bed: 90 },
   { id: 'tpu', nozzle: 230, bed: 35 },
 ] as const
-/** Last non-zero part-fan % per printer (in memory + localStorage): the Fan toggle restores it (default 100 %). */
-const fanMem = new Map<number, number>()
-function fanMemory(printerId: number): number {
-  const cached = fanMem.get(printerId)
-  if (cached) return cached
+/** Rows whose power button restores the last value used. */
+type PowerKey = 'part' | 'case' | 'aux' | 'bed' | 'nozzle'
+/** Restored when nothing was remembered yet: fans at 100 %, heaters at the PLA preset. */
+const POWER_DEFAULT: Record<PowerKey, number> = { part: 100, case: 100, aux: 100, bed: PREHEAT[0].bed, nozzle: PREHEAT[0].nozzle }
+/** Last non-zero value per printer and row (in memory + localStorage): the power buttons and the Fan toggle restore it. */
+const powerMem = new Map<string, number>()
+const powerStorageKey = (printerId: number, key: PowerKey) => (key === 'part' ? `sd:fan:last:${printerId}` : `sd:${key}:last:${printerId}`)
+function lastOn(printerId: number, key: PowerKey, max: number): number {
+  const k = powerStorageKey(printerId, key)
+  const cached = powerMem.get(k)
+  if (cached) return Math.min(cached, max)
   try {
-    const v = Number(localStorage.getItem(`sd:fan:last:${printerId}`))
-    if (Number.isInteger(v) && v > 0 && v <= 100) {
-      fanMem.set(printerId, v)
-      return v
+    const v = Number(localStorage.getItem(k))
+    if (Number.isInteger(v) && v > 0) {
+      powerMem.set(k, v)
+      return Math.min(v, max)
     }
   } catch {
     /* storage unavailable */
   }
-  return 100
+  return Math.min(POWER_DEFAULT[key], max)
 }
-function rememberFan(printerId: number, v: number) {
-  if (!Number.isInteger(v) || v <= 0 || v > 100) return
-  fanMem.set(printerId, v)
+function rememberOn(printerId: number, key: PowerKey, v: number | null | undefined) {
+  if (v == null || !Number.isInteger(v) || v <= 0 || v > 1000) return
+  const k = powerStorageKey(printerId, key)
+  if (powerMem.get(k) === v) return
+  powerMem.set(k, v)
   try {
-    localStorage.setItem(`sd:fan:last:${printerId}`, String(v))
+    localStorage.setItem(k, String(v))
   } catch {
     /* storage unavailable */
   }
 }
+const fanMemory = (printerId: number) => lastOn(printerId, 'part', 100)
+const rememberFan = (printerId: number, v: number) => rememberOn(printerId, 'part', v)
 /** Optimistic slider value: kept until the printer reports it (or this timeout) */
 const PENDING_MS = 5000
 const COMMIT_DEBOUNCE_MS = 250
@@ -144,6 +154,15 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
   const axisOff = (a: 'x' | 'y' | 'z') => motionOff || !homed.includes(a) || busy !== null
   const eOff = motionOff || cold || busy !== null
   const eReason = !motionOff && cold ? t('jog.coldNozzle', { min: MIN_EXTRUDE_TEMP }) : undefined
+
+  // Whatever the printer reports as on (presets, slider, printer screen) is what the power buttons restore
+  useEffect(() => {
+    rememberOn(printerId, 'part', status.fanPart)
+    rememberOn(printerId, 'case', status.fanCase)
+    rememberOn(printerId, 'aux', status.fanAux)
+    rememberOn(printerId, 'bed', status.bedTarget)
+    rememberOn(printerId, 'nozzle', status.nozzleTarget)
+  }, [printerId, status.fanPart, status.fanCase, status.fanAux, status.bedTarget, status.nozzleTarget])
 
   const fanOn = (status.fanPart ?? 0) > 0
   async function toggleFan() {
@@ -403,11 +422,31 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
           value={status.fanPart ?? null}
           fallback={0}
           disabled={tuningOff}
+          power={{ onValue: fanMemory(printerId) }}
           onCommit={(v) => {
             rememberFan(printerId, v)
             return send('fan', { action: 'fan', percent: v })
           }}
         />
+        {(['case', 'aux'] as const).map((fan) => {
+          const v = fan === 'case' ? status.fanCase : status.fanAux
+          return (
+            <SliderRow
+              key={fan}
+              icon={<Fan size={14} className={v ? 'animate-spin text-sky-500 [animation-duration:2s]' : 'text-sky-500'} />}
+              label={t(fan === 'case' ? 'jog.backFan' : 'jog.sideFan')}
+              unit="%"
+              min={0}
+              max={100}
+              step={5}
+              value={v ?? null}
+              fallback={0}
+              disabled={tuningOff}
+              power={{ onValue: lastOn(printerId, fan, 100) }}
+              onCommit={(n) => send(`fan-${fan}`, { action: 'fan', percent: n, fan })}
+            />
+          )
+        })}
         <SliderRow
           icon={<BedIcon size={14} />}
           label={t('printerTab.bed')}
@@ -419,6 +458,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
           fallback={0}
           current={status.bedTemp}
           disabled={tuningOff}
+          power={{ onValue: lastOn(printerId, 'bed', maxB) }}
           onCommit={(v) => send('bed', { action: 'temp', heater: 'bed', target: v })}
         />
         <SliderRow
@@ -432,6 +472,7 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
           fallback={0}
           current={status.nozzleTemp}
           disabled={tuningOff}
+          power={{ onValue: lastOn(printerId, 'nozzle', maxN), offReason: active || uploading ? t('jog.nozzleOffPrinting') : undefined }}
           onCommit={(v) => send('nozzle', { action: 'temp', heater: 'nozzle', target: v })}
         />
       </section>
@@ -586,6 +627,7 @@ function SliderRow({
   current,
   disabled,
   onCommit,
+  power = false,
 }: {
   icon: ReactNode
   label: string
@@ -600,6 +642,9 @@ function SliderRow({
   current?: number | null
   disabled: boolean
   onCommit: (v: number) => Promise<boolean>
+  /** Power toggle next to the value: on → 0, off → `onValue` (the last value used). `offReason` blocks turning it off.
+   *  `false` = no button (the column is kept so the rows line up). */
+  power?: false | { onValue: number; offReason?: string }
 }) {
   const { t, formatNumber } = useI18n()
   const { toast } = useToast()
@@ -650,7 +695,7 @@ function SliderRow({
   }
 
   return (
-    <div className="grid grid-cols-[6.25rem_minmax(0,1fr)_4.25rem] items-center gap-2">
+    <div className="grid grid-cols-[6.25rem_minmax(0,1fr)_4.25rem_1.75rem] items-center gap-2">
       <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
         {icon}
         <span className="truncate">{label}</span>
@@ -702,6 +747,31 @@ function SliderRow({
         />
         <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-muted">{unit}</span>
       </label>
+      {power ? (
+        <button
+          type="button"
+          disabled={disabled || (shown > 0 && !!power.offReason)}
+          title={
+            shown > 0
+              ? (power.offReason ?? t('jog.turnOff', { name: label }))
+              : t('jog.turnOn', { name: label, v: `${power.onValue} ${unit}` })
+          }
+          aria-label={shown > 0 ? t('jog.turnOff', { name: label }) : t('jog.turnOn', { name: label, v: `${power.onValue} ${unit}` })}
+          aria-pressed={shown > 0}
+          onClick={() => commit(shown > 0 ? 0 : power.onValue)}
+          className={`inline-flex size-7 items-center justify-center rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 disabled:cursor-not-allowed disabled:opacity-40 ${
+            shown > 0
+              ? temp
+                ? 'border-orange-500 bg-orange-500 text-white hover:bg-orange-600'
+                : 'border-sky-500 bg-sky-500 text-white hover:bg-sky-600'
+              : 'border-line bg-surface-2/50 text-muted hover:border-sky-500/50 hover:text-fg'
+          }`}
+        >
+          <Power size={13} />
+        </button>
+      ) : (
+        <span aria-hidden />
+      )}
     </div>
   )
 }

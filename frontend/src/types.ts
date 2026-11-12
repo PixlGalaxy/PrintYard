@@ -837,7 +837,8 @@ export type PrinterControlCommand =
   | { action: 'jog'; axis: 'x' | 'y' | 'z'; distance: number; feedrate: number }
   | { action: 'extrude'; length: number; speed: number }
   | { action: 'temp'; heater: 'nozzle' | 'bed'; target: number }
-  | { action: 'fan'; percent: number }
+  /** part (model, default), case (back) or aux (side) */
+  | { action: 'fan'; percent: number; fan?: 'part' | 'case' | 'aux' }
   | { action: 'motors_off' }
   | { action: 'light'; on: boolean }
   /** Feedrate factor M220 (10-300 %), allowed while printing */
