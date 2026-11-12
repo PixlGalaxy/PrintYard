@@ -404,7 +404,11 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
       assert.equal(r.status, 502, JSON.stringify(r.body));
       assert.equal(r.body.error.code, 'printers.exclude_unconfirmed');
       assert.equal(w.sim.excluded.length, 0);
-      assert.equal(status().job!.objects.find((o) => o.name === objs[0]!.name)!.excluded, false);
+      // Klipper's exclude_object status reports names upper-cased; on a slow runner it merges in during the wait
+      // above, after `objs` was captured from the file's definitions: compare names case-insensitively.
+      const first = status().job!.objects.find((o) => o.name.toUpperCase() === objs[0]!.name.toUpperCase());
+      assert.ok(first, JSON.stringify(status().job!.objects));
+      assert.equal(first.excluded, false);
       // still counted for the last-object rule (it may apply late), but the same object can be retried
       assert.equal((await ex(objs[1]!.name)).body.error.code, 'exclude.last_object');
       // the WS frame is ignored this time: the Moonraker gcode/script fallback does it
