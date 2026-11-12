@@ -393,28 +393,36 @@ describe('phase 3 safety: upload verification, stall timeout, retention (simulat
     const ex = (name: string) => api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/exclude-object`, { name });
     await w.t.ctx.printerManager.driver(w.printerId).startPrint('/usr/data/printer_data/gcodes/two_cubes.gcode');
     const objs = await waitFor(() => (status().state === 'printing' && status().job?.objects.length === 2 ? status().job!.objects : null), 20_000);
-    // the printer ignores every path → 502 printers.exclude_unconfirmed, nothing shown as excluded
-    w.sim.ignoreExcludes = true;
-    let r = await ex(objs[0]!.name);
-    w.sim.ignoreExcludes = false;
-    assert.equal(r.status, 502, JSON.stringify(r.body));
-    assert.equal(r.body.error.code, 'printers.exclude_unconfirmed');
-    assert.equal(w.sim.excluded.length, 0);
-    assert.equal(status().job!.objects.find((o) => o.name === objs[0]!.name)!.excluded, false);
-    // still counted for the last-object rule (it may apply late), but the same object can be retried
-    assert.equal((await ex(objs[1]!.name)).body.error.code, 'exclude.last_object');
-    // the WS frame is ignored this time: the Moonraker gcode/script fallback does it
-    w.sim.ignoreExcludeFrame = true;
-    r = await ex(objs[0]!.name);
-    w.sim.ignoreExcludeFrame = false;
-    assert.equal(r.status, 200, JSON.stringify(r.body));
-    assert.deepEqual(w.sim.excluded, [objs[0]!.name.toUpperCase()]);
-    assert.ok(w.sim.moonGcode.includes(`EXCLUDE_OBJECT NAME=${objs[0]!.name.toUpperCase()}`));
-    assert.ok(w.sim.commands.some((c) => JSON.stringify(c.excludeObjects) === JSON.stringify([objs[0]!.name.toUpperCase()])));
-    assert.ok(!w.sim.gcodeLog.some((g) => g.startsWith('EXCLUDE_OBJECT')), 'gcodeCmd is not used (ignored mid-print by the K2 SE)');
-    await api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/cancel`);
-    await waitFor(() => !['printing', 'paused', 'stopping'].includes(status().state), 10_000);
-    await api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/bed-cleared`);
+    // The unconfirmed exclude below waits for its confirmation timeouts: on a slow runner the simulated print
+    // used to finish meanwhile (no job left → TypeError, and the next test found the printer busy).
+    w.sim.holdProgress = true;
+    try {
+      // the printer ignores every path → 502 printers.exclude_unconfirmed, nothing shown as excluded
+      w.sim.ignoreExcludes = true;
+      let r = await ex(objs[0]!.name);
+      w.sim.ignoreExcludes = false;
+      assert.equal(r.status, 502, JSON.stringify(r.body));
+      assert.equal(r.body.error.code, 'printers.exclude_unconfirmed');
+      assert.equal(w.sim.excluded.length, 0);
+      assert.equal(status().job!.objects.find((o) => o.name === objs[0]!.name)!.excluded, false);
+      // still counted for the last-object rule (it may apply late), but the same object can be retried
+      assert.equal((await ex(objs[1]!.name)).body.error.code, 'exclude.last_object');
+      // the WS frame is ignored this time: the Moonraker gcode/script fallback does it
+      w.sim.ignoreExcludeFrame = true;
+      r = await ex(objs[0]!.name);
+      w.sim.ignoreExcludeFrame = false;
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      assert.deepEqual(w.sim.excluded, [objs[0]!.name.toUpperCase()]);
+      assert.ok(w.sim.moonGcode.includes(`EXCLUDE_OBJECT NAME=${objs[0]!.name.toUpperCase()}`));
+      assert.ok(w.sim.commands.some((c) => JSON.stringify(c.excludeObjects) === JSON.stringify([objs[0]!.name.toUpperCase()])));
+      assert.ok(!w.sim.gcodeLog.some((g) => g.startsWith('EXCLUDE_OBJECT')), 'gcodeCmd is not used (ignored mid-print by the K2 SE)');
+    } finally {
+      // always leave the printer idle with a clear bed, even when an assertion failed (no cascade)
+      w.sim.holdProgress = false;
+      await api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/cancel`);
+      await waitFor(() => !['printing', 'paused', 'stopping'].includes(status().state), 20_000);
+      await api(w.live.base, w.admin, 'POST', `/api/printers/${w.printerId}/bed-cleared`);
+    }
   });
 
   it('pause glitch: a transient terminal frame while pausing never finalises the print; a finalised-but-running print is healed', async () => {

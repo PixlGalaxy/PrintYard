@@ -134,6 +134,8 @@ export class PrinterSimulator {
   pauseGlitch = false;
   /** Test hook: the printer ignores `get ReqPrinterPara` and sends no pushes (a frozen Creality WS link). */
   freezeCrealityWs = false;
+  /** Test hook: a running print does not advance (tests that need the job alive on slow CI runners). */
+  holdProgress = false;
   /** Files in Moonraker's `config` root written through `POST /server/files/upload` (path → content). */
   readonly configFiles = new Map<string, Buffer>();
   /** Test hook: `POST /server/files/upload` answers 500. */
@@ -698,7 +700,7 @@ export class PrinterSimulator {
       this.selfTestLeft--;
       delta.withSelfTest = this.selfTestLeft === 0 ? 100 : Math.round(((SELF_TEST_TICKS - this.selfTestLeft) / SELF_TEST_TICKS) * 99);
     } else if (this.state.state === 1 && Math.abs(this.nozzle - tn) < 3) {
-      this.elapsed = Math.min(this.total, this.elapsed + this.o.simSecondsPerTick);
+      if (!this.holdProgress) this.elapsed = Math.min(this.total, this.elapsed + this.o.simSecondsPerTick);
       const frac = this.elapsed / this.total;
       const layers = Number(this.state.TotalLayer) || 1;
       delta.printProgress = Math.min(100, Math.floor(frac * 100));
