@@ -60,7 +60,7 @@ export function accountRoutes(ctx: AppContext): Router {
     const s = req.session!;
     const { currentPassword, newPassword } = parse(passwordChangeSchema, req.body);
     // A stolen session must not become an unlimited oracle for the password: same budget as failed logins.
-    const attempt = ctx.loginGuard.begin(req.clientIp, s.user.username);
+    const attempt = ctx.loginGuard.begin(req.clientIp, s.user.username, req.clientIpForwarded);
     if (!attempt.allowed) throw rateLimited(attempt.retryAfter);
     if (attempt.delayMs > 0) await sleep(attempt.delayMs);
     const row = ctx.users.findRowById(s.user.id)!;

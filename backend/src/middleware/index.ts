@@ -4,6 +4,7 @@ import type { ZodType } from 'zod';
 import type { AppContext } from '../context.js';
 import { AppError, forbidden, unauthorized, validationFailed } from '../errors.js';
 import { hasForwardingHeaders, isHttpsRequest, resolveClientIp } from '../lib/client-ip.js';
+import { normalizeIp } from '../lib/ip.js';
 import { logger } from '../logger.js';
 import { SESSION_COOKIE } from '../modules/auth/sessions.service.js';
 import { SettingsValidationError } from '../db/settings.js';
@@ -17,6 +18,7 @@ export function requestContext(ctx: AppContext): RequestHandler {
       logger.warn('Forwarding headers (X-Forwarded-For etc.) received while exposure.mode is "none": if PrintYard is behind a proxy or tunnel, set the exposure mode in Admin → Settings');
     }
     req.clientIp = resolveClientIp(req, exposure, exposure.matcher);
+    req.clientIpForwarded = req.clientIp !== (normalizeIp(req.socket.remoteAddress) ?? '');
     req.isHttps = isHttpsRequest(req, exposure, exposure.matcher);
     next();
   };

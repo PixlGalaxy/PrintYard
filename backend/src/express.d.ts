@@ -5,6 +5,8 @@ declare global {
     interface Request {
       /** Real client IP resolved per `exposure.mode` (see lib/client-ip.ts). */
       clientIp: string;
+      /** `clientIp` came from a forwarding header (a trusted proxy said so), not from the TCP peer. */
+      clientIpForwarded: boolean;
       /** TLS here, or `X-Forwarded-Proto: https` from a trusted proxy. Drives the cookie `Secure` flag. */
       isHttps: boolean;
       /** Set by loadSession when the cookie maps to a live session. */

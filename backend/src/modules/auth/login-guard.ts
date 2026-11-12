@@ -34,6 +34,14 @@ export const DEFAULT_LOGIN_GUARD: LoginGuardOptions = {
   userDelayMaxMs: 8000,
 };
 
+/**
+ * A LAN client talking to us directly: exempt from the per-username delay and 429 (nobody can lock the owner out
+ * of the LAN by username). Only the TCP peer counts: a private IP taken from a forwarding header can be anything a
+ * client wrote (a LAN machine passes as a "trusted proxy" by default), so rotating forged private IPs must not
+ * buy unlimited, undelayed guesses. Bans stay off for every private IP (a forged one must not block a real LAN user).
+ */
+const lanPeer = (ip: string, forwarded: boolean) => !forwarded && isPrivateIp(ip);
+
 /** In-memory sliding-window failure counter. */
 class FailureCounter {
   private readonly hits = new Map<string, number[]>();
@@ -172,22 +180,22 @@ export class LoginGuard {
   }
 
   /** Read-only verdict (reserves nothing). */
-  check(ip: string, username: string, now = Date.now()): GuardVerdict {
+  check(ip: string, username: string, now = Date.now(), forwarded = false): GuardVerdict {
     const user = username.toLowerCase();
     const pair = pairKey(ip, user);
     const blocks: number[] = [];
     if (this.byPair.count(pair, now) >= this.o.maxFailures) blocks.push(this.byPair.retryAfter(pair, now));
     if (this.byIp.count(ip, now) >= this.o.ipMaxFailures) blocks.push(this.byIp.retryAfter(ip, now));
-    if (!isPrivateIp(ip) && this.byUser.count(user, now) >= this.o.userMaxFailures) {
+    if (!lanPeer(ip, forwarded) && this.byUser.count(user, now) >= this.o.userMaxFailures) {
       blocks.push(this.byUser.retryAfter(user, now));
     }
     return blocks.length > 0 ? { allowed: false, retryAfter: Math.max(...blocks) } : { allowed: true };
   }
 
   /** Checks and, when allowed, synchronously reserves the attempt (counted as a failure until it succeeds). */
-  begin(ip: string, username: string): LoginAttempt | { allowed: false; retryAfter: number } {
+  begin(ip: string, username: string, forwarded = false): LoginAttempt | { allowed: false; retryAfter: number } {
     const now = Date.now();
-    const verdict = this.check(ip, username, now);
+    const verdict = this.check(ip, username, now, forwarded);
     if (!verdict.allowed) return verdict;
     const user = username.toLowerCase();
     const pair = pairKey(ip, user);
@@ -197,7 +205,7 @@ export class LoginGuard {
     this.byUser.add(user, now);
 
     let delayMs = 0;
-    if (!isPrivateIp(ip) && prior >= this.o.userSoftThreshold) {
+    if (!lanPeer(ip, forwarded) && prior >= this.o.userSoftThreshold) {
       const steps = Math.min(prior - this.o.userSoftThreshold, 20);
       delayMs = Math.min(this.o.userDelayMaxMs, this.o.userDelayBaseMs * 2 ** steps);
     }

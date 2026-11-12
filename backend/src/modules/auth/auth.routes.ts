@@ -48,7 +48,7 @@ export function authRoutes(ctx: AppContext): Router {
     const shownName = cleanUserText(username, 64);
 
     // Reserve the attempt synchronously, before any await, so parallel requests cannot all pass the check.
-    const attempt = ctx.loginGuard.begin(ip, username);
+    const attempt = ctx.loginGuard.begin(ip, username, req.clientIpForwarded);
     if (!attempt.allowed) {
       logger.auth.warn(`Login rate-limited for "${shownName}" from ${ip}`);
       throw rateLimited(attempt.retryAfter);

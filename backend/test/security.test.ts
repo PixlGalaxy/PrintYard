@@ -84,6 +84,18 @@ describe('per-username lockout (#3) and bans (#5)', () => {
       assert.equal(g.check('198.51.100.1', 'admin').allowed, false);
     }));
 
+  it('forged private IPs from a forwarding header get no LAN exemption (rotating them buys nothing)', () =>
+    withGuard(GUARD, (g) => {
+      for (let i = 1; i <= 40; i++) g.fail(`203.0.113.${i}`, 'admin');
+      // same private IP, but taken from X-Forwarded-For: delayed / blocked like any outside client
+      assert.equal(g.check('10.0.0.7', 'admin', Date.now(), true).allowed, false);
+      // a direct LAN peer with the same address is still let in
+      assert.equal(g.check('10.0.0.7', 'admin').allowed, true);
+      // and a forged private IP is never banned (it must not lock out the real LAN machine)
+      for (let i = 0; i < 30; i++) g.fail('10.0.0.8', `u${i}`);
+      assert.equal(g.check('10.0.0.8', 'nobody').allowed, false); // per-IP 429 still applies
+    }));
+
   it('public IPs get a progressive delay past the soft per-username threshold', () =>
     withGuard(GUARD, (g) => {
       const delays: number[] = [];
