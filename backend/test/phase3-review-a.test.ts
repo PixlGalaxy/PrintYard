@@ -396,6 +396,15 @@ describe('#3 notification flooding (E4)', () => {
     assert.equal(r.body.error.code, 'prints.too_many_pending');
   });
 
+  it('the pending cap also holds for parallel requests (re-counted at insert time)', async () => {
+    await t.admin.patch(`/api/admin/users/${t.bobId}`).send({ canPrintUploadedGcode: true });
+    await t.admin.put(`/api/admin/users/${t.bobId}/limits`).send({ enabled: true, maxGramsPerPrint: null, maxGramsPerMonth: null, maxHoursPerPrint: null, requiresApproval: true });
+    const up = await upload(t.bob, Buffer.from('G90\nG1 X1 E1\n'), 'race.gcode');
+    const codes = (await Promise.all(Array.from({ length: 8 }, () => t.bob.post('/api/prints').send({ printerId, fileId: up.body.id })))).map((r) => r.status);
+    assert.equal(codes.filter((c) => c === 202).length, 3, String(codes));
+    assert.equal(codes.filter((c) => c === 409).length, 5, String(codes));
+  });
+
   it('notifyText strips control/bidi characters and truncates', () => {
     assert.equal(notifyText('a‮b\nc​d'), 'ab cd');
     assert.equal(Array.from(notifyText('é'.repeat(200))).length, 80);

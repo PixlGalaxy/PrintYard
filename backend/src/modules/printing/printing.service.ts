@@ -5,6 +5,7 @@ import { logger } from '../../logger.js';
 import { isActiveState, isReadyForPrint, printerUploadName, basename } from '../../printers/k2se/protocol.js';
 import { randomBytes } from 'node:crypto';
 import type { PrinterManager } from '../../printers/manager.js';
+import { MAX_PENDING_PER_USER } from '../../middleware/pending-cap.js';
 import { assertWritable } from '../../printers/read-only.js';
 import { forAdmins, forUserAndAdmins, TOPICS } from '../../realtime/index.js';
 import type { RealtimeHub } from '../../realtime/hub.js';
@@ -182,6 +183,14 @@ export class PrintingService {
 
     const printerFile = input.printerFile?.path ?? null;
     if (decision.needsApproval) {
+      // Re-counted right before the (synchronous) insert: the route-level cap runs before the awaits above, so
+      // parallel requests would all pass it.
+      if (actor.role !== 'admin') {
+        const n = (this.d.db.prepare("SELECT COUNT(*) AS n FROM prints WHERE user_id = ? AND state = 'pending'").get(actor.id) as { n: number }).n;
+        if (n >= MAX_PENDING_PER_USER) {
+          throw new AppError(409, 'prints.too_many_pending', `You already have ${n} print requests waiting for approval`, { max: MAX_PENDING_PER_USER, pending: n });
+        }
+      }
       const job = this.insert(actor, printer.id, file, content, estimate, cost, 'pending', input.source, decision.approvalReason ?? null, calibrate, printerFile);
       if (allowedDangerous) this.auditDangerous(actor, file.name, job.id, allowedDangerous);
       this.d.audit.log('print.request', auditActor(actor), file.name, { printId: job.id, printerId: printer.id, reason: decision.approvalReason });
