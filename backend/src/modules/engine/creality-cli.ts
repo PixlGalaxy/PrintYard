@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { constants, existsSync, openSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { availableParallelism, setPriority } from 'node:os';
+import { setPriority } from 'node:os';
 import { join } from 'node:path';
 import { Socket } from 'node:net';
 import { createInterface } from 'node:readline';
@@ -67,6 +67,42 @@ function taskset(): string | null {
   if (tasksetPath !== undefined) return tasksetPath;
   tasksetPath = ['/usr/bin/taskset', '/bin/taskset'].find((p) => existsSync(p)) ?? null;
   return tasksetPath;
+}
+
+/** Parses a kernel CPU list (`0-3,8,10-11`) into CPU ids; null when malformed. */
+export function parseCpuList(list: string): number[] | null {
+  const out: number[] = [];
+  for (const part of list.trim().split(',')) {
+    const m = /^(\d+)(?:-(\d+))?$/.exec(part.trim());
+    if (!m) return null;
+    const a = Number(m[1]);
+    const b = m[2] === undefined ? a : Number(m[2]);
+    if (b < a || b - a > 4096) return null;
+    for (let i = a; i <= b; i++) out.push(i);
+  }
+  return out.length ? out : null;
+}
+
+/** CPUs this process may run on (`Cpus_allowed_list`: honours `docker --cpuset-cpus`); null when unknown. */
+async function allowedCpus(): Promise<number[] | null> {
+  try {
+    const status = await readFile('/proc/self/status', 'utf8');
+    const m = /^Cpus_allowed_list:\s*(\S+)/m.exec(status);
+    return m ? parseCpuList(m[1] ?? '') : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Affinity for the engine: every allowed CPU but the last one (left for the web UI), as a `taskset -c` list.
+ * The ids come from the real allowed set: a container pinned to CPUs 4-7 must not be asked for CPU 0
+ * (`taskset: failed to set pid …'s affinity: Invalid argument`). Null (no taskset) with fewer than 3 CPUs or
+ * an unknown set.
+ */
+export function engineCpuList(cpus: number[] | null): string | null {
+  if (!cpus || cpus.length < 3) return null;
+  return cpus.slice(0, -1).join(',');
 }
 
 /**
@@ -138,9 +174,9 @@ export class CrealityCliEngine implements SlicerEngine {
     ];
     // Leave one core for the web UI (TBB ignores cgroup CPU quotas but honours affinity); fewer threads also
     // lowers peak memory (spike: 24 threads 480 MB vs 2 threads 300 MB on a 250k-triangle sphere with tree supports).
-    const cores = availableParallelism();
     const ts = taskset();
-    const [cmd, cmdArgs] = ts && cores >= 3 ? [ts, ['-c', `0-${cores - 2}`, bin, ...args]] : [bin, args];
+    const cpus = ts ? engineCpuList(await allowedCpus()) : null;
+    const [cmd, cmdArgs] = ts && cpus ? [ts, ['-c', cpus, bin, ...args]] : [bin, args];
 
     const child = spawn(cmd, cmdArgs, {
       cwd: req.jobDir,
