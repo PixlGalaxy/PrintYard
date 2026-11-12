@@ -6,8 +6,8 @@
  *         inside the start G-code, or the calibration `withSelfTest` 1..99) → printing → finishing (end G-code).
  * Remaining:
  *   heating/preparing → slicer estimate + heat-up from the temperature gap + preparation allowance  (source slicer)
- *   printing          → printer `printLeftTime` once layer ≥ 2 and it agrees (×0.5..×2) with the position-based
- *                       value (source printer); else slicerSeconds × (1 − fraction) corrected by the observed
+ *   printing          → printer `printLeftTime` once layer ≥ 2 (source printer); before that
+ *                       slicerSeconds × (1 − fraction) corrected by the observed
  *                       rate (elapsed printing time / slicer time for the part done)                   (source position)
  * Never 0 while the job is not finished.
  */
@@ -124,10 +124,10 @@ export function computeEta(i: EtaInput): PrintEta | null {
         positional = (printingElapsed * (1 - f)) / f;
       }
     }
+    // From layer 2 on the printer's own `printLeftTime` wins (Creality's per-layer timing is right; the
+    // position-based pace is skewed by heat-up, leveling and the slow first layers). Before that its value is junk.
     const layer = s.layer ?? 0;
-    const plausible =
-      printerLeft !== null && layer >= 2 && (positional === null || (printerLeft / Math.max(1, positional) >= 0.5 && printerLeft / Math.max(1, positional) <= 2));
-    if (plausible) {
+    if (printerLeft !== null && layer >= 2) {
       remaining = printerLeft;
       source = 'printer';
     } else if (positional !== null) {

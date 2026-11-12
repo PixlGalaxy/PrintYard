@@ -314,7 +314,7 @@ export interface PrintEta {
   remainingSec: number | null;
   /** Epoch ms; null while paused or unknown. */
   finishesAt: number | null;
-  /** `printer` = printLeftTime (plausible), `slicer` = slicer estimate (+ heat-up), `position` = file position × slicer/elapsed rate. */
+  /** `printer` = printLeftTime (from layer 2), `slicer` = slicer estimate (+ heat-up), `position` = file position × slicer/elapsed rate. */
   source: 'printer' | 'slicer' | 'position' | null;
 }
 

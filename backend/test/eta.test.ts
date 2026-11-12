@@ -94,17 +94,21 @@ describe('ETA: phases and remaining time over a real heating sequence', () => {
     assert.equal(eta.remainingSec, Math.round(SLICER * (1 - f))); // < 120 s of printing: no pace correction yet
   });
 
-  it('mid print: the printer value is used once plausible (layer ≥ 2, ×0.5..×2 of position-based)', () => {
+  it('mid print: from layer 2 the printer value is used as is', () => {
     const eta = computeEta(input(step('mid-print'), { printingSinceElapsed: 200 }))!;
     assert.equal(eta.phase, 'printing');
     assert.equal(eta.source, 'printer');
     assert.equal(eta.remainingSec, 8521);
-    // the same moment with a nonsense printer value falls back to position × observed pace
-    const bogus = computeEta(input({ ...step('mid-print'), remainingSec: 60 }, { printingSinceElapsed: 200 }))!;
-    assert.equal(bogus.source, 'position');
+    // even when far from the position-based pace (real case: printer 1 h 10 m, pace 2 h 47 m; the printer was right)
+    const far = computeEta(input({ ...step('mid-print'), remainingSec: 1200 }, { printingSinceElapsed: 200 }))!;
+    assert.equal(far.source, 'printer');
+    assert.equal(far.remainingSec, 1200);
+    // no printer value: position × observed pace
+    const none = computeEta(input({ ...step('mid-print'), remainingSec: 0 }, { printingSinceElapsed: 200 }))!;
+    assert.equal(none.source, 'position');
     const f = (2342801 - 13562) / (5095921 - 13562);
     const pace = (6387 - 200) / (SLICER * f);
-    assert.equal(bogus.remainingSec, Math.round(SLICER * (1 - f) * pace));
+    assert.equal(none.remainingSec, Math.round(SLICER * (1 - f) * pace));
   });
 
   it('end G-code: finishing, never 0', () => {
