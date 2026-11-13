@@ -1,13 +1,17 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
-  <img src="docs/logo.svg" alt="PrintYard" width="344" height="100">
-</picture>
+<img src="docs/banner.webp" alt="PrintYard: slicer preview on desktop and live print status on a phone" width="100%">
 
 # PrintYard
 
 **Self-hosted web panel and slicer for your 3D printer — slice, print and monitor from any browser.**
+
+[![Docker image](https://github.com/PixlGalaxy/PrintYard/actions/workflows/docker-image.yml/badge.svg)](https://github.com/PixlGalaxy/PrintYard/actions/workflows/docker-image.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-38bdf8)](LICENSE)
+[![Container: ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Fpixlgalaxy%2Fprintyard-0f172a?logo=docker&logoColor=white)](https://github.com/PixlGalaxy/PrintYard/pkgs/container/printyard)
+![Printer: Creality K2 SE](https://img.shields.io/badge/printer-Creality%20K2%20SE-f97316)
+
+[Features](#features) · [Screenshots](#screenshots) · [Running it](#running-it) · [Exposing it to the internet](#exposing-it-to-the-internet) · [Development](#development)
 
 </div>
 
@@ -33,6 +37,23 @@
 | Creality K2 SE | In development |
 
 New printers are added as drivers — contributions welcome.
+
+## Screenshots
+
+| Prepare | Preview |
+|---|---|
+| <img src="docs/screenshots/prepare.webp" alt="Prepare: models on the build plate with the filament and process settings"> | <img src="docs/screenshots/preview.webp" alt="Preview: sliced G-code by line type with print time, filament and cost"> |
+| **Place models, pick the official profiles and slice on the server.** | **Check the G-code layer by layer before printing.** |
+
+| Printer | Files |
+|---|---|
+| <img src="docs/screenshots/printer.webp" alt="Printer: live 3D progress, manual control, temperatures and fans"> | <img src="docs/screenshots/files.webp" alt="Files: private and shared library with thumbnails"> |
+| **Follow the print live and control the printer.** | **Private by default, with a shared library for everyone.** |
+
+| Admin | Light theme | Phone |
+|---|---|---|
+| <img src="docs/screenshots/admin-prints.webp" alt="Admin: pending approvals and filament used per user"> | <img src="docs/screenshots/printer-light.webp" alt="Printer tab in the light theme"> | <img src="docs/screenshots/mobile-printer.webp" alt="Live print status on a phone" width="200"> |
+| **Approvals, limits and usage per user.** | **Light and dark themes.** | **Installable on your phone.** |
 
 ## Running it
 
