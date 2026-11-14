@@ -80,6 +80,9 @@ const bedSurfaceSchema = z.enum(BED_SURFACES);
 
 export const printerUpdateSchema = printerCreateSchema
   .extend({
+    // No default here: create's `staticIp: true` default would turn every partial update (bed surfaces, camera)
+    // into "static IP on" and reconnect the driver.
+    staticIp: z.boolean(),
     /** The surfaces the owner has (at least one, no duplicates). */
     bedSurfaces: z
       .array(bedSurfaceSchema)
