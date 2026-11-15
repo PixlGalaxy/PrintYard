@@ -72,6 +72,7 @@ export class K2SELiveDriver implements PrinterDriver {
   private host: string;
   private endpoint: PrinterEndpoint | null = null;
   private raw: RawPrinterState = {};
+  private lastErrorCode: number | null = null;
   private files: PrinterFileEntry[] | null = null;
   private online = false;
   private readonly conn: CrealityConnection;
@@ -729,7 +730,12 @@ export class K2SELiveDriver implements PrinterDriver {
   private emitStatus(force: boolean): void {
     const s = this.getStatus();
     const objects = s.job?.objects.map((o) => `${o.name}:${o.excluded ? 1 : 0}${o.current ? 1 : 0}`).join(',');
-    const key = `${s.online}|${s.state}|${s.layer}|${s.progress}|${s.fileName}|${s.errorCode}|${s.nozzleTarget}|${s.bedTarget}|${JSON.stringify(s.cfs)}|${s.fanPart}|${s.fanAux}|${s.fanCase}|${s.lightOn}|${s.speedFactor}|${s.flowFactor}|${s.homedAxes}|${objects}`;
+    // The codes the AI detection reports are not documented: log the raw error the first time it appears, to learn them.
+    if (s.errorCode !== null && s.errorCode !== this.lastErrorCode && s.ai?.enabled) {
+      logger.printer.warn(`printer #${this.printerId}: error ${s.errorCode} while AI detection is on (raw err ${JSON.stringify(this.raw.err ?? null)}, state ${s.state})`);
+    }
+    this.lastErrorCode = s.errorCode;
+    const key = `${s.online}|${s.state}|${s.layer}|${s.progress}|${s.fileName}|${s.errorCode}|${s.nozzleTarget}|${s.bedTarget}|${JSON.stringify(s.cfs)}|${s.fanPart}|${s.fanAux}|${s.fanCase}|${s.lightOn}|${JSON.stringify(s.ai)}|${s.speedFactor}|${s.flowFactor}|${s.homedAxes}|${objects}`;
     const important = force || key !== this.lastEmitKey;
     const now = Date.now();
     const gap = this.opts.statusThrottleMs ?? 1000;

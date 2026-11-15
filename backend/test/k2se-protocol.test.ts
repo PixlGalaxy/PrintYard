@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   gcodeDirFromList,
   mapState,
+  parseAi,
   mergeFrame,
   normalizeColor,
   parseCfs,
@@ -191,5 +192,26 @@ describe('K2 SE helpers', () => {
     const file = extractMultipartFile(body, `multipart/form-data; boundary=${boundary}`);
     assert.equal(file?.toString(), gcode);
     assert.deepEqual(gcodeMeta(Buffer.from(gcode)), { seconds: 3723, layers: 2 });
+  });
+});
+
+describe('Creality AI detection flags', () => {
+  it('reads aiSw / aiDetection / aiFirstFloor / aiPausePrint and the camera (values from a real K2 SE)', () => {
+    assert.deepEqual(parseAi({ aiSw: 1, aiDetection: 1, aiFirstFloor: 0, aiPausePrint: 0, video: 1 }), {
+      enabled: true,
+      detection: true,
+      firstLayer: false,
+      pauseOnFailure: false,
+      camera: true,
+    });
+    assert.deepEqual(parseAi({ aiSw: 0, aiDetection: 0, aiFirstFloor: 0, aiPausePrint: 0, video: 0 }), {
+      enabled: false,
+      detection: false,
+      firstLayer: false,
+      pauseOnFailure: false,
+      camera: false,
+    });
+    assert.equal(parseAi({ lightSw: 1 }), null, 'printers without the AI fields');
+    assert.equal(parseAi({ aiSw: 1 })?.camera, null);
   });
 });

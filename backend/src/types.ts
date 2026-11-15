@@ -258,6 +258,20 @@ export interface CfsSlot {
   editStatus?: number | null;
 }
 
+/** Creality AI detection settings (WS `aiSw`, `aiDetection`, `aiFirstFloor`, `aiPausePrint`, camera `video`). */
+export interface PrinterAi {
+  /** Master switch (`aiSw`). */
+  enabled: boolean;
+  /** Print failure ("spaghetti") detection (`aiDetection`). */
+  detection: boolean;
+  /** First layer inspection (`aiFirstFloor`). */
+  firstLayer: boolean;
+  /** Pause the print when a failure is detected (`aiPausePrint`); off = it only warns. */
+  pauseOnFailure: boolean;
+  /** The camera the AI needs is connected (`video`); null when not reported. */
+  camera: boolean | null;
+}
+
 export interface PrinterStatus {
   printerId: number;
   online: boolean;
@@ -298,6 +312,8 @@ export interface PrinterStatus {
   maxBedTemp: number | null;
   /** Chamber/LED light (Creality WS `lightSw`); null when unknown. */
   lightOn: boolean | null;
+  /** Creality "AI function" (camera failure detection) as the printer reports it; null/absent when not reported. */
+  ai?: PrinterAi | null;
   /** Speed (feedrate) factor in % (Moonraker `gcode_move.speed_factor`, else Creality `curFeedratePct`, else the last value PrintYard set); null when unknown. */
   speedFactor: number | null;
   /** Flow (extrusion) factor in % (`gcode_move.extrude_factor` / `curFlowratePct` / last set); null when unknown. */

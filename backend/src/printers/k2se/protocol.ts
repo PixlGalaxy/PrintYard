@@ -5,7 +5,7 @@
  * Sources: frames captured from the real printer (test/fixtures/k2se), Creality Print 7.3.1 `applyDeviceData`,
  * `formatBoxsInfoData`, `StartPrint` (resources/web/deviceMgr bundle), status/research/k2se-printer.md.
  */
-import type { CfsSlot, PrinterState, PrinterStatus } from '../../types.js';
+import type { CfsSlot, PrinterAi, PrinterState, PrinterStatus } from '../../types.js';
 
 /** Cumulative printer state: the printer only pushes the keys that changed, so frames are merged in. */
 export type RawPrinterState = Record<string, unknown>;
@@ -74,6 +74,19 @@ export const STATE_CODES: Record<number, PrinterState> = {
 };
 
 /** Error code from `err.errcode`; Creality Print also shows 115 for pending power-loss recovery and 2839 for runout. */
+/** Creality AI detection flags; null when the printer does not report them (no `aiSw`). */
+export function parseAi(raw: RawPrinterState): PrinterAi | null {
+  if (raw.aiSw === undefined || raw.aiSw === null) return null;
+  const on = (v: unknown) => num(v) === 1;
+  return {
+    enabled: on(raw.aiSw),
+    detection: on(raw.aiDetection),
+    firstLayer: on(raw.aiFirstFloor),
+    pauseOnFailure: on(raw.aiPausePrint),
+    camera: raw.video === undefined || raw.video === null ? null : on(raw.video),
+  };
+}
+
 export function errorCode(raw: RawPrinterState): number | null {
   const err = raw.err;
   const code = typeof err === 'object' && err !== null ? num((err as Record<string, unknown>).errcode) : null;
@@ -232,6 +245,7 @@ export function toPrinterStatus(
     maxNozzleTemp: num(raw.maxNozzleTemp),
     maxBedTemp: num(raw.maxBedTemp),
     lightOn: raw.lightSw === undefined || raw.lightSw === null ? null : num(raw.lightSw) === 1,
+    ai: parseAi(raw),
     speedFactor: factor(raw.curFeedratePct),
     flowFactor: factor(raw.curFlowratePct),
   };
@@ -304,6 +318,7 @@ export function offlineStatus(printerId: number, now = Date.now()): PrinterStatu
     maxNozzleTemp: null,
     maxBedTemp: null,
     lightOn: null,
+    ai: null,
     speedFactor: null,
     flowFactor: null,
   };
