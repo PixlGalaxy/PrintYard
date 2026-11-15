@@ -18,7 +18,6 @@ import {
   Clock,
   Fan,
   FileCode2,
-  Hand,
   History,
   Hourglass,
   LoaderCircle,
@@ -315,7 +314,6 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
               onClick={() => setConfirmBed(true)}
               className="inline-flex h-6 items-center gap-1 rounded-full bg-amber-500 px-2.5 font-semibold text-white shadow-sm hover:bg-amber-400 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500 disabled:pointer-events-none disabled:opacity-50"
             >
-              <Hand size={12} />
               {t('printerTab.bedPillAction')}
             </button>
           </span>
@@ -672,7 +670,6 @@ function ConfirmBedClear({ onClose, onConfirm }: { onClose: () => void; onConfir
     <Modal
       size="sm"
       title={t('printerTab.bedClearTitle')}
-      icon={<Hand size={18} className="text-amber-500" />}
       onClose={onClose}
       dismissable={!busy}
       footer={
@@ -680,7 +677,7 @@ function ConfirmBedClear({ onClose, onConfirm }: { onClose: () => void; onConfir
           <Button onClick={onClose} disabled={busy} data-autofocus>
             {t('common.cancel')}
           </Button>
-          <Button variant="warning" loading={busy} icon={<Hand size={14} />} onClick={() => void go()}>
+          <Button variant="warning" loading={busy} onClick={() => void go()}>
             {t('printerTab.bedClearConfirm')}
           </Button>
         </>
