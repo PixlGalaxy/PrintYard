@@ -4,7 +4,7 @@ import { useState } from 'react'
 import './mock-toolbar.css'
 import { MOCK_PASSWORD, mockControls, type MockFlags, type Scenario } from './mock'
 import { mockBuildFailure, type MockBuildFailure } from './mockF1'
-import { addStressFile, finishPrintSoon, printerIdleSoon, restartDemoPrint, setMockAi } from './mockF2'
+import { addStressFile, finishPrintSoon, printerIdleSoon, restartDemoPrint, setMockAi, setMockManyObjects } from './mockF2'
 
 const SCENARIOS: { key: Scenario; label: string; to: string }[] = [
   { key: 'fresh', label: 'Fresh install (setup)', to: '/setup' },
@@ -109,6 +109,13 @@ export default function MockToolbar() {
         <button type="button" className="sdm-btn" onClick={() => restartDemoPrint()}>
           Restart the demo print
         </button>
+        <label className="sdm-row">
+          Print objects
+          <select defaultValue="two" onChange={(e) => setMockManyObjects(e.target.value === 'many')}>
+            <option value="two">2 objects</option>
+            <option value="many">12 copies of one model</option>
+          </select>
+        </label>
         <label className="sdm-row">
           AI detection
           <select defaultValue="ok" onChange={(e) => setMockAi(e.target.value as 'ok' | 'off' | 'failure' | 'noCamera')}>

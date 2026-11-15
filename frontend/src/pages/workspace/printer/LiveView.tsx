@@ -8,7 +8,7 @@
 // visible, fully printed, with its final values.
 // Layout (Printer tab): the caller's status cards float top-left (`overlay`), the view cube + view toggles
 // top-right, the objects chips and the (collapsible) legend bottom-left.
-import { Ban, Box, ChevronDown, Crosshair, Eye, EyeOff, Highlighter, ListTree, LoaderCircle, X } from 'lucide-react'
+import { Ban, Box, Boxes, ChevronDown, Crosshair, Eye, EyeOff, Highlighter, ListTree, LoaderCircle, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from '../../../api'
 import Modal from '../../../components/Modal'
@@ -115,6 +115,19 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
   const g = parsed && parsed.key === jobKey ? parsed.parsed : cache && cache.key === jobKey ? cache.parsed : null
   const objects = useMemo(() => job?.objects ?? [], [job?.objects])
   const excludedCount = objects.filter((o) => o.excluded).length
+  // Copies of one model share a label: number them ("Part #1", "Part #2") so the list and the confirm can tell them apart
+  const shown = useMemo(() => {
+    const total = new Map<string, number>()
+    for (const o of objects) total.set(o.label, (total.get(o.label) ?? 0) + 1)
+    const seen = new Map<string, number>()
+    return objects.map((o) => {
+      if ((total.get(o.label) ?? 0) < 2) return o
+      const n = (seen.get(o.label) ?? 0) + 1
+      seen.set(o.label, n)
+      return { ...o, label: `${o.label} #${n}` }
+    })
+  }, [objects])
+  const [objectsOpen, setObjectsOpen] = useStoredState('sd:live:objects', true)
 
   // Renderer
   useEffect(() => {
@@ -340,8 +353,9 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
   const load = loading && loading.key === jobKey ? loading : null
   const thumbUrl = thumb && thumb.key === jobKey ? thumb.url : null
   const dark = resolved === 'dark'
-  const sel = objects.find((o) => o.name === selected) ?? null
+  const sel = shown.find((o) => o.name === selected) ?? null
   const remaining = objects.filter((o) => !o.excluded).length
+  const printingNow = finished ? null : (shown.find((o) => o.current && !o.excluded) ?? null)
   const excludable = canExclude && !finished && (status.state === 'printing' || status.state === 'paused')
 
   const legend = g && (
@@ -428,32 +442,59 @@ export default function LiveView({ printerId, status, canExclude, overlay }: Pro
                 </button>
               </div>
             )}
-            <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface/92 p-1.5 text-xs shadow-lg shadow-black/5 backdrop-blur-md">
-              <span className="px-1.5 font-medium text-muted">
-                {excludedCount > 0 ? t('exclude.countExcluded', { n: objects.length, x: excludedCount }) : t('exclude.count', { n: objects.length })}
-              </span>
-              {objects.map((o) => (
-                <button
-                  key={o.name}
-                  type="button"
-                  aria-pressed={o.name === selected}
-                  onClick={() => setSelected(o.name === selected ? null : o.name)}
-                  title={o.name}
-                  className={`inline-flex h-6 items-center gap-1.5 rounded-full border px-2 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 ${
-                    o.name === selected
-                      ? 'border-sky-500/50 bg-sky-500/15 text-sky-700 dark:text-sky-300'
-                      : o.excluded
-                        ? 'border-line text-muted'
-                        : 'border-line hover:text-fg'
-                  }`}
-                >
-                  {o.current && !finished && !o.excluded && !pendingEx.has(o.name) && <span className="size-1.5 rounded-full bg-amber-500" aria-label={t('exclude.printingNow')} />}
-                  {pendingEx.has(o.name) && !o.excluded && <LoaderCircle size={12} className="animate-spin" aria-label={t('exclude.pending')} />}
-                  <span className={o.excluded ? 'line-through' : ''}>{o.label}</span>
-                  {o.excluded && <span className="rounded-full bg-surface-2 px-1.5 text-[10px] no-underline">{t('exclude.alreadyExcluded')}</span>}
-                  {pendingEx.has(o.name) && !o.excluded && <span className="text-[10px] text-muted">{t('exclude.pending')}</span>}
-                </button>
-              ))}
+            <div className="w-64 max-w-full rounded-xl border border-line bg-surface/92 text-xs shadow-lg shadow-black/5 backdrop-blur-md">
+              <button
+                type="button"
+                aria-expanded={objectsOpen}
+                onClick={() => setObjectsOpen(!objectsOpen)}
+                className="flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left font-medium text-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-sky-500"
+              >
+                <Boxes size={14} className="shrink-0" />
+                <span className="shrink-0">{t('exclude.title')}</span>
+                <span className="shrink-0 rounded-full bg-surface-2 px-1.5 text-[10px] font-semibold text-fg tabular-nums">{objects.length}</span>
+                {excludedCount > 0 && <span className="shrink-0 text-[10px]">{t('exclude.excludedN', { x: excludedCount })}</span>}
+                {!objectsOpen && printingNow && (
+                  <span className="flex min-w-0 items-center gap-1 text-fg">
+                    <span className="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
+                    <span className="truncate">{printingNow.label}</span>
+                  </span>
+                )}
+                <ChevronDown size={14} className={`ml-auto shrink-0 transition-transform ${objectsOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {objectsOpen && (
+                <ul className="max-h-44 space-y-0.5 overflow-y-auto px-1 pb-1">
+                  {shown.map((o) => {
+                    const pending = pendingEx.has(o.name) && !o.excluded
+                    const now = o.current && !finished && !o.excluded && !pending
+                    return (
+                      <li key={o.name}>
+                        <button
+                          type="button"
+                          aria-pressed={o.name === selected}
+                          onClick={() => setSelected(o.name === selected ? null : o.name)}
+                          title={o.name}
+                          className={`flex h-7 w-full items-center gap-2 rounded-lg px-1.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-sky-500 ${
+                            o.name === selected ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300' : o.excluded ? 'text-muted hover:bg-surface-2' : 'hover:bg-surface-2'
+                          }`}
+                        >
+                          {pending ? (
+                            <LoaderCircle size={10} className="shrink-0 animate-spin" aria-hidden />
+                          ) : (
+                            <span
+                              aria-hidden
+                              className={`size-2 shrink-0 rounded-full ${now ? 'animate-pulse bg-amber-500' : o.excluded ? 'border border-current bg-transparent' : 'bg-sky-500/60'}`}
+                            />
+                          )}
+                          <span className={`min-w-0 flex-1 truncate font-medium ${o.excluded ? 'line-through' : ''}`}>{o.label}</span>
+                          {now && <span className="shrink-0 text-[10px] text-amber-600 dark:text-amber-400">{t('exclude.printingShort')}</span>}
+                          {o.excluded && <span className="shrink-0 text-[10px]">{t('exclude.alreadyExcluded')}</span>}
+                          {pending && <span className="shrink-0 text-[10px] text-muted">{t('exclude.pending')}</span>}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
           </div>
         )}

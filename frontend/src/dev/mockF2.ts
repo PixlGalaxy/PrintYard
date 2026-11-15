@@ -652,7 +652,11 @@ setInterval(() => {
 /** Objects of the running file (EXCLUDE_OBJECT_DEFINE in the sample) merged with the simulated Klipper state. */
 function jobObjects(f: LibraryFile, filePos: number): JobObject[] {
   if (!f.name.startsWith('Two_')) return []
-  const objs = sample('two', TWO_OBJECT_OPTIONS).objects
+  const two = sample('two', TWO_OBJECT_OPTIONS).objects
+  // Mock toolbar "12 copies": many same-named objects (outlines reuse the two real ones)
+  const objs = mockManyObjects
+    ? Array.from({ length: 12 }, (_, i) => ({ ...two[i % two.length]!, name: `LUCES_PATIO_1_id_${i}_copy_0`, label: 'Luces Patio (1)' }))
+    : two
   // Objects alternate inside every layer: the current one follows the position inside the layer
   const layerFrac = ((sim.progress / 100) * sim.totalLayers) % 1
   const live = objs.filter((o) => !(o.name.toUpperCase() in sim.excluded))
@@ -778,6 +782,13 @@ setInterval(tick, 1000)
 export function setMockAi(kind: 'ok' | 'off' | 'failure' | 'noCamera') {
   sim.ai = { enabled: kind !== 'off', detection: kind !== 'off', firstLayer: false, pauseOnFailure: false, camera: kind !== 'noCamera' }
   sim.errorCode = kind === 'failure' ? 2026 : 0
+  mockPublish({ type: 'printer.status', data: status() })
+}
+
+let mockManyObjects = false
+/** Mock toolbar: the demo print with 12 copies of one model instead of two objects. */
+export function setMockManyObjects(on: boolean) {
+  mockManyObjects = on
   mockPublish({ type: 'printer.status', data: status() })
 }
 
