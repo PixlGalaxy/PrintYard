@@ -62,6 +62,7 @@ import type {
   User,
   UserLimits,
 } from './types'
+import { MOCK_CAMERA_URL } from './dev/mockCamera'
 
 /**
  * Error returned by the API: `{ error: { code, message, details? } }`.
@@ -313,6 +314,9 @@ export const api = {
   /** Stops printing one object of the running job (Klipper EXCLUDE_OBJECT) */
   excludeObject: (id: number, name: string) => req<PrinterStatus>('POST', `/printers/${id}/exclude-object`, { name }),
   printerCurrentThumbnail: (id: number) => blobFetcher(`/printers/${id}/current-thumbnail`, {}),
+  /** Printer camera for an <img> (same-origin, session cookie): MJPEG stream or one JPEG. `v` busts the cache. */
+  cameraUrl: (id: number, kind: 'stream' | 'snapshot', v = 0) =>
+    import.meta.env.DEV && import.meta.env.VITE_MOCK === '1' ? MOCK_CAMERA_URL : `/api/printers/${id}/camera/${kind}${v ? `?v=${v}` : ''}`,
 
   // Files (Phase 2)
   files: (scope: 'private' | 'shared' | 'all' = 'private', kind?: FileKind) => get<LibraryFile[]>(`/files${qs({ scope, kind })}`),

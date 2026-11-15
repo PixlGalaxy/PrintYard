@@ -1,4 +1,4 @@
-import { Camera, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { PrinterLayers, PrinterModelIcon } from '../../components/printerIcons'
 import { useEffect, useState, type FormEvent } from 'react'
 import { adminApi, api } from '../../api'
@@ -14,6 +14,7 @@ import { useI18n } from '../../i18n/I18nContext'
 import type { Printer, PrinterModelInfo } from '../../types'
 import { printerInput, validatePrinter, type PrinterDraft } from '../../validation'
 import BedSurfacesPanel from './BedSurfacesPanel'
+import CameraPanel from './CameraPanel'
 import PrinterRetentionPanel from './PrinterRetentionPanel'
 import ProfilesBackupPanel from './ProfilesBackupPanel'
 import { Panel } from './shared'
@@ -108,9 +109,7 @@ export default function PrintersSection() {
 
       <ProfilesBackupPanel />
 
-      <Panel title={t('printers.camera')} description={t('printers.cameraDesc')} icon={<Camera size={18} />} actions={<Badge tone="sky">{t('common.comingSoon')}</Badge>}>
-        <p className="text-sm text-muted">{t('printers.cameraSoon')}</p>
-      </Panel>
+      {printers && <CameraPanel printers={printers} onSaved={(p) => setData((list) => (list ?? []).map((x) => (x.id === p.id ? p : x)))} />}
 
       {(dialog?.kind === 'create' || dialog?.kind === 'edit') && (
         <PrinterModal

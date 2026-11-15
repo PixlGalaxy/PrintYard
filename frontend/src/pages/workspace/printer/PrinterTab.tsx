@@ -26,6 +26,7 @@ import {
   TriangleAlert,
   WifiOff,
 } from 'lucide-react'
+import CameraView from './CameraView'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from '../../../api'
 import Avatar from '../../../components/Avatar'
@@ -480,15 +481,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
     </section>
   )
 
-  const camera = (
-    <section className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-surface-2/50 p-5 text-center">
-      <span className="flex size-10 items-center justify-center rounded-2xl bg-surface text-muted shadow-xs">
-        <Camera size={18} />
-      </span>
-      <p className="text-sm font-medium">{t('printerTab.noCamera')}</p>
-      <p className="max-w-60 text-xs text-muted">{t('printerTab.noCameraDesc')}</p>
-    </section>
-  )
+  const camera = <CameraView printer={printer} isAdmin={isAdmin} />
 
   const panel = (
     <aside className="@container flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface-2/40 shadow-sm">

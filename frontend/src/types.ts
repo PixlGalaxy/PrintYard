@@ -139,7 +139,8 @@ export interface Printer {
   mac: string | null
   serial: string | null
   firmware: string | null
-  camera: { type: 'none' }
+  /** mjpeg: the printer's own camera (MJPG-streamer, proxied by the server); none: turned off */
+  camera: PrinterCamera
   lastSeenAt: number | null
   /** Bed surfaces the owner has (never empty) + the default one */
   bedSurfaces?: BedSurface[]
@@ -206,9 +207,12 @@ export interface PrinterInput {
 }
 
 /** PATCH /api/admin/printers/:id (owner preferences, no reconnect) */
+export type PrinterCamera = { type: 'none' } | { type: 'mjpeg' }
+
 export interface PrinterPrefsPatch {
   bedSurfaces?: BedSurface[]
   defaultBedSurface?: BedSurface
+  camera?: PrinterCamera
 }
 
 export interface ProbeRequest {

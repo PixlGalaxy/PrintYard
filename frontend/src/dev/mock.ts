@@ -121,7 +121,7 @@ const K2SE: Printer = {
   mac: 'fc:ee:28:13:e2:ed',
   serial: null,
   firmware: null,
-  camera: { type: 'none' },
+  camera: { type: 'mjpeg' },
   lastSeenAt: null,
   bedSurfaces: ['Epoxy Resin Plate', 'Textured PEI Plate'],
   defaultBedSurface: 'Epoxy Resin Plate',
@@ -428,7 +428,7 @@ export const mockTransport: Transport = async (method, path, body) => {
         }
         state.users.push(u)
         if (printer) {
-          state.printers.push({ ...printer, id: state.nextId++, serial: null, firmware: null, camera: { type: 'none' }, lastSeenAt: null })
+          state.printers.push({ ...printer, id: state.nextId++, serial: null, firmware: null, camera: { type: 'mjpeg' }, lastSeenAt: null })
         }
         Object.assign(state.settings, {
           'exposure.mode': exposure.mode,
@@ -638,7 +638,7 @@ export const mockTransport: Transport = async (method, path, body) => {
       if (p === '/admin/printers/test') return probe(b)
       if (p === '/admin/printers' && method === 'GET') return state.printers
       if (p === '/admin/printers' && method === 'POST') {
-        const pr: Printer = { ...(b as unknown as Printer), id: state.nextId++, serial: null, firmware: null, camera: { type: 'none' }, lastSeenAt: null }
+        const pr: Printer = { ...(b as unknown as Printer), id: state.nextId++, serial: null, firmware: null, camera: { type: 'mjpeg' }, lastSeenAt: null }
         state.printers.push(pr)
         audit('printer.create', pr.name)
         return pr
