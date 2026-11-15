@@ -753,6 +753,20 @@ export interface CfsSlot {
   pressureAdvance?: number | null
 }
 
+/** Creality AI detection settings as the printer reports them */
+export interface PrinterAi {
+  /** Master switch */
+  enabled: boolean
+  /** Print failure ("spaghetti") detection */
+  detection: boolean
+  /** First layer inspection */
+  firstLayer: boolean
+  /** Pause when a failure is detected (off = it only warns) */
+  pauseOnFailure: boolean
+  /** The camera the AI needs is connected (null = not reported) */
+  camera: boolean | null
+}
+
 export interface PrinterStatus {
   printerId: number
   online: boolean
@@ -793,6 +807,8 @@ export interface PrinterStatus {
   maxBedTemp?: number | null
   /** Chamber light (Creality `lightSw`); null when unknown */
   lightOn?: boolean | null
+  /** Creality "AI function" (camera failure detection); null/absent when the printer does not report it */
+  ai?: PrinterAi | null
   /** Speed (feedrate) and flow factors in %, null when unknown */
   speedFactor?: number | null
   flowFactor?: number | null

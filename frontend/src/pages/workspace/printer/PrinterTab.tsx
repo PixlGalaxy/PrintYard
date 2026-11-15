@@ -11,6 +11,7 @@
 import {
   Ban,
   Camera,
+  ScanEye,
   CircleCheck,
   CirclePause,
   CirclePlay,
@@ -39,7 +40,7 @@ import { timeAgo } from '../../../format'
 import { formatDuration } from '../../../gcode/format'
 import { useI18n } from '../../../i18n/I18nContext'
 import { usePrinterStatus, useRealtimeMessage, useRealtimeState } from '../../../realtime'
-import type { CfsSlot, LastJob, LibraryFile, PrintJob, Printer, PrinterState, TempSample } from '../../../types'
+import type { CfsSlot, LastJob, LibraryFile, PrintJob, Printer, PrinterState, PrinterStatus, TempSample } from '../../../types'
 import { useReadOnly } from '../../../readOnly'
 import { BedIcon, NozzleIcon, PrinterLayers, PrinterModelIcon } from '../../../components/printerIcons'
 import { Segmented } from '../../../components/ui'
@@ -383,6 +384,7 @@ function PrinterLive({ printer, picker }: { printer: Printer; picker: ReactNode 
           value={status.fanPart != null ? `${status.fanPart}%` : '—'}
         />
         <FilamentChip slots={status.cfs} />
+        <AiChip status={status} />
       </div>
       <div className="ml-auto flex items-center gap-1.5">
         {status.errorCode ? <Badge tone="red">{t('printerTab.errorCode', { code: status.errorCode })}</Badge> : null}
@@ -557,13 +559,98 @@ function tempText(value: number | null, target: number | null, formatNumber: (n:
 }
 
 /** A compact label/value chip of the status strip. */
-function Chip({ icon, label, value, title }: { icon: ReactNode; label: string; value: string; title?: string }) {
+function Chip({ icon, label, value, title, className = 'bg-surface-2/70' }: { icon: ReactNode; label: string; value: string; title?: string; className?: string }) {
   return (
-    <div className="flex h-9 min-w-0 items-center gap-1.5 rounded-xl bg-surface-2/70 px-2.5" title={title ?? `${label}: ${value}`}>
+    <div className={`flex h-9 min-w-0 items-center gap-1.5 rounded-xl px-2.5 ${className}`} title={title ?? `${label}: ${value}`}>
       {icon}
       <div className="min-w-0 leading-tight">
         <p className="truncate text-[10px] text-muted">{label}</p>
         <p className="truncate text-xs font-semibold tabular-nums">{value}</p>
+      </div>
+    </div>
+  )
+}
+
+type AiTone = 'ok' | 'off' | 'problem' | 'noCamera'
+const AI_TONES: Record<AiTone, { dot: string; chip: string; icon: string }> = {
+  ok: { dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-300', icon: 'text-emerald-500' },
+  off: { dot: 'bg-slate-400', chip: 'bg-surface-2/70 text-muted', icon: 'text-muted' },
+  problem: { dot: 'bg-rose-500', chip: 'bg-rose-500/10 text-rose-700 ring-1 ring-rose-500/30 dark:text-rose-300', icon: 'text-rose-500' },
+  noCamera: { dot: 'bg-sky-500', chip: 'bg-sky-500/10 text-sky-700 ring-1 ring-sky-500/30 dark:text-sky-300', icon: 'text-sky-500' },
+}
+
+/**
+ * Creality AI detection (camera failure detection): green = on and nothing wrong, gray = off, red = on and the
+ * printer reports an error, blue = on but no camera. Hover/focus shows what each color means and what is on.
+ * Hidden when the printer does not report the AI flags.
+ */
+function AiChip({ status }: { status: PrinterStatus }) {
+  const { t } = useI18n()
+  const ai = status.ai
+  if (!ai || !status.online) return null
+  const off = !ai.enabled || (!ai.detection && !ai.firstLayer)
+  const tone: AiTone = off ? 'off' : ai.camera === false ? 'noCamera' : status.errorCode ? 'problem' : 'ok'
+  const value =
+    tone === 'off'
+      ? t('printerTab.ai.off')
+      : tone === 'noCamera'
+        ? t('printerTab.ai.noCamera')
+        : tone === 'problem'
+          ? t('printerTab.ai.problem')
+          : ACTIVE.includes(status.state)
+            ? t('printerTab.ai.watching')
+            : t('printerTab.ai.ready')
+  const reason =
+    tone === 'off'
+      ? t('printerTab.ai.offTitle')
+      : tone === 'noCamera'
+        ? t('printerTab.ai.noCameraTitle')
+        : tone === 'problem'
+          ? t('printerTab.ai.problemTitle', { code: status.errorCode ?? 0 })
+          : t(ai.pauseOnFailure ? 'printerTab.ai.okTitlePause' : 'printerTab.ai.okTitle')
+  const details: [string, boolean][] = [
+    [t('printerTab.ai.optDetection'), ai.detection],
+    [t('printerTab.ai.optFirstLayer'), ai.firstLayer],
+    [t('printerTab.ai.optPause'), ai.pauseOnFailure],
+  ]
+  const legend: [AiTone, string][] = [
+    ['ok', t('printerTab.ai.legendOk')],
+    ['off', t('printerTab.ai.legendOff')],
+    ['problem', t('printerTab.ai.legendProblem')],
+    ['noCamera', t('printerTab.ai.legendNoCamera')],
+  ]
+  return (
+    <div className="group relative" tabIndex={0} aria-describedby="ai-chip-help">
+      <Chip icon={<ScanEye size={14} className={AI_TONES[tone].icon} />} label={t('printerTab.ai.label')} value={value} title="" className={AI_TONES[tone].chip} />
+      <div
+        id="ai-chip-help"
+        role="tooltip"
+        className="pointer-events-none invisible absolute right-0 bottom-full z-30 mb-2 w-72 rounded-xl border border-line bg-surface p-3 text-xs opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-visible:visible group-focus-visible:opacity-100"
+      >
+        <p className="mb-1 flex items-center gap-1.5 font-semibold">
+          <ScanEye size={14} className={AI_TONES[tone].icon} />
+          {t('printerTab.ai.label')}: {value}
+        </p>
+        <p className="text-muted">{reason}</p>
+        <ul className="mt-2 space-y-0.5">
+          {details.map(([label, on]) => (
+            <li key={label} className="flex justify-between gap-2">
+              <span>{label}</span>
+              <span className={on ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-muted'}>{t(on ? 'printerTab.ai.yes' : 'printerTab.ai.no')}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 border-t border-line pt-2">
+          <p className="mb-1 text-[10px] font-semibold tracking-wide text-muted uppercase">{t('printerTab.ai.legend')}</p>
+          <ul className="space-y-1">
+            {legend.map(([k, label]) => (
+              <li key={k} className={`flex items-center gap-2 rounded-md px-1 py-0.5 ${k === tone ? 'bg-surface-2 font-semibold' : ''}`}>
+                <span className={`size-2.5 shrink-0 rounded-full ${AI_TONES[k].dot}`} aria-hidden />
+                {label}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   )

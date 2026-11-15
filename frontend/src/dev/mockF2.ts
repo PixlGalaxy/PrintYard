@@ -479,6 +479,8 @@ interface Sim {
   lastPrintId: number | null
   lastJob: LastJob | null
   fanPart: number
+  ai: { enabled: boolean; detection: boolean; firstLayer: boolean; pauseOnFailure: boolean; camera: boolean }
+  errorCode: number
   fanAux: number
   fanCase: number
   light: boolean
@@ -521,6 +523,8 @@ const sim: Sim = {
   lastPrintId: null,
   lastJob: null,
   fanPart: 0,
+  ai: { enabled: true, detection: true, firstLayer: false, pauseOnFailure: false, camera: true },
+  errorCode: 0,
   fanAux: 0,
   fanCase: 0,
   light: true,
@@ -586,7 +590,7 @@ function status(): PrinterStatus {
     elapsedSec: online && printing ? Math.round(sim.elapsed) : null,
     remainingSec: online && printing ? (sim.phase ? 0 : Math.max(0, Math.round(sim.totalSec - sim.elapsed))) : null,
     fileName: online && sim.fileName ? sim.fileName : null,
-    errorCode: online ? 0 : null,
+    errorCode: online ? sim.errorCode : null,
     cfs: online ? sim.cfs : null,
     updatedAt: now(),
     currentPrintId: online && printing ? sim.printId : null,
@@ -603,6 +607,7 @@ function status(): PrinterStatus {
     maxNozzleTemp: 300,
     maxBedTemp: 100,
     lightOn: online ? sim.light : null,
+    ai: online ? { ...sim.ai } : null,
     speedFactor: online ? sim.speedFactor : null,
     flowFactor: online ? sim.flowFactor : null,
     estimate: online && printing ? estimate() : null,
@@ -769,6 +774,13 @@ function tick() {
 setInterval(tick, 1000)
 
 /** Dev toolbar: jump the running print to its last seconds (to see completion + "bed occupied"). */
+/** Mock toolbar: the AI detection chip states (ok / off / failure reported / camera missing). */
+export function setMockAi(kind: 'ok' | 'off' | 'failure' | 'noCamera') {
+  sim.ai = { enabled: kind !== 'off', detection: kind !== 'off', firstLayer: false, pauseOnFailure: false, camera: kind !== 'noCamera' }
+  sim.errorCode = kind === 'failure' ? 2026 : 0
+  mockPublish({ type: 'printer.status', data: status() })
+}
+
 export function finishPrintSoon() {
   if (sim.state === 'printing') sim.elapsed = Math.max(sim.elapsed, sim.totalSec - SPEEDUP * 3)
 }

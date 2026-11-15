@@ -4,7 +4,7 @@ import { useState } from 'react'
 import './mock-toolbar.css'
 import { MOCK_PASSWORD, mockControls, type MockFlags, type Scenario } from './mock'
 import { mockBuildFailure, type MockBuildFailure } from './mockF1'
-import { addStressFile, finishPrintSoon, printerIdleSoon, restartDemoPrint } from './mockF2'
+import { addStressFile, finishPrintSoon, printerIdleSoon, restartDemoPrint, setMockAi } from './mockF2'
 
 const SCENARIOS: { key: Scenario; label: string; to: string }[] = [
   { key: 'fresh', label: 'Fresh install (setup)', to: '/setup' },
@@ -109,6 +109,15 @@ export default function MockToolbar() {
         <button type="button" className="sdm-btn" onClick={() => restartDemoPrint()}>
           Restart the demo print
         </button>
+        <label className="sdm-row">
+          AI detection
+          <select defaultValue="ok" onChange={(e) => setMockAi(e.target.value as 'ok' | 'off' | 'failure' | 'noCamera')}>
+            <option value="ok">on, all good (green)</option>
+            <option value="off">off (gray)</option>
+            <option value="failure">printer reports an error (red)</option>
+            <option value="noCamera">camera unplugged (red)</option>
+          </select>
+        </label>
         <label className="sdm-row">
           Project builds
           <select
