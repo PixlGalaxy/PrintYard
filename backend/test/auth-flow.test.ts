@@ -94,7 +94,7 @@ describe('setup → login → me → logout', () => {
     const printers = await t.agent.get('/api/printers');
     assert.equal(printers.body.length, 1);
     assert.equal(printers.body[0].host, '192.168.8.230');
-    assert.deepEqual(printers.body[0].camera, { type: 'none' });
+    assert.deepEqual(printers.body[0].camera, { type: 'mjpeg' });
 
     const audit = await t.agent.get('/api/admin/audit');
     assert.ok(audit.body.items.some((i: { action: string }) => i.action === 'setup.complete'));

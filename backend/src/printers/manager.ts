@@ -85,6 +85,12 @@ export class PrinterManager {
     for (const id of [...this.drivers.keys()]) this.remove(id);
   }
 
+  /** Where the printer answers right now (private-host rule re-checked; `sim` → simulator), or null. */
+  async endpoint(printerId: number): Promise<PrinterEndpoint | null> {
+    const p = this.o.printers.find(printerId);
+    return p ? this.resolveEndpoint(p.host) : null;
+  }
+
   setDecorator(fn: StatusDecorator): void {
     this.decorator = fn;
   }
@@ -233,12 +239,12 @@ export function defaultEndpointResolver(simulateAll: boolean): EndpointResolver 
   return async (host) => {
     if (simulateAll || host.toLowerCase() === SIM_HOST) {
       const { port } = await sharedSimulator();
-      return { host: '127.0.0.1', wsPort: port, httpPort: port, moonrakerPort: port };
+      return { host: '127.0.0.1', wsPort: port, httpPort: port, moonrakerPort: port, cameraPort: port };
     }
     try {
       const ip = await resolveProbeHost(host);
       if (!ip) return null;
-      return { host: ip, wsPort: 9999, httpPort: 80, moonrakerPort: 7125 };
+      return { host: ip, wsPort: 9999, httpPort: 80, moonrakerPort: 7125, cameraPort: 8080 };
     } catch (err) {
       if (!warned.has(host)) {
         warned.add(host);

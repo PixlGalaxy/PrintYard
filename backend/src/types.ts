@@ -121,6 +121,8 @@ export interface AdminUser extends User {
   canPrintUploadedGcode: boolean;
 }
 
+export type PrinterCamera = { type: 'none' } | { type: 'mjpeg' };
+
 export interface Printer {
   id: number;
   name: string;
@@ -132,7 +134,8 @@ export interface Printer {
   mac: string | null;
   serial: string | null;
   firmware: string | null;
-  camera: { type: 'none' };
+  /** `mjpeg`: MJPG-streamer on the printer (Creality K-series, port 8080); `none`: camera turned off. */
+  camera: PrinterCamera;
   lastSeenAt: number | null;
   /** Phase 2 "bed cleared" safety state (false after a print ended until someone confirms the bed is empty). */
   bedClear: boolean;

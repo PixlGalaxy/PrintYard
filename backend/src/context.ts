@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { CameraService } from './modules/camera/camera.service.js';
 import { appEnvFlag } from './lib/env.js';
 import type { Config } from './config.js';
 import type { Db } from './db/client.js';
@@ -58,6 +59,8 @@ export interface AppContext {
   hub: RealtimeHub;
   /** One live connection per printer (started by server.ts, not in tests unless asked). */
   printerManager: PrinterManager;
+  /** Printer camera proxy (one MJPEG connection per printer, fanned out to viewers). */
+  camera: CameraService;
   /** Print requests, limits, approvals, control, usage. */
   printing: PrintingService;
   /** Printer-side retention of the files PrintYard uploaded (settings printers.retention.*). */
@@ -156,6 +159,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     printers: new PrintersService(db),
     hub: null as unknown as RealtimeHub,
     printerManager: null as unknown as PrinterManager,
+    camera: null as unknown as CameraService,
     printing: null as unknown as PrintingService,
     printerRetention: null as unknown as PrinterRetentionService,
     printFiles: null as unknown as PrintFileSource,
@@ -206,6 +210,7 @@ export function createContext(config: Config, db: Db, opts: ContextOptions = {})
     simulateAll: appEnvFlag('SIM_PRINTER'),
     ...opts.printerManager,
   });
+  ctx.camera = new CameraService({ printers: ctx.printers, endpoint: (id) => ctx.printerManager.endpoint(id) });
   ctx.printFiles = opts.printFiles ?? sqlFileSource(db, config.dataRoot);
   ctx.printerRetention = new PrinterRetentionService({ db, settings, audit: ctx.audit, manager: ctx.printerManager });
   ctx.printing = new PrintingService({

@@ -74,6 +74,7 @@ function main(): void {
     clearInterval(housekeeping);
     ctx.loginGuard.stop();
     ctx.printerManager.stop();
+    ctx.camera.stop();
     ctx.tempHistory.stop();
     ctx.engine.stop(); // B1
     ctx.slicing.stop(); // B1

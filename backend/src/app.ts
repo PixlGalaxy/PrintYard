@@ -18,6 +18,7 @@ import {
 } from './middleware/index.js';
 import { pendingPrintCap } from './middleware/pending-cap.js';
 import { printerFilesRoutes } from './modules/printer-files/printer-files.routes.js';
+import { cameraRoutes } from './modules/camera/camera.routes.js';
 import { accountRoutes } from './modules/account/account.routes.js';
 import { accountAvatarRoutes, adminAvatarRoutes, avatarsRoutes } from './modules/avatars/avatars.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
@@ -109,6 +110,7 @@ export function createApp(ctx: AppContext): Express {
   api.use('/profile-files', requireAuth, profileFilesRoutes(ctx)); // PROFILES: Creality Print import/export
   api.use('/printer-materials', requireAuth, printerMaterialsRoutes(ctx)); // PRINTER-PRESETS: the printer's filaments
   api.use('/slice', requireAuth, slicingRoutes(ctx)); // B1
+  api.use('/printers/:id/camera', requireAuth, cameraRoutes(ctx)); // printer camera (MJPEG proxy)
   api.use('/printers/:id/files', requireAuth, printerFilesRoutes(ctx)); // PRINTER-FILES: Files → On the printer
   api.post('/prints', pendingPrintCap(ctx)); // review 3A #3: cap open approval requests per user
   api.use(printingRoutes(ctx)); // /printers/:id/*, /prints/* (B2; auth enforced inside)

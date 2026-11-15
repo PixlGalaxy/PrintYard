@@ -17,6 +17,8 @@ export interface PrinterEndpoint {
   wsPort: number;
   httpPort: number;
   moonrakerPort: number;
+  /** MJPG-streamer (`/?action=stream|snapshot`); default 8080 on Creality K-series printers. */
+  cameraPort?: number;
 }
 
 /** One G-code file in the printer's own storage. */

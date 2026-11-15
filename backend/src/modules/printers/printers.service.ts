@@ -6,7 +6,7 @@ import { normalizeMac } from '../../printers/drivers/http.js';
 import { kinematicsOf, PRINTER_MODELS } from '../../printers/drivers/registry.js';
 import type { ProbeFn } from '../../printers/drivers/registry.js';
 import { invalidProbeHost, resolveProbeHost, type LookupFn } from '../../lib/probe-host.js';
-import { BED_SURFACES, type BedSurface, type Printer, type PrinterModel, type ProbeResult } from '../../types.js';
+import { BED_SURFACES, type BedSurface, type Printer, type PrinterCamera, type PrinterModel, type ProbeResult } from '../../types.js';
 
 const HOSTNAME = /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))*$/i;
 
@@ -90,6 +90,7 @@ export const printerUpdateSchema = printerCreateSchema
       .max(BED_SURFACES.length)
       .refine((a) => new Set(a).size === a.length, 'Duplicate bed surface'),
     defaultBedSurface: bedSurfaceSchema,
+    camera: z.object({ type: z.enum(['none', 'mjpeg']) }).strict(),
   })
   .partial()
   .strict();
@@ -134,6 +135,15 @@ export function readBedSurfaces(json: string | null | undefined, def: string | n
   return { bedSurfaces: list, defaultBedSurface };
 }
 
+function readCamera(json: string | null | undefined): PrinterCamera {
+  try {
+    const v = JSON.parse(json ?? '') as { type?: unknown };
+    return v?.type === 'mjpeg' ? { type: 'mjpeg' } : { type: 'none' };
+  } catch {
+    return { type: 'none' };
+  }
+}
+
 function toPrinter(row: PrinterRow): Printer {
   return {
     id: row.id,
@@ -145,7 +155,7 @@ function toPrinter(row: PrinterRow): Printer {
     mac: row.mac,
     serial: row.serial,
     firmware: row.firmware,
-    camera: { type: 'none' }, // camera config arrives in a later phase
+    camera: readCamera(row.camera),
     lastSeenAt: row.last_seen_at,
     bedClear: row.bed_clear !== 0,
     bedOccupiedSince: row.bed_occupied_since ?? null,
@@ -186,7 +196,7 @@ export class PrintersService {
     const r = this.db
       .prepare(
         `INSERT INTO printers (name, model, host, static_ip, mac, serial, firmware, camera, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, '{"type":"none"}', ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, '{"type":"mjpeg"}', ?, ?)`,
       )
       .run(
         input.name,
@@ -217,6 +227,10 @@ export class PrintersService {
       this.db
         .prepare('UPDATE printers SET bed_surfaces = ?, default_bed_surface = ?, updated_at = ? WHERE id = ?')
         .run(JSON.stringify(next.bedSurfaces), next.defaultBedSurface, Date.now(), id);
+    }
+    // Camera on/off: open streams notice it (CameraService), the driver is not reconnected.
+    if (patch.camera !== undefined) {
+      this.db.prepare('UPDATE printers SET camera = ?, updated_at = ? WHERE id = ?').run(JSON.stringify({ type: patch.camera.type }), Date.now(), id);
     }
     const map: [string, unknown][] = [
       ['name', patch.name],

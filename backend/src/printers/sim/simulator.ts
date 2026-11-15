@@ -97,6 +97,9 @@ const ROOM = 25;
 
 type Raw = Record<string, unknown>;
 
+/** Two tiny JPEG frames for the simulated camera (32×24, blue and orange). */
+const SIM_FRAMES = ['/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYACADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDnaKKK7ziCiiigAooooAKKKKAP/9k=', '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAYACADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwCSiiivBPbCiiigAooooAKKKKAP/9k='].map((b) => Buffer.from(b, 'base64'));
+
 export class PrinterSimulator {
   readonly commands: Raw[] = [];
   readonly uploads: { name: string; size: number }[] = [];
@@ -136,6 +139,10 @@ export class PrinterSimulator {
   freezeCrealityWs = false;
   /** Test hook: a running print does not advance (tests that need the job alive on slow CI runners). */
   holdProgress = false;
+  /** Test hook: the MJPG-streamer camera (`/?action=stream|snapshot` on the HTTP port) answers. */
+  cameraOn = true;
+  /** Camera streams opened so far (tests check that viewers share one upstream connection). */
+  cameraStreams = 0;
   /** Files in Moonraker's `config` root written through `POST /server/files/upload` (path → content). */
   readonly configFiles = new Map<string, Buffer>();
   /** Test hook: `POST /server/files/upload` answers 500. */
@@ -289,6 +296,34 @@ export class PrinterSimulator {
       res.end(JSON.stringify(body));
     };
     try {
+      // MJPG-streamer (Creality K-series camera, port 8080 on a real printer)
+      if (req.method === 'GET' && url.pathname === '/' && url.searchParams.has('action')) {
+        if (!this.cameraOn) return json(404, { error: 'no camera' });
+        const action = url.searchParams.get('action');
+        if (action === 'snapshot') {
+          res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+          return void res.end(SIM_FRAMES[0]);
+        }
+        if (action === 'stream') {
+          this.cameraStreams++;
+          res.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace;boundary=boundarydonotcross' });
+          let n = 0;
+          const tick = () => {
+            if (!this.cameraOn) {
+              res.destroy();
+              return;
+            }
+            const f = SIM_FRAMES[n++ % SIM_FRAMES.length]!;
+            res.write(`--boundarydonotcross\r\nContent-Type: image/jpeg\r\nContent-Length: ${f.length}\r\nX-Timestamp: ${Date.now()}\r\n\r\n`);
+            res.write(f);
+            res.write('\r\n');
+          };
+          tick();
+          const timer = setInterval(tick, 100);
+          res.on('close', () => clearInterval(timer));
+          return;
+        }
+      }
       if (req.method === 'GET' && url.pathname === '/info') {
         return json(200, { mac: this.o.mac.replace(/:/g, '').toUpperCase(), model: 'F016', version: '1.0.0' });
       }
