@@ -375,10 +375,11 @@ export default function JogPanel({ printerId, status, allowed, readOnly, uploadi
           ))}
           <button
             type="button"
-            disabled={tuningOff || busy !== null}
-            title={t('jog.preheatOff')}
+            // Turning the hotend off mid-print ruins the job (the server refuses it too: printers.nozzle_off_printing)
+            disabled={tuningOff || busy !== null || active || uploading}
+            title={active || uploading ? t('jog.nozzleOffPrinting') : t('jog.preheatOff')}
             onClick={() => void preheat(0, 0, 'preset-off')}
-            className="inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-1 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-rose-500 disabled:pointer-events-none disabled:opacity-40 dark:text-rose-400"
+            className="inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-1 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-500/20 focus-visible:outline-2 focus-visible:outline-rose-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-rose-500/10 dark:text-rose-400"
           >
             <Power size={12} />
             <span className="truncate">{t('jog.preset.off')}</span>
