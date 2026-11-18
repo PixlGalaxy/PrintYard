@@ -143,6 +143,12 @@ export class PrinterSimulator {
   cameraOn = true;
   /** Camera streams opened so far (tests check that viewers share one upstream connection). */
   cameraStreams = 0;
+  /** Test hook: Moonraker `gcode/script` answers after this long (a move still running). */
+  moonScriptDelayMs = 0;
+  /** Test hook: how long a G28 keeps Klipper busy (`idle_timeout.state` "Printing"); 0 = instant. */
+  homeBusyMs = 0;
+  /** Klipper busy (idle_timeout "Printing") until this time. */
+  private busyUntil = 0;
   /** Files in Moonraker's `config` root written through `POST /server/files/upload` (path → content). */
   readonly configFiles = new Map<string, Buffer>();
   /** Test hook: `POST /server/files/upload` answers 500. */
@@ -343,8 +349,12 @@ export class PrinterSimulator {
       if (req.method === 'POST' && url.pathname === '/printer/gcode/script') {
         const script = url.searchParams.get('script') ?? '';
         this.moonGcode.push(script);
+        // Moonraker answers once Klipper ran the script: a slow move keeps the request open
+        if (this.moonScriptDelayMs > 0) await new Promise((r) => setTimeout(r, this.moonScriptDelayMs));
         const m = /^EXCLUDE_OBJECT NAME=([A-Za-z0-9_.-]+)$/i.exec(script.trim());
-        if (m && !this.ignoreExcludes) this.excludeNamed(m[1]!);
+        if (m) {
+          if (!this.ignoreExcludes) this.excludeNamed(m[1]!);
+        } else this.runGcode(script);
         return json(200, { result: 'ok' });
       }
       if (req.method === 'GET' && url.pathname === '/server/files/metadata') {
@@ -478,6 +488,7 @@ export class PrinterSimulator {
       else currentObject = o.name.toUpperCase();
     }
     return {
+      idle_timeout: { state: Date.now() < this.busyUntil || this.state.state === 1 ? 'Printing' : 'Idle' },
       print_stats: { filename: f?.name ?? '', state: this.moonPrintState, print_duration: this.elapsed, info: { total_layer: null, current_layer: null } },
       exclude_object: {
         objects: (f?.objects ?? []).map((o) => ({ name: o.name.toUpperCase(), center: o.center, polygon: o.polygon })),
@@ -587,6 +598,10 @@ export class PrinterSimulator {
         return a === undefined ? null : a.slice(k.length);
       };
       if (code === 'G28') {
+        if (this.homeBusyMs > 0) {
+          this.busyUntil = Date.now() + this.homeBusyMs;
+          setTimeout(() => this.push({}), this.homeBusyMs + 20).unref?.();
+        }
         const axes = args.length === 0 ? ['X', 'Y', 'Z'] : args.map((a) => a.toUpperCase().slice(0, 1));
         for (const a of axes) {
           const ax = a.toLowerCase();
@@ -625,6 +640,8 @@ export class PrinterSimulator {
         if (Number.isFinite(n) && n > 0) delta[code === 'M220' ? 'curFeedratePct' : 'curFlowratePct'] = n;
       }
       else if (code === 'M84' || code === 'M18') this.homed = '';
+      // FORCE_MOVE moves one stepper without homing (the printer's own safety lift; Z grows downwards)
+      else if (code === 'FORCE_MOVE' && /STEPPER=stepper_z/i.test(line)) cur.Z = cur.Z! + Number(arg('DISTANCE=') ?? 0);
       // EXCLUDE_OBJECT via `gcodeCmd` is ignored mid-print by the real K2 SE (seen on hardware): emulate that.
     }
     finish();

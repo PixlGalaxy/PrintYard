@@ -110,6 +110,8 @@ export default function PrintDialog({
   const needsApproval = !!usage?.limits.enabled && usage.limits.requiresApproval
   const busyPrinter = status && ['printing', 'paused', 'pausing', 'resuming', 'stopping'].includes(status.state)
   const offline = status && !status.online
+  // Homing / a jog still running: the server refuses the print (prints.printer_moving) until it finishes
+  const moving = !!status?.online && !busyPrinter && status.busy === true
   const bedOccupied = !needsApproval && (bedServer !== null || status?.bedClear === false)
   const cost = usage?.costPerKg != null && target.grams != null ? (target.grams / 1000) * usage.costPerKg : null
   const money = (v: number) => formatNumber(v, { style: 'currency', currency: usage?.currency || 'USD' })
@@ -142,7 +144,7 @@ export default function PrintDialog({
     }
   }
 
-  const blocked = readOnly || problems.length > 0 || printerId == null || (!needsApproval && (busyPrinter || offline)) || (bedOccupied && !bedConfirmed)
+  const blocked = readOnly || problems.length > 0 || printerId == null || (!needsApproval && (busyPrinter || offline || moving)) || (bedOccupied && !bedConfirmed)
 
   return (
     <Modal
@@ -205,15 +207,18 @@ export default function PrintDialog({
 
         {status && (
           <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2/50 px-3.5 py-2.5 text-sm">
-            <span className={`size-2.5 rounded-full ${status.online ? (busyPrinter ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-zinc-400'}`} />
+            <span className={`size-2.5 rounded-full ${status.online ? (busyPrinter || moving ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-zinc-400'}`} />
             <span className="font-medium">{printers?.find((p) => p.id === printerId)?.name}</span>
             <span className="ml-auto">
-              <Badge tone={!status.online ? 'zinc' : busyPrinter ? 'amber' : 'emerald'}>{t(`printerTab.state.${status.state}`)}</Badge>
+              <Badge tone={!status.online ? 'zinc' : busyPrinter || moving ? 'amber' : 'emerald'}>
+                {moving ? t('prints.printerMoving') : t(`printerTab.state.${status.state}`)}
+              </Badge>
             </span>
           </div>
         )}
         {!needsApproval && offline && <Callout tone="error">{t('errors.prints.printer_offline')}</Callout>}
         {!needsApproval && busyPrinter && <Callout tone="warning">{t('errors.prints.printer_busy')}</Callout>}
+        {!needsApproval && moving && <Callout tone="warning">{t('errors.prints.printer_moving')}</Callout>}
 
         {bedOccupied && (
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5">

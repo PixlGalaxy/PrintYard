@@ -13,7 +13,7 @@ import { assertWritable } from '../read-only.js';
 import { postMultipartFile, type UploadProgress } from '../drivers/upload.js';
 import { CrealityConnection, type SocketFactory } from './connection.js';
 import { k2seScanLimits } from '../../modules/files/gcode-scan.js';
-import { factorsOf, gcodesRelativePath, homedAxesOf, MoonrakerFeed, OBJECT_NAME_RE, parseJob, positionOf, type MoonrakerObjects } from './moonraker.js';
+import { factorsOf, gcodesRelativePath, homedAxesOf, machineBusyOf, MoonrakerFeed, OBJECT_NAME_RE, parseJob, positionOf, type MoonrakerObjects } from './moonraker.js';
 import {
   cmd,
   gcodeDirFromList,
@@ -57,6 +57,11 @@ type StatusCb = (s: PrinterStatus) => void;
 type IdentityCb = (i: PrinterIdentity) => void;
 
 export const printerOffline = () => new AppError(409, 'prints.printer_offline', 'The printer is offline');
+const bedDropFailed = () => new AppError(502, 'prints.bed_drop_failed', 'The printer did not lower the bed before the print');
+/** Commands PrintYard sent count as "busy" this long, until Klipper itself reports them. */
+const GCODE_SETTLE_MS = 3_000;
+/** Pre-print bed drop (see `lowerBedBeforePrint`). Z grows downwards on the K2 SE (the bed moves away from the nozzle). */
+export const BED_DROP = { homedMm: 10, unhomedMm: 3, maxZ: 235, feed: 600, timeoutMs: 30_000, wsWaitMs: 3_000 };
 export const uploadFailed = (message = 'Upload to the printer failed') => new AppError(502, 'prints.upload_failed', message);
 export const uploadUnverified = (message = 'The printer did not confirm the uploaded file') => new AppError(502, 'prints.upload_unverified', message);
 
@@ -89,6 +94,8 @@ export class K2SELiveDriver implements PrinterDriver {
   private readonly opts: LiveDriverOptions;
   private readonly moon: MoonrakerFeed | null;
   private moonObjects: MoonrakerObjects = {};
+  /** When PrintYard last sent G-code through the Creality WS (busy window, see GCODE_SETTLE_MS). */
+  private lastGcodeAt = 0;
   /** Epoch ms of the last Creality data frame (0 = none on this connection). */
   private lastFrameAt = 0;
   private readonly frameWaiters = new Set<() => void>();
@@ -167,6 +174,13 @@ export class K2SELiveDriver implements PrinterDriver {
     const klipper = this.jobState();
     const s = composeLiveStatus(this.printerId, this.raw, this.online, this.moonObjects, klipper);
     this.retention.apply(s, klipper);
+    if (s.online) {
+      const fresh = this.moon !== null && Date.now() - this.moon.dataAt < 10_000;
+      const klipperBusy = fresh ? machineBusyOf(this.moonObjects) : null;
+      // Klipper takes a moment to report a command PrintYard just sent: count those few seconds as busy too.
+      const justSent = Date.now() - this.lastGcodeAt < GCODE_SETTLE_MS;
+      s.busy = justSent || klipperBusy === true ? true : klipperBusy;
+    }
     this.scheduleHoldExpiry();
     return s;
   }
@@ -414,6 +428,10 @@ export class K2SELiveDriver implements PrinterDriver {
   async sendGcode(script: string): Promise<void> {
     if (!script || script.length > 512 || /[^\x20-\x7e\n]/.test(script)) throw new AppError(400, 'printers.invalid_gcode', 'Invalid control G-code');
     this.sendOrThrow(cmd.gcode(script));
+    this.lastGcodeAt = Date.now();
+    this.emitStatus(true);
+    // Publish again when the settle window ends (Klipper's own idle_timeout takes over)
+    setTimeout(() => this.emitStatus(true), GCODE_SETTLE_MS + 50).unref?.();
   }
 
   /** Chamber light through the Creality WS (`{"method":"set","params":{"lightSw":0|1}}`). */
@@ -422,7 +440,53 @@ export class K2SELiveDriver implements PrinterDriver {
   }
 
   async startPrint(printerPath: string, opts: { calibrate?: boolean } = {}): Promise<void> {
+    assertWritable();
+    await this.lowerBedBeforePrint();
     this.sendOrThrow(cmd.start(printerPath, opts.calibrate === true));
+  }
+
+  /**
+   * Before every print the bed goes down a little (away from the nozzle) and the print starts only once that move
+   * is done: the printer's own pre-print homing then starts with clearance instead of from wherever the bed was
+   * (a bed left against the nozzle got dragged by the X/Y homing and scratched). Homed Z: `G1` 10 mm down (capped
+   * above the bottom). Z not homed: `FORCE_MOVE` 3 mm, the same safety move the printer's homing macro makes.
+   * Sent through Moonraker `gcode/script`, which answers only after Klipper ran it (`M400` = moves finished).
+   */
+  private async lowerBedBeforePrint(): Promise<void> {
+    const ep = this.endpoint;
+    if (!this.online || !ep) throw printerOffline();
+    const s = this.getStatus();
+    const z = s.position?.[2];
+    let script: string;
+    if (s.homedAxes?.includes('z') && typeof z === 'number' && Number.isFinite(z)) {
+      if (z >= BED_DROP.maxZ) return; // already at (or near) the bottom
+      const target = Math.round(Math.min(z + BED_DROP.homedMm, BED_DROP.maxZ) * 100) / 100;
+      script = `G90\nG1 Z${target} F${BED_DROP.feed}\nM400`;
+    } else {
+      script = `FORCE_MOVE STEPPER=stepper_z DISTANCE=${BED_DROP.unhomedMm} VELOCITY=5`;
+    }
+    if (this.opts.moonraker === false) {
+      // No Moonraker (tests with a bare Creality WS): fire through the WS and give the move time to finish.
+      this.sendOrThrow(cmd.gcode(script));
+      await new Promise((r) => setTimeout(r, BED_DROP.wsWaitMs));
+      return;
+    }
+    let res: Response;
+    try {
+      res = await fetch(`http://${formatHostForUrl(ep.host)}:${ep.moonrakerPort}/printer/gcode/script?script=${encodeURIComponent(script)}`, {
+        method: 'POST',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(BED_DROP.timeoutMs),
+      });
+      await res.body?.cancel().catch(() => undefined);
+    } catch (err) {
+      logger.printer.warn(`printer #${this.printerId}: lowering the bed before the print failed`, err);
+      throw bedDropFailed();
+    }
+    if (!res.ok) {
+      logger.printer.warn(`printer #${this.printerId}: lowering the bed before the print: Moonraker HTTP ${res.status}`);
+      throw bedDropFailed();
+    }
   }
 
   /**
@@ -735,7 +799,7 @@ export class K2SELiveDriver implements PrinterDriver {
       logger.printer.warn(`printer #${this.printerId}: error ${s.errorCode} while AI detection is on (raw err ${JSON.stringify(this.raw.err ?? null)}, state ${s.state})`);
     }
     this.lastErrorCode = s.errorCode;
-    const key = `${s.online}|${s.state}|${s.layer}|${s.progress}|${s.fileName}|${s.errorCode}|${s.nozzleTarget}|${s.bedTarget}|${JSON.stringify(s.cfs)}|${s.fanPart}|${s.fanAux}|${s.fanCase}|${s.lightOn}|${JSON.stringify(s.ai)}|${s.speedFactor}|${s.flowFactor}|${s.homedAxes}|${objects}`;
+    const key = `${s.online}|${s.state}|${s.layer}|${s.progress}|${s.fileName}|${s.errorCode}|${s.nozzleTarget}|${s.bedTarget}|${JSON.stringify(s.cfs)}|${s.fanPart}|${s.fanAux}|${s.fanCase}|${s.lightOn}|${JSON.stringify(s.ai)}|${s.busy}|${s.speedFactor}|${s.flowFactor}|${s.homedAxes}|${objects}`;
     const important = force || key !== this.lastEmitKey;
     const now = Date.now();
     const gap = this.opts.statusThrottleMs ?? 1000;

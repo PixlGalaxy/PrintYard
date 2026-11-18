@@ -607,6 +607,7 @@ function status(): PrinterStatus {
     maxNozzleTemp: 300,
     maxBedTemp: 100,
     lightOn: online ? sim.light : null,
+    busy: online ? Date.now() < mockBusyUntil : null,
     ai: online ? { ...sim.ai } : null,
     speedFactor: online ? sim.speedFactor : null,
     flowFactor: online ? sim.flowFactor : null,
@@ -785,6 +786,8 @@ export function setMockAi(kind: 'ok' | 'off' | 'failure' | 'noCamera') {
   mockPublish({ type: 'printer.status', data: status() })
 }
 
+/** Mock: a home keeps the printer busy (Klipper idle_timeout "Printing") for a few seconds. */
+let mockBusyUntil = 0
 let mockManyObjects = false
 /** Mock toolbar: the demo print with 12 copies of one model instead of two objects. */
 export function setMockManyObjects(on: boolean) {
@@ -862,6 +865,9 @@ function mockControl(kind: 'control' | 'exclude-object', b: Record<string, unkno
     case 'home': {
       const axes = b.axes === 'xy' ? 'xy' : b.axes === 'x' || b.axes === 'y' || b.axes === 'z' ? b.axes : 'xyz'
       sim.homed = ['x', 'y', 'z'].filter((x) => sim.homed.includes(x) || axes.includes(x)).join('')
+      // Like a real G28: the printer stays busy for a few seconds (the print dialog blocks printing meanwhile)
+      mockBusyUntil = Date.now() + 6000
+      setTimeout(() => mockPublish({ type: 'printer.status', data: status() }), 6050)
       if (axes.includes('x')) sim.pos = [110, sim.pos[1], sim.pos[2]]
       if (axes.includes('y')) sim.pos = [sim.pos[0], 107.5, sim.pos[2]]
       if (axes.includes('z')) sim.pos = [sim.pos[0], sim.pos[1], 0]
@@ -1023,6 +1029,7 @@ function usageFor(userId: number): UsageSummary {
 function printerFree() {
   if (mockCore.state.flags.printerOffline) throw new ApiError(409, 'prints.printer_offline', 'Printer offline')
   if (!['idle', 'complete', 'aborted', 'failed'].includes(sim.state)) throw new ApiError(409, 'prints.printer_busy', 'Printer busy')
+  if (Date.now() < mockBusyUntil) throw new ApiError(409, 'prints.printer_moving', 'Printer moving')
 }
 
 function bedNotCleared(): never {

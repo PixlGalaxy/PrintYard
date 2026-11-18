@@ -505,6 +505,8 @@ export class PrintingService {
     const status = this.d.manager.status(printerId);
     if (!status.online) throw printerOffline();
     if (this.dispatching.has(printerId) || this.tracking.has(printerId) || !isReadyForPrint(status)) throw printerBusy();
+    // Homing / a jog / a macro still running: starting now mixes the printer's pre-print homing with it.
+    if (status.busy === true) throw new AppError(409, 'prints.printer_moving', 'The printer is still moving (homing or a jog). Wait until it finishes.');
   }
 
   /**

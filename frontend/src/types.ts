@@ -809,6 +809,8 @@ export interface PrinterStatus {
   lightOn?: boolean | null
   /** Creality "AI function" (camera failure detection); null/absent when the printer does not report it */
   ai?: PrinterAi | null
+  /** Running a command outside a print (homing, a jog, a macro): a print cannot start now */
+  busy?: boolean | null
   /** Speed (feedrate) and flow factors in %, null when unknown */
   speedFactor?: number | null
   flowFactor?: number | null

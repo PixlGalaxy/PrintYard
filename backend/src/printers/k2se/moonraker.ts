@@ -19,8 +19,11 @@ export const SUBSCRIBED_OBJECTS = {
   toolhead: ['position', 'homed_axes'],
   exclude_object: null,
   gcode_move: ['speed_factor', 'extrude_factor'],
+  // "Printing" while Klipper runs any command (G28, a jog...), not only during a print
+  idle_timeout: ['state'],
 } as const;
-export const QUERY_PATH = '/printer/objects/query?print_stats&virtual_sdcard&toolhead=position,homed_axes&exclude_object&gcode_move=speed_factor,extrude_factor';
+export const QUERY_PATH =
+  '/printer/objects/query?print_stats&virtual_sdcard&toolhead=position,homed_axes&exclude_object&gcode_move=speed_factor,extrude_factor&idle_timeout=state';
 
 /** Per-object shallow merge (Moonraker notifications carry only the changed fields of each object). */
 export function mergeObjects(state: MoonrakerObjects, update: unknown): MoonrakerObjects {
@@ -103,6 +106,17 @@ export function parseExcludeObject(eo: unknown): JobObject[] {
     out.push({ name: o.name, label: objectLabel(o.name), center: point(o.center), polygon, excluded: excluded.has(o.name), excludedAt: null, current: current === o.name });
   }
   return out;
+}
+
+/**
+ * Klipper is executing commands outside a print (homing, a jog, a macro): `idle_timeout.state` is "Printing" while
+ * `print_stats` is not printing/paused. Null when Moonraker does not report `idle_timeout`.
+ */
+export function machineBusyOf(o: MoonrakerObjects): boolean | null {
+  const st = o.idle_timeout?.state;
+  if (typeof st !== 'string') return null;
+  const job = o.print_stats?.state;
+  return st === 'Printing' && job !== 'printing' && job !== 'paused';
 }
 
 /** Moonraker `toolhead.homed_axes` (`"xyz"`) or null when not reported. */

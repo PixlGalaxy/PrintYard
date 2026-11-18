@@ -314,6 +314,11 @@ export interface PrinterStatus {
   lightOn: boolean | null;
   /** Creality "AI function" (camera failure detection) as the printer reports it; null/absent when not reported. */
   ai?: PrinterAi | null;
+  /**
+   * The printer is running a command outside a print (homing, a jog, a macro) or PrintYard just sent one: a print
+   * must not start now. Null/absent when unknown.
+   */
+  busy?: boolean | null;
   /** Speed (feedrate) factor in % (Moonraker `gcode_move.speed_factor`, else Creality `curFeedratePct`, else the last value PrintYard set); null when unknown. */
   speedFactor: number | null;
   /** Flow (extrusion) factor in % (`gcode_move.extrude_factor` / `curFlowratePct` / last set); null when unknown. */

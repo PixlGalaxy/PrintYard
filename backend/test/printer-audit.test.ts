@@ -78,7 +78,8 @@ describe('printer control and job tracking (simulator)', () => {
     await waitFor(() => status().online && status().state === 'idle' && status().homedAxes !== null, 8000);
     assert.equal((await control(admin, { action: 'home', axes: 'all' })).status, 200);
     await waitFor(() => status().homedAxes === 'xyz');
-    await sleep(900);
+    // A print cannot start while the printer is still busy with the home (prints.printer_moving)
+    await waitFor(() => status().busy === false, 8000);
   });
 
   after(async () => {
