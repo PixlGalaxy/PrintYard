@@ -41,7 +41,7 @@ describe('SettingsService', () => {
       'engine.autoUpdate': true,
       'engine.checkIntervalHours': 24,
       'files.retention.enabled': true,
-      'files.retention.keep': 10,
+      'files.retention.keep': 50,
       'files.maxUploadMb': 200,
       'files.quotaMb': 2048,
       'slicing.timeoutMinutes': 15,

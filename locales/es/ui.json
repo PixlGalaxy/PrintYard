@@ -801,7 +801,7 @@
   "library.admin.retentionEnabled": "Eliminar archivos antiguos automáticamente",
   "library.admin.retentionEnabledHint": "Se aplica tras cada subida o G-code nuevo, por usuario.",
   "library.admin.keep": "Archivos que se conservan por usuario",
-  "library.admin.keepHint": "Se conservan los archivos privados no fijados más recientes.",
+  "library.admin.keepHint": "Archivos privados no fijados más recientes que se conservan en PrintYard. La impresora tiene su propio límite, más pequeño (Admin → Impresoras).",
   "library.admin.files": "archivos",
   "library.admin.retentionExample": "Cuando un usuario tenga más de {n} archivos privados sin fijar, se eliminarán los más antiguos (y quedará registrado en la auditoría).",
   "library.admin.uploads": "Subidas",

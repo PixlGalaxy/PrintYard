@@ -92,7 +92,7 @@ export default function FilesPage() {
   // Admins can read the real values when /config doesn't carry them
   useEffect(() => {
     if (retention || !isAdmin) return
-    adminApi.settings().then((s) => setRetention({ enabled: s['files.retention.enabled'] ?? true, keep: s['files.retention.keep'] ?? 10 }), () => undefined)
+    adminApi.settings().then((s) => setRetention({ enabled: s['files.retention.enabled'] ?? true, keep: s['files.retention.keep'] ?? 50 }), () => undefined)
   }, [retention, isAdmin])
 
   // Only the latest list request may land (a slow reply for the previous scope is dropped)

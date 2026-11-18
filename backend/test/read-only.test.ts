@@ -146,7 +146,7 @@ describe('read-only mode against the simulator', () => {
     it('GET /api/config reports readOnly', async () => {
       const r = await api(live.base, '', 'GET', '/api/config');
       assert.equal(r.body.readOnly, true);
-      assert.deepEqual(r.body.files, { retentionEnabled: true, retentionKeep: 10 });
+      assert.deepEqual(r.body.files, { retentionEnabled: true, retentionKeep: 50 });
       t.ctx.settings.patch({ 'files.retention.enabled': false, 'files.retention.keep': 25 });
       assert.deepEqual((await api(live.base, '', 'GET', '/api/config')).body.files, { retentionEnabled: false, retentionKeep: 25 });
     });

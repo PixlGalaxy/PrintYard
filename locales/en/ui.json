@@ -801,7 +801,7 @@
   "library.admin.retentionEnabled": "Delete old files automatically",
   "library.admin.retentionEnabledHint": "Runs after every upload or new G-code, per user.",
   "library.admin.keep": "Files to keep per user",
-  "library.admin.keepHint": "The newest private, unpinned files are kept.",
+  "library.admin.keepHint": "Newest unpinned private files kept in PrintYard. The printer keeps its own, smaller limit (Admin → Printers).",
   "library.admin.files": "files",
   "library.admin.retentionExample": "When a user has more than {n} private, unpinned files, the oldest ones are deleted (and logged in the audit).",
   "library.admin.uploads": "Uploads",

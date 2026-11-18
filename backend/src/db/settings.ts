@@ -58,7 +58,7 @@ export const SETTING_DEFS = {
   'engine.checkIntervalHours': def(z.number().int().min(1).max(24 * 30), 24),
   // Phase 2 (B1): file library + slicing
   'files.retention.enabled': def(z.boolean(), true),
-  'files.retention.keep': def(z.number().int().min(1).max(10_000), 10),
+  'files.retention.keep': def(z.number().int().min(1).max(10_000), 50),
   'files.maxUploadMb': def(z.number().int().min(1).max(4096), 200),
   // Per-user storage quota (all files incl. shared/pinned); 0 = unlimited. Admins are never limited.
   'files.quotaMb': def(z.number().int().min(0).max(10_485_760), 2048),

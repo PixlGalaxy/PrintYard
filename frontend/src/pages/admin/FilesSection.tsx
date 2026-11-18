@@ -15,7 +15,7 @@ export default function FilesSection() {
   if (!s.saved) return <Loading />
 
   const enabled = s.value('files.retention.enabled') ?? true
-  const keep = s.value('files.retention.keep') ?? 10
+  const keep = s.value('files.retention.keep') ?? 50
   const maxMb = s.value('files.maxUploadMb') ?? 200
   const keepInvalid = !Number.isInteger(keep) || keep < 1 || keep > 10_000
   const maxInvalid = !Number.isInteger(maxMb) || maxMb < 1 || maxMb > 4096

@@ -100,7 +100,7 @@ const DEFAULT_SETTINGS: Settings = {
   'limits.costPerKg': null,
   'limits.currency': 'USD',
   'files.retention.enabled': true,
-  'files.retention.keep': 10,
+  'files.retention.keep': 50,
   'printers.retention.enabled': true,
   'printers.retention.keep': 10,
   'printers.idleHeaterOffMinutes': 15,

@@ -244,7 +244,7 @@ const kindOf = (ext: string): FileKind | null =>
 function retention(ownerId: number): number {
   const s = mockCore.state.settings
   if (!s['files.retention.enabled']) return 0
-  const keep = Math.max(1, Number(s['files.retention.keep']) || 10)
+  const keep = Math.max(1, Number(s['files.retention.keep']) || 50)
   const mine = st.files
     .filter((f) => f.ownerId === ownerId && f.visibility === 'private' && !f.pinned)
     .sort((a, b) => b.createdAt - a.createdAt)
