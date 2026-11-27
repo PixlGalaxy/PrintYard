@@ -60,8 +60,12 @@ export const printerOffline = () => new AppError(409, 'prints.printer_offline', 
 const bedDropFailed = () => new AppError(502, 'prints.bed_drop_failed', 'The printer did not lower the bed before the print');
 /** Commands PrintYard sent count as "busy" this long, until Klipper itself reports them. */
 const GCODE_SETTLE_MS = 3_000;
-/** Pre-print bed drop (see `lowerBedBeforePrint`). Z grows downwards on the K2 SE (the bed moves away from the nozzle). */
-export const BED_DROP = { homedMm: 10, unhomedMm: 3, maxZ: 235, feed: 600, timeoutMs: 30_000, wsWaitMs: 3_000 };
+/**
+ * Pre-print bed drop (see `lowerBedBeforePrint`). Z grows downwards on the K2 SE (the bed moves away from the nozzle).
+ * `startZ`: the bed must start a print at least this far from the nozzle. Mid-height is where the printer's own
+ * END_PRINT parks it, so this is the position its pre-print routine expects. The timeout covers a full G28 plus the move.
+ */
+export const BED_DROP = { startZ: 124, feed: 600, timeoutMs: 180_000, wsWaitMs: 3_000 };
 export const uploadFailed = (message = 'Upload to the printer failed') => new AppError(502, 'prints.upload_failed', message);
 export const uploadUnverified = (message = 'The printer did not confirm the uploaded file') => new AppError(502, 'prints.upload_unverified', message);
 
@@ -446,10 +450,17 @@ export class K2SELiveDriver implements PrinterDriver {
   }
 
   /**
-   * Before every print the bed goes down a little (away from the nozzle) and the print starts only once that move
-   * is done: the printer's own pre-print homing then starts with clearance instead of from wherever the bed was
-   * (a bed left against the nozzle got dragged by the X/Y homing and scratched). Homed Z: `G1` 10 mm down (capped
-   * above the bottom). Z not homed: `FORCE_MOVE` 3 mm, the same safety move the printer's homing macro makes.
+   * Before every print the bed goes down to mid-height (Z = `BED_DROP.startZ`) and the print starts only once it is there.
+   *
+   * Why: the printer's own pre-print routine (stock firmware 2.3.6.57) runs `SET_POSITION Z=248`, which assumes the bed
+   * is at the bottom without measuring. It then runs `SAFE_MOVE_Z`, which raises the bed until the strain gauge touches
+   * the nozzle, and sets Z from that travel. If the bed started close to the nozzle (after a home or a jog), the travel
+   * is short and the computed Z ends up >= 210. The `_HOME_Z` macro (sensorless.cfg) treats that as "bed at the bottom"
+   * and runs `FORCE_MOVE stepper_z DISTANCE=-8`: 8 mm blind, at full motor force, with no probe, into the nozzle.
+   * On a real K2 SE that bent the bed (16/11 and 26/11/2026). Starting from mid-height keeps the computed Z below 210.
+   *
+   * Homed Z: one absolute `G1` down to `startZ` (no move if the bed is already lower). Z not homed: the position is
+   * unknown, so `G28` first, then the same move. The printer would home anyway at print start, so this adds no new move.
    * Sent through Moonraker `gcode/script`, which answers only after Klipper ran it (`M400` = moves finished).
    */
   private async lowerBedBeforePrint(): Promise<void> {
@@ -457,13 +468,13 @@ export class K2SELiveDriver implements PrinterDriver {
     if (!this.online || !ep) throw printerOffline();
     const s = this.getStatus();
     const z = s.position?.[2];
+    const drop = `G90\nG1 Z${BED_DROP.startZ} F${BED_DROP.feed}\nM400`;
     let script: string;
     if (s.homedAxes?.includes('z') && typeof z === 'number' && Number.isFinite(z)) {
-      if (z >= BED_DROP.maxZ) return; // already at (or near) the bottom
-      const target = Math.round(Math.min(z + BED_DROP.homedMm, BED_DROP.maxZ) * 100) / 100;
-      script = `G90\nG1 Z${target} F${BED_DROP.feed}\nM400`;
+      if (z >= BED_DROP.startZ) return; // already far enough from the nozzle
+      script = drop;
     } else {
-      script = `FORCE_MOVE STEPPER=stepper_z DISTANCE=${BED_DROP.unhomedMm} VELOCITY=5`;
+      script = `G28\n${drop}`;
     }
     if (this.opts.moonraker === false) {
       // No Moonraker (tests with a bare Creality WS): fire through the WS and give the move time to finish.
